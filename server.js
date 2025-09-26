@@ -3,14 +3,18 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware ساده برای CORS
+// ✅ حتماً این خط را اضافه کنید
+app.use(express.json());
+
+// ✅ CORS middleware
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     next();
 });
 
-// ✅ Route اصلی - صفحه اول
+// ✅ Route اصلی
 app.get('/', (req, res) => {
     res.json({ 
         message: 'Server is working!',
@@ -21,12 +25,12 @@ app.get('/', (req, res) => {
     });
 });
 
-// ✅ Route سلامت - این را اضافه کنید
+// ✅ Route سلامت - این حتماً باید باشد
 app.get('/health', (req, res) => {
     res.json({ 
         status: 'OK', 
-        timestamp: new Date().toISOString(),
-        server: 'Crypto Scanner API'
+        message: 'Server is healthy',
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -34,30 +38,31 @@ app.get('/health', (req, res) => {
 app.get('/api/coins', async (req, res) => {
     try {
         const limit = req.query.limit || 100;
-        console.log('🌐 Fetching data from CoinStats...');
+        console.log('Fetching crypto data...');
         
         const response = await axios.get(`https://api.coinstats.app/public/v1/coins?limit=${limit}`);
         
         res.json({
             success: true,
             data: response.data,
-            source: 'CoinStats API',
+            count: response.data.coins.length,
             timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error('❌ Error:', error.message);
+        console.error('Error:', error.message);
         res.status(500).json({
             success: false,
-            error: error.message,
-            timestamp: new Date().toISOString()
+            error: error.message
         });
     }
 });
 
-// راه‌اندازی سرور
+// ✅ Route جدید برای تست ساده
+app.get('/test', (req, res) => {
+    res.json({ message: 'Test endpoint works!' });
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`✅ Health check: http://localhost:${PORT}/health`);
-    console.log(`✅ API endpoint: http://localhost:${PORT}/api/coins`);
 });
