@@ -9,23 +9,35 @@ app.use((req, res, next) => {
     next();
 });
 
-// Route اصلی
-app.get('/api/coins', async (req, res) => {
-    try {
-        console.log('📡 درخواست دریافت شد');
-        const response = await axios.get('https://api.coinstats.app/public/v1/coins?limit=100');
-        res.json(response.data);
-    } catch (error) {
-        console.error('❌ خطا:', error);
-        res.status(500).json({ error: 'خطا در دریافت داده' });
-    }
+// Route تست
+app.get('/', (req, res) => {
+    res.json({ message: '✅ Server is working!', time: new Date().toISOString() });
 });
 
 // Route سلامت
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', time: new Date().toISOString() });
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Route اصلی (ساده‌شده)
+app.get('/api/coins', async (req, res) => {
+    try {
+        console.log('🌐 Fetching data...');
+        const response = await axios.get('https://api.coinstats.app/public/v1/coins?limit=10');
+        res.json({ 
+            success: true, 
+            data: response.data,
+            source: 'CoinStats API'
+        });
+    } catch (error) {
+        console.error('Error:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 app.listen(PORT, () => {
-    console.log(🚀 سرور اجرا شد روی پورت ${PORT});
+    console.log(`🚀 Server running on port ${PORT}`);
 });
