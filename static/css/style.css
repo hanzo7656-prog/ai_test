@@ -10,6 +10,11 @@
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
+    --excellent: #10B981;
+    --optimal: #8B5CF6;
+    --normal: #60A5FA;
+    --warning: #F59E0B;
+    --critical: #EF4444;
 }
 
 * {
@@ -24,6 +29,7 @@ body {
     color: var(--text-primary);
     min-height: 100vh;
     direction: rtl;
+    line-height: 1.6;
 }
 
 .container {
@@ -36,56 +42,100 @@ body {
 .header {
     text-align: center;
     margin-bottom: 40px;
-    padding: 20px 0;
+    padding: 30px 0;
+    background: rgba(26, 27, 62, 0.5);
+    border-radius: 20px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 .logo {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 15px;
 }
 
 .logo-icon {
-    font-size: 3rem;
+    font-size: 4rem;
     margin-bottom: 10px;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
 }
 
 .logo h1 {
-    font-size: 2.5rem;
-    background: linear-gradient(135deg, var(--primary-purple), var(--primary-light));
+    font-size: 2.8rem;
+    background: linear-gradient(135deg, var(--primary-purple), var(--primary-light), #A78BFA);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    font-weight: 800;
+    letter-spacing: 1px;
 }
 
 .subtitle {
     color: var(--text-secondary);
-    font-size: 1.1rem;
+    font-size: 1.3rem;
+    font-weight: 300;
 }
 
 /* شبکه دشبورد */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-bottom: 40px;
 }
 
 /* کارت‌های وضعیت */
 .status-card {
-    background: var(--background-card);
-    border-radius: 20px;
-    padding: 25px;
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(135deg, var(--background-card) 0%, #25254D 100%);
+    border-radius: 25px;
+    padding: 30px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(15px);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.status-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary-purple), var(--primary-light));
+}
+
+.status-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 50px rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 25px;
 }
 
 .card-header h3 {
     color: var(--primary-light);
-    margin-bottom: 20px;
-    font-size: 1.2rem;
+    margin-bottom: 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.card-icon {
+    font-size: 2rem;
 }
 
 /* نوارهای دایره‌ای */
@@ -94,33 +144,29 @@ body {
     justify-content: center;
     align-items: center;
     position: relative;
+    margin: 20px 0;
 }
 
 .progress-ring {
     position: relative;
+    width: 140px;
+    height: 140px;
 }
 
 .progress-ring-background {
     fill: none;
     stroke: rgba(255, 255, 255, 0.1);
-    stroke-width: 8;
+    stroke-width: 10;
 }
 
 .progress-ring-circle {
     fill: none;
-    stroke-width: 8;
+    stroke-width: 10;
     stroke-linecap: round;
     transform: rotate(-90deg);
     transform-origin: 50% 50%;
-    transition: stroke-dashoffset 0.5s ease;
-}
-
-.ram-progress {
-    stroke: var(--primary-purple);
-}
-
-.cpu-progress {
-    stroke: var(--success);
+    transition: all 0.8s ease;
+    filter: drop-shadow(0 0 8px currentColor);
 }
 
 .progress-text {
@@ -133,176 +179,465 @@ body {
 
 .percentage {
     display: block;
-    font-size: 1.5rem;
-    font-weight: bold;
+    font-size: 2rem;
+    font-weight: 800;
     color: var(--text-primary);
+    margin-bottom: 5px;
 }
 
 .value {
     display: block;
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: var(--text-secondary);
-    margin-top: 5px;
+    font-weight: 500;
 }
 
+.status-indicator {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-top: 8px;
+}
+
+.status-excellent { background: var(--excellent); }
+.status-optimal { background: var(--optimal); }
+.status-normal { background: var(--normal); }
+.status-warning { background: var(--warning); }
+.status-critical { background: var(--critical); }
+
 /* بخش نورون‌ها */
+.neuron-card {
+    background: linear-gradient(135deg, #1A1B3E 0%, #2D1B69 100%);
+}
+
 .neuron-stats {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 20px;
 }
 
 .neuron-count {
     text-align: center;
+    flex: 1;
 }
 
 .neuron-count .number {
-    font-size: 2.5rem;
-    font-weight: bold;
-    background: linear-gradient(135deg, var(--primary-purple), var(--primary-light));
+    font-size: 3.5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--primary-purple), var(--primary-light), #C4B5FD);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     display: block;
+    line-height: 1;
+    margin-bottom: 10px;
 }
 
 .neuron-count .label {
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.neuron-visual {
+    flex: 1;
+    display: flex;
+    justify-content: center;
 }
 
 .neuron-dots {
-    display: flex;
-    gap: 5px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 15px;
 }
 
 .neuron-dot {
-    width: 8px;
-    height: 8px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--primary-purple);
-    animation: pulse 2s infinite;
+    animation: neuronPulse 2s infinite;
+    box-shadow: 0 0 10px var(--primary-purple);
 }
 
-.neuron-dot:nth-child(2) { animation-delay: 0.4s; }
-.neuron-dot:nth-child(3) { animation-delay: 0.8s; }
-.neuron-dot:nth-child(4) { animation-delay: 1.2s; }
-.neuron-dot:nth-child(5) { animation-delay: 1.6s; }
+.neuron-dot:nth-child(1) { animation-delay: 0.1s; }
+.neuron-dot:nth-child(2) { animation-delay: 0.3s; }
+.neuron-dot:nth-child(3) { animation-delay: 0.5s; }
+.neuron-dot:nth-child(4) { animation-delay: 0.7s; }
+.neuron-dot:nth-child(5) { animation-delay: 0.9s; }
+.neuron-dot:nth-child(6) { animation-delay: 1.1s; }
 
-@keyframes pulse {
-    0%, 100% { opacity: 0.3; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.2); }
+@keyframes neuronPulse {
+    0%, 100% { 
+        opacity: 0.4; 
+        transform: scale(1);
+        box-shadow: 0 0 10px var(--primary-purple);
+    }
+    50% { 
+        opacity: 1; 
+        transform: scale(1.3);
+        box-shadow: 0 0 20px var(--primary-light);
+    }
 }
 
 /* اطلاعات سیستم */
+.system-card {
+    background: linear-gradient(135deg, #1A1B3E 0%, #1E3A8A 100%);
+}
+
 .system-info {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 20px;
 }
 
 .info-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.info-item:last-child {
+    border-bottom: none;
 }
 
 .info-item .label {
     color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 1rem;
 }
 
 .info-item .value {
     color: var(--text-primary);
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 1rem;
 }
 
 .status-badge {
     background: var(--success);
-    padding: 4px 12px;
+    padding: 6px 16px;
     border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* پنل کنترل */
 .control-panel {
     display: flex;
-    gap: 15px;
+    gap: 20px;
     justify-content: center;
-    margin-bottom: 30px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
 }
 
 .btn {
-    padding: 12px 24px;
+    padding: 16px 32px;
     border: none;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 600;
+    border-radius: 15px;
+    font-size: 1.1rem;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 200px;
+    justify-content: center;
 }
 
 .btn-primary {
     background: linear-gradient(135deg, var(--primary-purple), var(--primary-dark));
     color: white;
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.3);
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 15px 35px rgba(139, 92, 246, 0.5);
+    background: linear-gradient(135deg, var(--primary-light), var(--primary-purple));
 }
 
 .btn-secondary {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
 }
 
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-3px);
 }
 
 /* پنل لاگ */
 .log-panel {
-    background: var(--background-card);
-    border-radius: 15px;
-    padding: 20px;
-    border: 1px solid rgba(139, 92, 246, 0.2);
+    background: linear-gradient(135deg, var(--background-card) 0%, #25254D 100%);
+    border-radius: 20px;
+    padding: 25px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 .log-panel h3 {
     color: var(--primary-light);
-    margin-bottom: 15px;
+    margin-bottom: 20px;
+    font-size: 1.4rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .log-content {
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
+    font-family: 'Courier New', 'Monaco', 'Cascadia Code', monospace;
+    font-size: 0.95rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.log-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.log-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+    background: var(--primary-purple);
+    border-radius: 4px;
 }
 
 .log-entry {
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-secondary);
+    line-height: 1.5;
+    animation: slideIn 0.3s ease;
 }
 
 .log-entry:last-child {
     border-bottom: none;
 }
 
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* استایل‌های وضعیت پویا */
+.ram-progress { stroke: var(--optimal); }
+.cpu-progress { stroke: var(--normal); }
+
+.ram-status-excellent { stroke: var(--excellent); }
+.ram-status-optimal { stroke: var(--optimal); }
+.ram-status-warning { stroke: var(--warning); }
+.ram-status-critical { stroke: var(--critical); }
+
+.cpu-status-excellent { stroke: var(--excellent); }
+.cpu-status-optimal { stroke: var(--optimal); }
+.cpu-status-warning { stroke: var(--warning); }
+.cpu-status-critical { stroke: var(--critical); }
+
+/* افکت‌های ویژه */
+.glow-effect {
+    filter: drop-shadow(0 0 20px currentColor);
+}
+
+.pulse-effect {
+    animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { 
+        filter: drop-shadow(0 0 10px currentColor);
+    }
+    50% { 
+        filter: drop-shadow(0 0 20px currentColor);
+    }
+}
+
 /* رسپانسیو */
 @media (max-width: 768px) {
-    .dashboard-grid {
-        grid-template-columns: 1fr;
+    .container {
+        padding: 15px;
     }
     
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .logo h1 {
+        font-size: 2rem;
+    }
+    
+    .logo-icon {
+        font-size: 3rem;
+    }
+    
+    .subtitle {
+        font-size: 1.1rem;
+    }
+    
+    .status-card {
+        padding: 20px;
+    }
+    
+    .card-header h3 {
+        font-size: 1.2rem;
+    }
+    
+    .neuron-stats {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .neuron-count .number {
+        font-size: 2.8rem;
+    }
+    
+    .btn {
+        min-width: 100%;
+        padding: 14px 24px;
+    }
+    
+    .control-panel {
+        flex-direction: column;
+    }
+    
+    .progress-ring {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .percentage {
+        font-size: 1.7rem;
+    }
+}
+
+@media (max-width: 480px) {
     .container {
         padding: 10px;
     }
     
     .logo h1 {
-        font-size: 2rem;
+        font-size: 1.7rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .header {
+        padding: 20px 0;
+        margin-bottom: 20px;
+    }
+    
+    .status-card {
+        padding: 15px;
+    }
+    
+    .progress-ring {
+        width: 100px;
+        height: 100px;
+    }
+    
+    .percentage {
+        font-size: 1.4rem;
+    }
+    
+    .value {
+        font-size: 0.9rem;
+    }
+}
+
+/* انیمیشن‌های اضافی */
+.fade-in {
+    animation: fadeIn 0.8s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in-left {
+    animation: slideInLeft 0.6s ease;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.slide-in-right {
+    animation: slideInRight 0.6s ease;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* استایل برای حالت‌های مختلف وضعیت */
+.system-healthy {
+    border-left: 4px solid var(--success);
+}
+
+.system-warning {
+    border-left: 4px solid var(--warning);
+}
+
+.system-critical {
+    border-left: 4px solid var(--critical);
+    animation: pulseWarning 2s infinite;
+}
+
+@keyframes pulseWarning {
+    0%, 100% { 
+        box-shadow: 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% { 
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.8);
     }
 }
