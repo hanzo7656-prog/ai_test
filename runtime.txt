@@ -1,2 +1,1 @@
-# در فایل runtime.txt
-python-3.13.4
+python-3.9.18
