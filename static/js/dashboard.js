@@ -231,3 +231,74 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(getHealthData, 8000); // هر 8 ثانیه
     addLog('🚀 دشبورد AI راه‌اندازی شد');
 });
+
+async function testAIConnection() {
+    showLoading('ai-output');
+    try {
+        const response = await fetch('/health');
+        const data = await response.json();
+        document.getElementById('ai-output').textContent = 
+            JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('ai-output').textContent = 
+            'خطا در اتصال: ' + error.message;
+    }
+}
+
+async function predictMarket() {
+    showLoading('ai-output');
+    try {
+        const response = await fetch('/predict/market');
+        const data = await response.json();
+        document.getElementById('ai-output').textContent = 
+            JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('ai-output').textContent = 
+            'خطا در پیش‌بینی بازار: ' + error.message;
+    }
+}
+
+async function analyzeBTC() {
+    showLoading('ai-output');
+    try {
+        const response = await fetch('/analyze/coin/BTC');
+        const data = await response.json();
+        document.getElementById('ai-output').textContent = 
+            JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('ai-output').textContent = 
+            'خطا در تحلیل بیت‌کوین: ' + error.message;
+    }
+}
+
+async function systemForecast() {
+    showLoading('ai-output');
+    try {
+        const response = await fetch('/system/forecast');
+        const data = await response.json();
+        document.getElementById('ai-output').textContent = 
+            JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('ai-output').textContent = 
+            'خطا در پیش‌بینی منابع: ' + error.message;
+    }
+}
+
+async function testMiddleware() {
+    showLoading('ai-output');
+    try {
+        const response = await fetch('/test/middleware-connection');
+        const data = await response.json();
+        document.getElementById('ai-output').textContent = 
+            JSON.stringify(data, null, 2);
+    } catch (error) {
+        document.getElementById('ai-output').textContent = 
+            'خطا در تست اتصال: ' + error.message;
+    }
+}
+
+function showLoading(elementId) {
+    document.getElementById(elementId).textContent = '⏳ درحال پردازش...';
+}
+
+}); // این همون bracket پایانی فایله
