@@ -1,51 +1,49 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 import psutil
 import os
+import time
 
 app = Flask(__name__)
 
-# یک مدل فوق‌العاده ساده
 class SimpleAI:
     def __init__(self):
         self.neurons = 100
         print(f"🤖 مدل AI با {self.neurons} نورون راه‌اندازی شد")
     
     def predict(self):
-        # یک محاسبه سکه برای تست
         return "AI is thinking..."
 
 ai_model = SimpleAI()
 
-@app.route('/')
-def home():
-    return '''
-    <h1>🧠 AI Crypto Analyzer - LIVE</h1>
-    <p>مدل با ۱۰۰ نورون فعال است</p>
-    <a href="/health">بررسی سلامت</a> | 
-    <a href="/predict">تست AI</a>
-    '''
-
-@app.route('/health')
-def health():
+def get_system_info():
     process = psutil.Process(os.getpid())
-    
-    return jsonify({
-        "status": "✅ سالم و فعال",
+    return {
         "ram_used_mb": round(process.memory_info().rss / 1024 / 1024, 2),
         "ram_percent": round(psutil.virtual_memory().percent, 2),
         "cpu_percent": round(psutil.cpu_percent(interval=1), 2),
         "neurons": ai_model.neurons,
-        "message": "همه چیز اوکی هست! 🚀"
-    })
+        "status": "سالم و فعال"
+    }
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/health')
+def health():
+    return jsonify(get_system_info())
 
 @app.route('/predict')
 def predict():
+    start_time = time.time()
     result = ai_model.predict()
+    processing_time = round((time.time() - start_time) * 1000, 2)
     
     return jsonify({
         "prediction": result,
+        "processing_time_ms": processing_time,
         "neurons_used": ai_model.neurons,
-        "status": "پیش‌بینی انجام شد"
+        "message": "پیش‌بینی انجام شد"
     })
 
 if __name__ == '__main__':
