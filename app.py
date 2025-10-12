@@ -23,62 +23,80 @@ def get_real_system_info():
     process = psutil.Process(os.getpid())
     
     try:
-        # اندازه‌گیری CPU واقعی
-        process_cpu = process.cpu_percent(interval=1.0)
+        # اندازه‌گیری CPU با روش مطمئن‌تر
+        # روش ۱: process-specific با interval
+        process_cpu = process.cpu_percent(interval=0.5)
         
-        # برای RAM: استفاده از روش ترکیبی
+        # روش ۲: system-wide برای مقایسه
+        system_cpu = psutil.cpu_percent(interval=0.5)
+        
+        # روش ۳: انجام یک محاسبه کوچک برای تست
+        test_start = time.time()
+        test_calculation = sum(i * i for i in range(10000))
+        test_duration = time.time() - test_start
+        
+        # اگر process_cpu هنوز 0 بود، از system_cpu استفاده کن
+        final_cpu = process_cpu if process_cpu > 0 else system_cpu
+        
+        # اگر باز هم 0 بود، از test duration تخمین بزن
+        if final_cpu == 0 and test_duration > 0:
+            # تخمین بر اساس زمان پردازش
+            estimated_cpu = min((test_duration / 0.5) * 100, 100)
+            final_cpu = round(estimated_cpu, 2)
+        
+        # RAM measurement (همان قبلی)
         process_memory_mb = process.memory_info().rss / 1024 / 1024
-        
-        # تخمین RAM واقعی بر اساس اطلاعات Render Free Tier
-        estimated_total_ram_mb = 512  # پلن رایگان Render
-        estimated_ram_percent = (process_memory_mb / estimated_total_ram_mb) * 100
-        
-        # اگر psutil درصد منطقی‌تری میده از اون استفاده کن
-        virtual_memory = psutil.virtual_memory()
-        psutil_ram_percent = virtual_memory.percent
-        
-        # انتخاب روش بهتر برای RAM
-        if 0 < psutil_ram_percent < 100:  # اگر psutil عدد منطقی میده
-            final_ram_percent = psutil_ram_percent
-            final_total_ram_mb = virtual_memory.total / 1024 / 1024
-        else:  # در غیر این صورت از تخمین استفاده کن
-            final_ram_percent = estimated_ram_percent
-            final_total_ram_mb = estimated_total_ram_mb
-        
-        # نرمال‌سازی CPU برای نمایش بهتر
-        normalized_cpu = min(process_cpu, 100)  # حداکثر 100%
+        estimated_ram_percent = (process_memory_mb / 512) * 100  # فرض 512MB برای رایگان
         
         return {
             # RAM اطلاعات
             "ram_used_mb": round(process_memory_mb, 2),
-            "ram_percent": round(final_ram_percent, 2),
-            "total_ram_mb": round(final_total_ram_mb, 2),
+            "ram_percent": round(estimated_ram_percent, 2),
+            "total_ram_mb": 512,
             
-            # CPU اطلاعات
-            "cpu_percent": round(normalized_cpu, 2),
-            "cpu_count": psutil.cpu_count(),
+            # CPU اطلاعات با روش‌های مختلف
+            "cpu_percent": round(final_cpu, 2),
+            "cpu_percent_process": round(process_cpu, 2),
+            "cpu_percent_system": round(system_cpu, 2),
+            "test_duration_ms": round(test_duration * 1000, 2),
             
             # اطلاعات مدل
             "neurons": ai_model.neurons,
             "status": "سالم و فعال",
-            
-            # متادیتا برای دیباگ
-            "measurement_method": "optimized_container_measurement"
+            "measurement_note": "CPU measurement optimized"
         }
         
     except Exception as e:
-        # فال‌بک به روش ساده اگر خطا داشتیم
         return {
             "ram_used_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-            "ram_percent": 5.0,  # مقدار پیش‌فرض منطقی
+            "ram_percent": 5.0,
             "total_ram_mb": 512,
-            "cpu_percent": round(process.cpu_percent(interval=1), 2),
-            "cpu_count": 1,
+            "cpu_percent": 0.5,  # مقدار پیش‌فرض
             "neurons": ai_model.neurons,
             "status": "سالم و فعال (فال‌بک)",
-            "measurement_method": "fallback_simple",
             "error": str(e)
         }
+
+# اضافه کردن endpoint برای تست CPU
+@app.route('/test-cpu')
+def test_cpu():
+    """انجام یک محاسبه سنگین‌تر برای تست CPU"""
+    start_time = time.time()
+    
+    # محاسبه سنگین‌تر
+    result = 0
+    for i in range(1000000):
+        result += i * 0.0001
+    
+    duration = (time.time() - start_time) * 1000
+    
+    return jsonify({
+        "test_result": round(result, 4),
+        "processing_time_ms": round(duration, 2),
+        "cpu_usage_note": "محاسبه تستی انجام شد"
+    })
+
+
 
 @app.route('/')
 def home():
