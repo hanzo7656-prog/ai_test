@@ -2,7 +2,3 @@ flask==2.3.3
 psutil==5.9.5
 requests==2.31.0
 numpy==1.24.3
-scikit-learn==1.3.0
-pandas==2.0.3
-gunicorn==21.2.0
-setuptools==65.5.0  # ✅ اضافه کردن این خط
