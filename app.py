@@ -13,7 +13,7 @@ app = Flask(__name__)
 class AdvancedAI:
     def __init__(self):
         self.neurons = 100
-        self.middleware_url = "https://your-middleware-server.onrender.com"  # آدرس سرور میانی
+        self.middleware_url = "https://server-test-ovta.onrender.com"  # آدرس سرور میانی
         self.model_type = "VortexAI-Market-Predictor"
         self.training_data = []
         print(f"🧠 مدل پیشرفته AI با {self.neurons} نورون راه‌اندازی شد")
