@@ -8,9 +8,11 @@ function setProgress(circle, percent) {
     circle.style.strokeDashoffset = offset;
 }
 
-// فرمت‌بندی هوشمند
+
+// فرمت‌بندی هوشمند - فقط CPU رو اصلاح کن
 function formatSmartDisplay(usedMB, percent, totalMB, type) {
     if (type === 'ram') {
+        // RAM همون قبلی که کار می‌کنه
         if (percent < 30) {
             return {
                 displayPercent: percent,
@@ -37,7 +39,8 @@ function formatSmartDisplay(usedMB, percent, totalMB, type) {
             };
         }
     } else if (type === 'cpu') {
-        if (percent < 5) {
+        // CPU: نمایش مقادیر منطقی
+        if (percent < 2) {
             return {
                 displayPercent: percent,
                 displayText: `${percent}% (بسیار سبک)`,
@@ -45,7 +48,7 @@ function formatSmartDisplay(usedMB, percent, totalMB, type) {
                 statusClass: "status-excellent",
                 color: "#10B981"
             };
-        } else if (percent < 20) {
+        } else if (percent < 5) {
             return {
                 displayPercent: percent,
                 displayText: `${percent}% (سبک)`,
@@ -53,7 +56,7 @@ function formatSmartDisplay(usedMB, percent, totalMB, type) {
                 statusClass: "status-optimal",
                 color: "#8B5CF6"
             };
-        } else if (percent < 50) {
+        } else if (percent < 15) {
             return {
                 displayPercent: percent,
                 displayText: `${percent}% (متوسط)`,
