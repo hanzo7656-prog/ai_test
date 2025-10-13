@@ -69,7 +69,6 @@
                     </div>
                     <div class="neuron-visual">
                         <div class="neuron-dots">
-                            <!-- نقاط شبیه‌ساز نورون‌ها -->
                             <div class="neuron-dot"></div>
                             <div class="neuron-dot"></div>
                             <div class="neuron-dot"></div>
@@ -96,13 +95,13 @@
                     </div>
                     <div class="info-item">
                         <span class="label">مدل:</span>
-                        <span class="value">Crypto Analyzer v1.0</span>
+                        <span class="value">VortexAI Analyzer</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- دکمه‌های کنترل -->
+        <!-- دکمه‌های کنترل اصلی -->
         <div class="control-panel">
             <button class="btn btn-primary" onclick="getHealthData()">
                 🔄 بروزرسانی وضعیت
@@ -112,19 +111,7 @@
             </button>
         </div>
 
-        <!-- لاگ وضعیت -->
-        <div class="log-panel">
-            <h3>📝 لاگ زنده</h3>
-            <div class="log-content" id="live-log">
-                <div class="log-entry">🚀 سیستم راه‌اندازی شد...</div>
-            </div>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-
-
-        <!-- بخش جدید: هوش مصنوعی پیشرفته -->
+        <!-- بخش هوش مصنوعی پیشرفته -->
         <div class="ai-section">
             <h2>🧠 هوش مصنوعی پیشرفته VortexAI</h2>
             
@@ -155,90 +142,16 @@
                 <pre id="ai-output">در انتظار تحلیل...</pre>
             </div>
         </div>
+
+        <!-- لاگ وضعیت -->
+        <div class="log-panel">
+            <h3>📝 لاگ زنده</h3>
+            <div class="log-content" id="live-log">
+                <div class="log-entry">🚀 سیستم راه‌اندازی شد...</div>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    
-    <!-- اسکریپت جدید برای هوش مصنوعی -->
-    <script>
-    // توابع جدید هوش مصنوعی
-    async function testAIConnection() {
-        document.getElementById('ai-output').textContent = '⏳ در حال بررسی سلامت هوش مصنوعی...';
-        try {
-            const response = await fetch('/health');
-            const data = await response.json();
-            document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
-            addLog('✅ تست سلامت هوش مصنوعی موفق');
-        } catch (error) {
-            document.getElementById('ai-output').textContent = '❌ خطا در تست سلامت: ' + error.message;
-            addLog('❌ خطا در تست سلامت هوش مصنوعی');
-        }
-    }
-
-    async function predictMarket() {
-        document.getElementById('ai-output').textContent = '⏳ در حال پیش‌بینی بازار...';
-        try {
-            const response = await fetch('/predict/market');
-            const data = await response.json();
-            document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
-            addLog('📈 پیش‌بینی بازار انجام شد');
-        } catch (error) {
-            document.getElementById('ai-output').textContent = '❌ خطا در پیش‌بینی بازار: ' + error.message;
-            addLog('❌ خطا در پیش‌بینی بازار');
-        }
-    }
-
-    async function analyzeBTC() {
-        document.getElementById('ai-output').textContent = '⏳ در حال تحلیل بیت‌کوین...';
-        try {
-            const response = await fetch('/analyze/coin/BTC');
-            const data = await response.json();
-            document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
-            addLog('🔍 تحلیل بیت‌کوین انجام شد');
-        } catch (error) {
-            document.getElementById('ai-output').textContent = '❌ خطا در تحلیل بیت‌کوین: ' + error.message;
-            addLog('❌ خطا در تحلیل بیت‌کوین');
-        }
-    }
-
-    async function systemForecast() {
-        document.getElementById('ai-output').textContent = '⏳ در حال پیش‌بینی منابع سیستم...';
-        try {
-            const response = await fetch('/system/forecast');
-            const data = await response.json();
-            document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
-            addLog('🔮 پیش‌بینی منابع سیستم انجام شد');
-        } catch (error) {
-            document.getElementById('ai-output').textContent = '❌ خطا در پیش‌بینی منابع: ' + error.message;
-            addLog('❌ خطا در پیش‌بینی منابع سیستم');
-        }
-    }
-
-    async function testMiddleware() {
-        document.getElementById('ai-output').textContent = '⏳ در حال تست اتصال به سرور میانی...';
-        try {
-            const response = await fetch('/test/middleware-connection');
-            const data = await response.json();
-            document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
-            addLog('🌐 تست اتصال سرور میانی انجام شد');
-        } catch (error) {
-            document.getElementById('ai-output').textContent = '❌ خطا در تست اتصال: ' + error.message;
-            addLog('❌ خطا در تست اتصال سرور میانی');
-        }
-    }
-
-    // تابع کمکی برای اضافه کردن لاگ
-    function addLog(message) {
-        const logElement = document.getElementById('live-log');
-        const timestamp = new Date().toLocaleTimeString('fa-IR');
-        const logEntry = document.createElement('div');
-        logEntry.className = 'log-entry';
-        logEntry.textContent = `[${timestamp}] ${message}`;
-        logElement.appendChild(logEntry);
-        logElement.scrollTop = logElement.scrollHeight;
-    }
-    </script>
-</body>
-</html>
 </body>
 </html>
