@@ -1,304 +1,165 @@
-// تنظیم نوارهای دایره‌ای
-function setProgress(circle, percent) {
-    const radius = circle.r.baseVal.value;
-    const circumference = radius * 2 * Math.PI;
-    const offset = circumference - (percent / 100) * circumference;
-    
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    circle.style.strokeDashoffset = offset;
+// توابع اصلی سیستم
+function updateSystemInfo() {
+    fetch('/health')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 داده‌های دریافتی:', data);
+            
+            // آپدیت RAM
+            const ramPercent = Math.min(data.ram_percent || 0, 100);
+            const ramValue = data.ram_used_mb || 0;
+            
+            document.getElementById('ram-percent').textContent = ramPercent + '%';
+            document.getElementById('ram-value').textContent = ramValue.toFixed(1) + ' MB';
+            updateProgressCircle('.ram-progress', ramPercent);
+            
+            // آپدیت CPU
+            const cpuPercent = Math.min(data.cpu_percent || 0, 100);
+            
+            document.getElementById('cpu-percent').textContent = cpuPercent + '%';
+            document.getElementById('cpu-value').textContent = cpuPercent + '%';
+            updateProgressCircle('.cpu-progress', cpuPercent);
+            
+            // آپدیت نورون‌ها و وضعیت
+            document.getElementById('neuron-count').textContent = data.neurons || 100;
+            document.getElementById('system-status').textContent = data.status || 'فعال';
+            
+            // آپدیت زمان
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString('fa-IR');
+            
+            addLog('✅ وضعیت سیستم بروزرسانی شد');
+            
+        })
+        .catch(error => {
+            console.error('❌ خطا در دریافت داده:', error);
+            document.getElementById('system-status').textContent = 'اتصال قطع';
+            document.getElementById('last-update').textContent = 'خطا';
+            addLog('❌ خطا در بروزرسانی وضعیت');
+        });
 }
 
-
-// فرمت‌بندی هوشمند - فقط CPU رو اصلاح کن
-function formatSmartDisplay(usedMB, percent, totalMB, type) {
-    if (type === 'ram') {
-        // RAM همون قبلی که کار می‌کنه
-        if (percent < 30) {
-            return {
-                displayPercent: percent,
-                displayText: `${usedMB} MB از ${totalMB} MB`,
-                status: "بهینه ✅",
-                statusClass: "status-excellent",
-                color: "#10B981"
-            };
-        } else if (percent < 70) {
-            return {
-                displayPercent: percent,
-                displayText: `${usedMB} MB از ${totalMB} MB`,
-                status: "نرمال 👍", 
-                statusClass: "status-optimal",
-                color: "#8B5CF6"
-            };
-        } else {
-            return {
-                displayPercent: percent,
-                displayText: `${usedMB} MB از ${totalMB} MB ⚠️`,
-                status: "نیاز توجه",
-                statusClass: "status-warning",
-                color: "#F59E0B"
-            };
-        }
-    } else if (type === 'cpu') {
-        // CPU: نمایش مقادیر منطقی
-        if (percent < 2) {
-            return {
-                displayPercent: percent,
-                displayText: `${percent}% (بسیار سبک)`,
-                status: "عالی ✅",
-                statusClass: "status-excellent",
-                color: "#10B981"
-            };
-        } else if (percent < 5) {
-            return {
-                displayPercent: percent,
-                displayText: `${percent}% (سبک)`,
-                status: "بهینه 👍",
-                statusClass: "status-optimal",
-                color: "#8B5CF6"
-            };
-        } else if (percent < 15) {
-            return {
-                displayPercent: percent,
-                displayText: `${percent}% (متوسط)`,
-                status: "نرمال 🔄",
-                statusClass: "status-optimal", 
-                color: "#8B5CF6"
-            };
-        } else {
-            return {
-                displayPercent: percent,
-                displayText: `${percent}% (سنگین) ⚠️`,
-                status: "مشغول",
-                statusClass: "status-warning",
-                color: "#EF4444"
-            };
-        }
+function updateProgressCircle(selector, percent) {
+    const circle = document.querySelector(selector);
+    if (circle) {
+        const circumference = 2 * Math.PI * 54;
+        const offset = circumference - (percent / 100) * circumference;
+        circle.style.strokeDasharray = circumference;
+        circle.style.strokeDashoffset = offset;
     }
 }
 
-// بروزرسانی دشبورد
-async function getHealthData() {
-    try {
-        addLog('🔄 بروزرسانی وضعیت...');
-        
-        const response = await fetch('/health');
-        const data = await response.json();
-        
-        // فرمت‌بندی RAM
-        const ramDisplay = formatSmartDisplay(
-            data.ram_used_mb, 
-            data.ram_percent, 
-            data.total_ram_mb, 
-            'ram'
-        );
-        
-        // فرمت‌بندی CPU
-        const cpuDisplay = formatSmartDisplay(
-            data.cpu_percent,
-            data.cpu_percent,
-            null,
-            'cpu'
-        );
-        
-        // بروزرسانی RAM
-        document.getElementById('ram-percent').textContent = `${data.ram_percent}%`;
-        document.getElementById('ram-value').textContent = ramDisplay.displayText;
-        setProgress(document.querySelector('.ram-progress'), data.ram_percent);
-        document.querySelector('.ram-progress').style.stroke = ramDisplay.color;
-        
-        // وضعیت RAM
-        updateStatusIndicator('ram', ramDisplay.status, ramDisplay.statusClass);
-        
-        // بروزرسانی CPU
-        document.getElementById('cpu-percent').textContent = `${data.cpu_percent}%`;
-        document.getElementById('cpu-value').textContent = cpuDisplay.displayText;
-        setProgress(document.querySelector('.cpu-progress'), data.cpu_percent);
-        document.querySelector('.cpu-progress').style.stroke = cpuDisplay.color;
-        
-        // وضعیت CPU
-        updateStatusIndicator('cpu', cpuDisplay.status, cpuDisplay.statusClass);
-        
-        // نورون‌ها
-        document.getElementById('neuron-count').textContent = data.neurons;
-        
-        // وضعیت کلی
-        document.getElementById('system-status').textContent = data.status;
-        document.getElementById('system-status').style.background = 
-            data.ram_percent > 70 || data.cpu_percent > 80 ? '#EF4444' : '#10B981';
-        
-        // زمان
-        document.getElementById('last-update').textContent = data.server_time || new Date().toLocaleTimeString('fa-IR');
-        
-        addLog(`✅ RAM: ${data.ram_percent}% | CPU: ${data.cpu_percent}%`);
-        
-    } catch (error) {
-        addLog('❌ خطا در دریافت اطلاعات');
-        console.error('Error:', error);
-    }
-}
-
-// آپدیت وضعیت
-function updateStatusIndicator(type, status, statusClass) {
-    let statusElement = document.getElementById(`${type}-status`);
-    if (!statusElement) {
-        statusElement = document.createElement('div');
-        statusElement.id = `${type}-status`;
-        statusElement.className = 'status-indicator';
-        document.querySelector(`.${type}-progress`).parentNode.appendChild(statusElement);
-    }
-    statusElement.textContent = status;
-    statusElement.className = `status-indicator ${statusClass}`;
-}
-
-// تست‌های مختلف
-async function testPrediction() {
-    try {
-        addLog('🧪 تست پیش‌بینی AI...');
-        const response = await fetch('/predict');
-        const data = await response.json();
-        addLog(`✅ ${data.prediction} | زمان: ${data.processing_time_ms}ms`);
-        setTimeout(getHealthData, 1000);
-    } catch (error) {
-        addLog('❌ خطا در تست پیش‌بینی');
-    }
-}
-
-async function testHeavyCPU() {
-    try {
-        addLog('⚡ تست CPU سنگین...');
-        const response = await fetch('/test-cpu');
-        const data = await response.json();
-        addLog(`✅ تست CPU | زمان: ${data.processing_time_ms}ms`);
-        setTimeout(getHealthData, 2000);
-    } catch (error) {
-        addLog('❌ خطا در تست CPU');
-    }
-}
-
-async function testLightCPU() {
-    try {
-        addLog('🔵 تست CPU سبک...');
-        const response = await fetch('/light-cpu');
-        const data = await response.json();
-        addLog(`✅ تست سبک | زمان: ${data.processing_time_ms}ms`);
-        setTimeout(getHealthData, 1000);
-    } catch (error) {
-        addLog('❌ خطا در تست سبک');
-    }
-}
-
-// لاگ
-function addLog(message) {
-    const logContent = document.getElementById('live-log');
-    const logEntry = document.createElement('div');
-    logEntry.className = 'log-entry';
-    logEntry.textContent = `[${new Date().toLocaleTimeString('fa-IR')}] ${message}`;
-    logContent.appendChild(logEntry);
-    logContent.scrollTop = logContent.scrollHeight;
-}
-
-// مدیریت رویدادها
-function setupEventListeners() {
-    // دکمه‌های موجود
-    document.querySelector('.btn-primary')?.addEventListener('click', getHealthData);
-    document.querySelector('.btn-secondary')?.addEventListener('click', testPrediction);
-    
-    // اضافه کردن دکمه‌های تست CPU
-    const controlPanel = document.querySelector('.control-panel');
-    if (controlPanel) {
-        if (!document.querySelector('.btn-cpu-heavy')) {
-            const heavyBtn = document.createElement('button');
-            heavyBtn.className = 'btn btn-warning btn-cpu-heavy';
-            heavyBtn.innerHTML = '⚡ تست سنگین';
-            heavyBtn.addEventListener('click', testHeavyCPU);
-            controlPanel.appendChild(heavyBtn);
-        }
-        
-        if (!document.querySelector('.btn-cpu-light')) {
-            const lightBtn = document.createElement('button');
-            lightBtn.className = 'btn btn-info btn-cpu-light';
-            lightBtn.innerHTML = '🔵 تست سبک';
-            lightBtn.addEventListener('click', testLightCPU);
-            controlPanel.appendChild(lightBtn);
-        }
-    }
-}
-
-// مقداردهی اولیه
-document.addEventListener('DOMContentLoaded', function() {
-    setupEventListeners();
-    getHealthData();
-    setInterval(getHealthData, 8000); // هر 8 ثانیه
-    addLog('🚀 دشبورد AI راه‌اندازی شد');
-});
-
+// توابع هوش مصنوعی پیشرفته
 async function testAIConnection() {
-    showLoading('ai-output');
+    document.getElementById('ai-output').textContent = '⏳ در حال بررسی سلامت هوش مصنوعی...';
     try {
         const response = await fetch('/health');
         const data = await response.json();
-        document.getElementById('ai-output').textContent = 
-            JSON.stringify(data, null, 2);
+        document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
+        addLog('✅ تست سلامت هوش مصنوعی موفق');
     } catch (error) {
-        document.getElementById('ai-output').textContent = 
-            'خطا در اتصال: ' + error.message;
+        document.getElementById('ai-output').textContent = '❌ خطا در تست سلامت: ' + error.message;
+        addLog('❌ خطا در تست سلامت هوش مصنوعی');
     }
 }
 
 async function predictMarket() {
-    showLoading('ai-output');
+    document.getElementById('ai-output').textContent = '⏳ در حال پیش‌بینی بازار...';
     try {
         const response = await fetch('/predict/market');
         const data = await response.json();
-        document.getElementById('ai-output').textContent = 
-            JSON.stringify(data, null, 2);
+        document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
+        addLog('📈 پیش‌بینی بازار انجام شد');
     } catch (error) {
-        document.getElementById('ai-output').textContent = 
-            'خطا در پیش‌بینی بازار: ' + error.message;
+        document.getElementById('ai-output').textContent = '❌ خطا در پیش‌بینی بازار: ' + error.message;
+        addLog('❌ خطا در پیش‌بینی بازار');
     }
 }
 
 async function analyzeBTC() {
-    showLoading('ai-output');
+    document.getElementById('ai-output').textContent = '⏳ در حال تحلیل بیت‌کوین...';
     try {
         const response = await fetch('/analyze/coin/BTC');
         const data = await response.json();
-        document.getElementById('ai-output').textContent = 
-            JSON.stringify(data, null, 2);
+        document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
+        addLog('🔍 تحلیل بیت‌کوین انجام شد');
     } catch (error) {
-        document.getElementById('ai-output').textContent = 
-            'خطا در تحلیل بیت‌کوین: ' + error.message;
+        document.getElementById('ai-output').textContent = '❌ خطا در تحلیل بیت‌کوین: ' + error.message;
+        addLog('❌ خطا در تحلیل بیت‌کوین');
     }
 }
 
 async function systemForecast() {
-    showLoading('ai-output');
+    document.getElementById('ai-output').textContent = '⏳ در حال پیش‌بینی منابع سیستم...';
     try {
         const response = await fetch('/system/forecast');
         const data = await response.json();
-        document.getElementById('ai-output').textContent = 
-            JSON.stringify(data, null, 2);
+        document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
+        addLog('🔮 پیش‌بینی منابع سیستم انجام شد');
     } catch (error) {
-        document.getElementById('ai-output').textContent = 
-            'خطا در پیش‌بینی منابع: ' + error.message;
+        document.getElementById('ai-output').textContent = '❌ خطا در پیش‌بینی منابع: ' + error.message;
+        addLog('❌ خطا در پیش‌بینی منابع سیستم');
     }
 }
 
 async function testMiddleware() {
-    showLoading('ai-output');
+    document.getElementById('ai-output').textContent = '⏳ در حال تست اتصال به سرور میانی...';
     try {
         const response = await fetch('/test/middleware-connection');
         const data = await response.json();
-        document.getElementById('ai-output').textContent = 
-            JSON.stringify(data, null, 2);
+        document.getElementById('ai-output').textContent = JSON.stringify(data, null, 2);
+        addLog('🌐 تست اتصال سرور میانی انجام شد');
     } catch (error) {
-        document.getElementById('ai-output').textContent = 
-            'خطا در تست اتصال: ' + error.message;
+        document.getElementById('ai-output').textContent = '❌ خطا در تست اتصال: ' + error.message;
+        addLog('❌ خطا در تست اتصال سرور میانی');
     }
 }
 
-function showLoading(elementId) {
-    document.getElementById(elementId).textContent = '⏳ درحال پردازش...';
+// توابع کمکی
+function addLog(message) {
+    const logElement = document.getElementById('live-log');
+    const timestamp = new Date().toLocaleTimeString('fa-IR');
+    const logEntry = document.createElement('div');
+    logEntry.className = 'log-entry';
+    logEntry.textContent = `[${timestamp}] ${message}`;
+    logElement.appendChild(logEntry);
+    logElement.scrollTop = logElement.scrollHeight;
 }
 
-}); // این همون bracket پایانی فایله
+function testPrediction() {
+    fetch('/predict')
+        .then(response => response.json())
+        .then(data => {
+            addLog('🧠 تست پیش‌بینی: ' + (data.prediction || 'انجام شد'));
+        })
+        .catch(error => {
+            addLog('❌ خطا در تست پیش‌بینی');
+        });
+}
+
+function getHealthData() {
+    updateSystemInfo();
+}
+
+// اجرای خودکار هنگام بارگذاری صفحه
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 صفحه بارگذاری شد - شروع به روزرسانی...');
+    updateSystemInfo();
+    
+    // بروزرسانی خودکار هر 10 ثانیه
+    setInterval(updateSystemInfo, 10000);
+    
+    // انیمیشن نورون‌ها
+    setInterval(() => {
+        const dots = document.querySelectorAll('.neuron-dot');
+        dots.forEach(dot => {
+            if (Math.random() > 0.7) {
+                dot.style.opacity = Math.random() > 0.5 ? '1' : '0.3';
+            }
+        });
+    }, 1000);
+});
