@@ -1,3 +1,4 @@
+# app.py
 from flask import Flask, jsonify, render_template
 import psutil
 import os
@@ -6,7 +7,8 @@ import random
 import numpy as np
 from datetime import datetime
 import json
-from api_client import VortexAPIClient  # کلاینت جدید API
+from api_client import VortexAPIClient
+from technical_analysis_engine import TechnicalAnalysisEngine
 
 app = Flask(__name__)
 
@@ -17,15 +19,25 @@ class AdvancedAI:
         self.model_type = "VortexAI-Market-Predictor"
         self.training_data = []
         
-        # کلاینت جدید API
+        # کلاینت جدید API برای داده‌های خام
         self.api = VortexAPIClient(self.middleware_url)
+        
+        # موتور تحلیل تکنیکال
+        self.technical_engine = TechnicalAnalysisEngine()
         
         print(f"🔍 مدل پیشرفته AI با {self.neurons} نورون راه‌اندازی شد")
         print(f"🌐 کلاینت API متصل به: {self.api.base_url}")
+        print(f"📊 موتور تحلیل تکنیکال فعال با {sum(len(v) for v in self.technical_engine.available_indicators.values())} اندیکاتور")
         
         # تست اتصال اولیه
-        if self.api.test_connection():
+        connection_status = self.api.test_connection()
+        if connection_status:
             print("✅ اتصال به سرور میانی برقرار است")
+            
+            # تست جامع API
+            test_report = self.api.comprehensive_test()
+            success_rate = test_report['summary']['success_rate']
+            print(f"📡 تست جامع API: {success_rate}")
         else:
             print("⚠️ اتصال به سرور میانی با مشکل مواجه است")
 
@@ -41,73 +53,162 @@ class AdvancedAI:
         """پیش‌بینی روند بازار با داده‌های کامل"""
         start_time = time.time()
         
-        market_data = self.fetch_market_data()
+        # دریافت داده‌های خام برای پیش‌بینی
+        prediction_data = self.api.get_ai_prediction_data()
         
-        if not market_data:
+        if not prediction_data['success']:
             return {
                 "prediction": "داده‌ای دریافت نشد",
                 "confidence": 0,
-                "data_source": "fallback"
+                "data_source": "fallback",
+                "error": "عدم اتصال به سرور داده"
             }
         
         # تحلیل داده‌های دریافتی
-        insights = market_data.get('insights_dashboard', {})
-        fear_greed = market_data.get('fear_greed', {})
-        btc_dominance = market_data.get('btc_dominance', {})
-        market_cap = market_data.get('market_cap', {})
+        analysis_results = {}
         
-        # استخراج شاخص‌های کلیدی
-        fear_greed_value = fear_greed.get('data', {}).get('now', {}).get('value', 50) if fear_greed else 50
-        btc_dominance_value = btc_dominance.get('data', {}).get('value', 50) if btc_dominance else 50
-        market_cap_change = market_cap.get('data', {}).get('market_cap_change_24h', 0) if market_cap else 0
+        # تحلیل داده‌های بازار
+        market_data = prediction_data['prediction_data']['current_market']
+        if market_data['success']:
+            analysis_results['market_analysis'] = self.technical_engine.analyze_raw_api_data(
+                market_data['data']
+            )
         
-        # منطق پیش‌بینی پیشرفته
-        confidence = 0
-        prediction = "خنثی"
+        # تحلیل احساسات بازار
+        fear_greed_data = prediction_data['prediction_data']['market_sentiment']
+        if fear_greed_data['success']:
+            analysis_results['sentiment_analysis'] = self._analyze_market_sentiment(
+                fear_greed_data['data']
+            )
         
-        # تحلیل بر اساس ترس و طمع
-        if fear_greed_value > 70:
-            confidence += 25
-        elif fear_greed_value < 30:
-            confidence += 20
-            
-        # تحلیل بر اساس دامیننس بیت‌کوین
-        if btc_dominance_value > 55:
-            confidence += 15
-        elif btc_dominance_value < 45:
-            confidence += 10
-            
-        # تحلیل بر اساس تغییرات مارکت کپ
-        if market_cap_change > 2:
-            confidence += 20
-            prediction = "صعودی"
-        elif market_cap_change < -2:
-            confidence += 15
-            prediction = "نزولی"
-            
-        # تنظیم نهایی
-        confidence = min(confidence, 95)
-        if confidence < 40:
-            prediction = "خنثی"
-            
+        # تحلیل دامیننس بیت‌کوین
+        btc_dominance_data = prediction_data['prediction_data']['btc_dominance']
+        if btc_dominance_data['success']:
+            analysis_results['btc_analysis'] = self._analyze_btc_dominance(
+                btc_dominance_data['data']
+            )
+        
+        # تولید پیش‌بینی نهایی
+        final_prediction = self._generate_final_prediction(analysis_results)
         processing_time = round((time.time() - start_time) * 1000, 2)
+        
+        return {
+            **final_prediction,
+            "data_sources_used": len([k for k in analysis_results.keys() if analysis_results[k]]),
+            "processing_time_ms": processing_time,
+            "successful_sources": prediction_data['successful_sources'],
+            "timestamp": datetime.now().isoformat()
+        }
+
+    def _analyze_market_sentiment(self, fear_greed_data: Dict) -> Dict:
+        """تحلیل احساسات بازار"""
+        try:
+            raw_data = fear_greed_data.get('raw_data', fear_greed_data)
+            fear_greed_value = raw_data.get('value', raw_data.get('now', {}).get('value', 50))
+            
+            sentiment = "خنثی"
+            if fear_greed_value >= 70:
+                sentiment = "طمع شدید"
+            elif fear_greed_value >= 55:
+                sentiment = "طمع"
+            elif fear_greed_value <= 30:
+                sentiment = "ترس شدید"
+            elif fear_greed_value <= 45:
+                sentiment = "ترس"
+            
+            return {
+                'fear_greed_index': fear_greed_value,
+                'sentiment': sentiment,
+                'classification': raw_data.get('value_classification', 'Neutral')
+            }
+        except:
+            return {'error': 'خطا در تحلیل احساسات'}
+
+    def _analyze_btc_dominance(self, dominance_data: Dict) -> Dict:
+        """تحلیل دامیننس بیت‌کوین"""
+        try:
+            raw_data = dominance_data.get('raw_data', dominance_data)
+            dominance_value = raw_data.get('value', raw_data.get('percentage', 50))
+            
+            trend = "پایدار"
+            if dominance_value > 55:
+                trend = "قدرتمند"
+            elif dominance_value < 45:
+                trend = "ضعیف"
+            
+            return {
+                'btc_dominance': dominance_value,
+                'trend': trend,
+                'market_implication': 'آلت‌کوین‌ها فرصت دارند' if dominance_value < 45 else 'بیت‌کوین مسلط است'
+            }
+        except:
+            return {'error': 'خطا در تحلیل دامیننس'}
+
+    def _generate_final_prediction(self, analysis_results: Dict) -> Dict:
+        """تولید پیش‌بینی نهایی بر اساس تحلیل‌ها"""
+        # جمع‌آوری امتیازات از تحلیل‌های مختلف
+        bullish_score = 0
+        bearish_score = 0
+        confidence_factors = []
+        
+        # تحلیل تکنیکال
+        tech_analysis = analysis_results.get('market_analysis', {})
+        if 'overall_trend' in tech_analysis:
+            if tech_analysis['overall_trend'] == 'bullish':
+                bullish_score += 2
+                confidence_factors.append('روند تکنیکال صعودی')
+            elif tech_analysis['overall_trend'] == 'bearish':
+                bearish_score += 2
+                confidence_factors.append('روند تکنیکال نزولی')
+        
+        # تحلیل احساسات
+        sentiment_analysis = analysis_results.get('sentiment_analysis', {})
+        if 'sentiment' in sentiment_analysis:
+            sentiment = sentiment_analysis['sentiment']
+            if 'طمع' in sentiment:
+                bearish_score += 1  # طمع شدید معمولاً نشانه اصلاح است
+                confidence_factors.append('احساسات بازار به طمع نزدیک است')
+            elif 'ترس' in sentiment:
+                bullish_score += 1  # ترس شدید معمولاً فرصت خرید است
+                confidence_factors.append('احساسات بازار به ترس نزدیک است')
+        
+        # تحلیل بیت‌کوین
+        btc_analysis = analysis_results.get('btc_analysis', {})
+        if 'trend' in btc_analysis:
+            if btc_analysis['trend'] == 'قدرتمند':
+                bullish_score += 1
+                confidence_factors.append('بیت‌کوین در موقعیت قدرتمند')
+        
+        # تصمیم‌گیری نهایی
+        total_score = bullish_score - bearish_score
+        confidence = min(abs(total_score) * 20, 95)
+        
+        if total_score > 1:
+            prediction = "صعودی"
+        elif total_score < -1:
+            prediction = "نزولی"
+        else:
+            prediction = "خنثی"
+            confidence = max(confidence, 30)
         
         return {
             "prediction": prediction,
             "confidence": confidence,
-            "fear_greed_index": fear_greed_value,
-            "btc_dominance": btc_dominance_value,
-            "market_cap_change_24h": market_cap_change,
-            "data_sources_used": len([k for k in market_data.keys() if market_data[k] is not None]),
-            "processing_time_ms": processing_time,
-            "timestamp": datetime.now().isoformat()
+            "bullish_score": bullish_score,
+            "bearish_score": bearish_score,
+            "confidence_factors": confidence_factors,
+            "analysis_breakdown": {
+                "technical": tech_analysis.get('overall_trend', 'نامشخص'),
+                "sentiment": sentiment_analysis.get('sentiment', 'نامشخص'),
+                "btc_dominance": btc_analysis.get('trend', 'نامشخص')
+            }
         }
 
     def predict_system_load(self):
         """پیش‌بینی مصرف منابع سیستم"""
         health_data = self.api.get_health_combined()
         
-        if not health_data:
+        if not health_data or not health_data.get('success'):
             return {
                 "predicted_ram_mb": 350,
                 "predicted_cpu_percent": 25,
@@ -115,8 +216,12 @@ class AdvancedAI:
             }
         
         # محاسبه پیش‌بینی بر اساس سلامت سیستم
-        active_coins = health_data.get('websocket_status', {}).get('active_coins', 0)
-        api_requests = health_data.get('api_status', {}).get('requests_count', 0)
+        health_info = health_data.get('data', {})
+        websocket_status = health_info.get('websocket_status', {})
+        api_status = health_info.get('api_status', {})
+        
+        active_coins = websocket_status.get('active_coins', 0)
+        api_requests = api_status.get('requests_count', 0)
         
         # مدل پیش‌بینی پیشرفته‌تر
         base_ram = 200
@@ -144,41 +249,46 @@ class AdvancedAI:
         
         # دریافت داده‌های مختلف
         technical_data = self.api.get_ai_raw_single(symbol)
-        historical_data = self.api.get_historical_data(symbol)
         market_overview = self.api.get_market_cap()
         fear_greed = self.api.get_fear_greed()
         
         analysis = {
             "symbol": symbol.upper(),
             "timestamp": datetime.now().isoformat(),
-            "technical_analysis": technical_data,
-            "historical_data": historical_data,
-            "market_context": market_overview,
-            "market_sentiment": fear_greed,
+            "technical_analysis": "در حال تحلیل...",
+            "market_context": "در حال دریافت...",
+            "market_sentiment": "در حال دریافت...",
             "ai_recommendation": "در حال تحلیل...",
-            "signal_strength": 0
+            "signal_strength": 0,
+            "risk_level": "متوسط"
         }
         
-        # تحلیل پیشرفته
-        if technical_data and technical_data.get('success'):
-            price_data = technical_data.get('data', {}).get('prices', [])
-            if price_data:
-                recent_prices = [p['price'] for p in price_data[-10:]]  # 10 قیمت آخر
-                if len(recent_prices) >= 2:
-                    price_change = ((recent_prices[-1] - recent_prices[0]) / recent_prices[0]) * 100
-                    
-                    if price_change > 5:
-                        analysis['ai_recommendation'] = "قوی"
-                        analysis['signal_strength'] = 80
-                    elif price_change > 2:
-                        analysis['ai_recommendation'] = "متوسط"
-                        analysis['signal_strength'] = 60
-                    elif price_change > -2:
-                        analysis['ai_recommendation'] = "خنثی"
-                        analysis['signal_strength'] = 50
-                    else:
-                        analysis['ai_recommendation'] = "ضعیف"
-                        analysis['signal_strength'] = 30
+        # تحلیل تکنیکال
+        if technical_data and 'coin_data' in technical_data:
+            coin_data = technical_data['coin_data']
+            if coin_data['success']:
+                tech_analysis = self.technical_engine.analyze_raw_api_data(coin_data['data'])
+                analysis['technical_analysis'] = tech_analysis
+                
+                # استخراج سیگنال از تحلیل تکنیکال
+                if 'overall_trend' in tech_analysis:
+                    if tech_analysis['overall_trend'] == 'bullish':
+                        analysis['ai_recommendation'] = "مثبت"
+                        analysis['signal_strength'] = 75
+                        analysis['risk_level'] = "کم"
+                    elif tech_analysis['overall_trend'] == 'bearish':
+                        analysis['ai_recommendation'] = "منفی" 
+                        analysis['signal_strength'] = 65
+                        analysis['risk_level'] = "بالا"
+        
+        # تحلیل بازار
+        if market_overview and market_overview['success']:
+            analysis['market_context'] = self.technical_engine.analyze_raw_api_data(market_overview['data'])
+        
+        # تحلیل احساسات
+        if fear_greed and fear_greed['success']:
+            sentiment = self._analyze_market_sentiment(fear_greed['data'])
+            analysis['market_sentiment'] = sentiment
         
         analysis['processing_time_ms'] = round((time.time() - start_time) * 1000, 2)
         return analysis
@@ -188,13 +298,35 @@ class AdvancedAI:
         dashboard = self.api.get_insights_dashboard()
         fear_greed = self.api.get_fear_greed()
         btc_dominance = self.api.get_btc_dominance()
+        rainbow_chart = self.api.get_raw_rainbow_chart()
         
         return {
             "dashboard": dashboard,
             "fear_greed": fear_greed,
             "btc_dominance": btc_dominance,
+            "rainbow_chart": rainbow_chart,
             "timestamp": datetime.now().isoformat()
         }
+
+    def get_raw_data_overview(self):
+        """دریافت نمای کلی داده‌های خام"""
+        training_data = self.api.get_ai_training_data()
+        
+        if training_data['success']:
+            return {
+                "success": True,
+                "data_sources": training_data['successful_sources'],
+                "total_sources": training_data['total_sources'],
+                "success_rate": training_data['success_rate'],
+                "processing_time": training_data['processing_time'],
+                "timestamp": training_data['timestamp']
+            }
+        else:
+            return {
+                "success": False,
+                "error": "عدم دریافت داده‌های آموزشی",
+                "timestamp": datetime.now().isoformat()
+            }
 
 # Initialize Advanced AI Model
 ai_model = AdvancedAI()
@@ -307,6 +439,19 @@ def market_insights():
         "insights": insights
     })
 
+@app.route('/data/overview')
+def data_overview():
+    """نمای کلی داده‌های موجود"""
+    data_overview = ai_model.get_raw_data_overview()
+    status_report = ai_model.api.get_status_report()
+    
+    return jsonify({
+        "success": data_overview['success'],
+        "data_overview": data_overview,
+        "status_report": status_report,
+        "timestamp": datetime.now().isoformat()
+    })
+
 @app.route('/test/middleware-connection')
 def test_middleware_connection():
     """تست اتصال به سرور میانی"""
@@ -314,26 +459,40 @@ def test_middleware_connection():
 
     connection_status = ai_model.api.test_connection()
     status_report = ai_model.api.get_status_report()
+    comprehensive_test = ai_model.api.comprehensive_test()
 
     processing_time = round((time.time() - start_time) * 1000, 2)
 
     return jsonify({
         "middleware_connection": "success" if connection_status else "failed",
         "status_report": status_report,
+        "comprehensive_test": comprehensive_test,
         "processing_time_ms": processing_time,
         "middleware_url": ai_model.middleware_url
     })
 
-@app.route('/data/overview')
-def data_overview():
-    """نمای کلی داده‌های موجود"""
-    market_data = ai_model.fetch_market_data()
-    status_report = ai_model.api.get_status_report()
+@app.route('/technical/analyze/<symbol>')
+def technical_analyze(symbol):
+    """تحلیل تکنیکال پیشرفته یک ارز"""
+    start_time = time.time()
+    
+    # دریافت داده‌های خام
+    raw_data = ai_model.api.get_ai_raw_single(symbol)
+    
+    # تحلیل با موتور تکنیکال
+    analysis_results = {}
+    for data_type, data_response in raw_data.items():
+        if data_response and data_response.get('success'):
+            analysis = ai_model.technical_engine.analyze_raw_api_data(data_response['data'])
+            analysis_results[data_type] = analysis
+    
+    processing_time = round((time.time() - start_time) * 1000, 2)
     
     return jsonify({
         "success": True,
-        "data_sources_available": len([k for k in market_data.keys() if market_data[k] is not None]),
-        "status_report": status_report,
+        "symbol": symbol.upper(),
+        "analysis_results": analysis_results,
+        "processing_time_ms": processing_time,
         "timestamp": datetime.now().isoformat()
     })
 
@@ -378,6 +537,17 @@ if __name__ == '__main__':
     # تست نهایی اتصال
     if ai_model.api.test_connection():
         print("✅ همه چیز آماده است! سرور در حال راه‌اندازی...")
+        
+        # تست اولیه عملکرد
+        print("🧪 انجام تست اولیه عملکرد...")
+        try:
+            health = ai_model.api.get_health_combined()
+            if health.get('success'):
+                print("✅ تست سلامت سیستم موفقیت‌آمیز بود")
+            else:
+                print("⚠️ تست سلامت سیستم با مشکل مواجه شد")
+        except Exception as e:
+            print(f"⚠️ خطا در تست اولیه: {e}")
     else:
         print("⚠️  هشدار: اتصال به سرور میانی با مشکل مواجه است")
     
