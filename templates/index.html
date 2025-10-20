@@ -1,157 +1,1 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧠 AI Crypto Analyzer - Safe Shield Astro</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <!-- هدر -->
-        <header class="header">
-            <div class="logo">
-                <div class="logo-icon">🛡️</div>
-                <h1>Safe Shield Astro AI</h1>
-                <span class="subtitle">تحلیلگر هوشمند بازار کریپتو</span>
-            </div>
-        </header>
 
-        <!-- کارت‌های وضعیت -->
-        <div class="dashboard-grid">
-            <!-- کارت مصرف RAM -->
-            <div class="status-card">
-                <div class="card-header">
-                    <h3>💾 مصرف حافظه (RAM)</h3>
-                </div>
-                <div class="circular-progress">
-                    <div class="progress-ring">
-                        <svg width="120" height="120">
-                            <circle class="progress-ring-background" cx="60" cy="60" r="54"></circle>
-                            <circle class="progress-ring-circle ram-progress" cx="60" cy="60" r="54"></circle>
-                        </svg>
-                        <div class="progress-text">
-                            <span class="percentage" id="ram-percent">0%</span>
-                            <span class="value" id="ram-value">0 MB</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- کارت مصرف CPU -->
-            <div class="status-card">
-                <div class="card-header">
-                    <h3>⚡ مصرف پردازنده (CPU)</h3>
-                </div>
-                <div class="circular-progress">
-                    <div class="progress-ring">
-                        <svg width="120" height="120">
-                            <circle class="progress-ring-background" cx="60" cy="60" r="54"></circle>
-                            <circle class="progress-ring-circle cpu-progress" cx="60" cy="60" r="54"></circle>
-                        </svg>
-                        <div class="progress-text">
-                            <span class="percentage" id="cpu-percent">0%</span>
-                            <span class="value" id="cpu-value">0%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- کارت نورون‌ها -->
-            <div class="status-card neuron-card">
-                <div class="card-header">
-                    <h3>🧠 شبکه عصبی</h3>
-                </div>
-                <div class="neuron-stats">
-                    <div class="neuron-count">
-                        <span class="number" id="neuron-count">100</span>
-                        <span class="label">نورون فعال</span>
-                    </div>
-                    <div class="neuron-visual">
-                        <div class="neuron-dots">
-                            <div class="neuron-dot"></div>
-                            <div class="neuron-dot"></div>
-                            <div class="neuron-dot"></div>
-                            <div class="neuron-dot"></div>
-                            <div class="neuron-dot"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- کارت وضعیت کلی -->
-            <div class="status-card system-card">
-                <div class="card-header">
-                    <h3>📊 وضعیت سیستم</h3>
-                </div>
-                <div class="system-info">
-                    <div class="info-item">
-                        <span class="label">وضعیت:</span>
-                        <span class="value status-badge" id="system-status">در حال بارگذاری...</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">آخرین بروزرسانی:</span>
-                        <span class="value" id="last-update">--</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">مدل:</span>
-                        <span class="value">VortexAI Analyzer</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- دکمه‌های کنترل اصلی -->
-        <div class="control-panel">
-            <button class="btn btn-primary" onclick="getHealthData()">
-                🔄 بروزرسانی وضعیت
-            </button>
-            <button class="btn btn-secondary" onclick="testPrediction()">
-                🧪 تست پیش‌بینی
-            </button>
-        </div>
-
-        <!-- بخش هوش مصنوعی پیشرفته -->
-        <div class="ai-section">
-            <h2>🧠 هوش مصنوعی پیشرفته VortexAI</h2>
-            
-            <div class="button-grid">
-                <button class="ai-btn" onclick="testAIConnection()">
-                    🔗 تست سلامت هوش مصنوعی
-                </button>
-                
-                <button class="ai-btn" onclick="predictMarket()">
-                    📈 پیش‌بینی بازار
-                </button>
-                
-                <button class="ai-btn" onclick="analyzeBTC()">
-                    🔍 تحلیل بیت‌کوین
-                </button>
-                
-                <button class="ai-btn" onclick="systemForecast()">
-                    🔮 پیش‌بینی منابع
-                </button>
-                
-                <button class="ai-btn" onclick="testMiddleware()">
-                    🌐 تست اتصال سرور میانی
-                </button>
-            </div>
-            
-            <div class="results-container">
-                <h3>نتایج تحلیل هوش مصنوعی:</h3>
-                <pre id="ai-output">در انتظار تحلیل...</pre>
-            </div>
-        </div>
-
-        <!-- لاگ وضعیت -->
-        <div class="log-panel">
-            <h3>📝 لاگ زنده</h3>
-            <div class="log-content" id="live-log">
-                <div class="log-entry">🚀 سیستم راه‌اندازی شد...</div>
-            </div>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-</body>
-</html>
