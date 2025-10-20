@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vortex AI - تحلیل‌گر بازار</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- هدر -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <i class="fas fa-brain"></i>
+                <span>Vortex AI</span>
+            </div>
+            <div class="live-indicator">
+                <span class="pulse"></span>
+                وضعیت زنده
+            </div>
+        </div>
+    </header>
+
+    <!-- محتوای اصلی -->
+    <main class="main">
+        <div class="container">
+            <!-- کارت‌های KPI -->
+            <section class="kpi-grid">
+                <div class="kpi-card" data-type="fear-greed">
+                    <div class="kpi-header">
+                        <h3>شاخص ترس و طمع</h3>
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div class="kpi-value">54</div>
+                    <div class="kpi-change positive">+2.1%</div>
+                </div>
+
+                <div class="kpi-card" data-type="btc-dominance">
+                    <div class="kpi-header">
+                        <h3>سلطه بیت‌کوین</h3>
+                        <i class="fab fa-bitcoin"></i>
+                    </div>
+                    <div class="kpi-value">48.5%</div>
+                    <div class="kpi-change negative">-1.2%</div>
+                </div>
+
+                <div class="kpi-card" data-type="market-cap">
+                    <div class="kpi-header">
+                        <h3>ارزش کل بازار</h3>
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="kpi-value">2.45T</div>
+                    <div class="kpi-change positive">+3.8%</div>
+                </div>
+
+                <div class="kpi-card" data-type="ai-confidence">
+                    <div class="kpi-header">
+                        <h3>اطمینان هوش مصنوعی</h3>
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="kpi-value">78%</div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: 78%"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- پیش‌بینی هوش مصنوعی -->
+            <section class="prediction-section">
+                <div class="prediction-card">
+                    <div class="prediction-header">
+                        <h2>📊 پیش‌بینی بازار</h2>
+                        <span class="prediction-badge bullish">صعودی</span>
+                    </div>
+                    <div class="prediction-content">
+                        <div class="confidence-level">
+                            <div class="level-text">سطح اطمینان: 78%</div>
+                            <div class="wave-animation">
+                                <div class="wave"></div>
+                                <div class="wave"></div>
+                                <div class="wave"></div>
+                            </div>
+                        </div>
+                        <div class="prediction-details">
+                            <div class="detail-item">
+                                <span>تحلیل تکنیکال:</span>
+                                <span class="bullish">مثبت</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>احساسات بازار:</span>
+                                <span class="neutral">خنثی</span>
+                            </div>
+                            <div class="detail-item">
+                                <span>سلطه BTC:</span>
+                                <span class="bearish">منفی</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- نمودار و داده‌ها -->
+            <section class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3>روند بازار</h3>
+                        <div class="time-filters">
+                            <button class="time-btn active" data-time="1h">1H</button>
+                            <button class="time-btn" data-time="24h">24H</button>
+                            <button class="time-btn" data-time="7d">7D</button>
+                        </div>
+                    </div>
+                    <div class="chart-placeholder">
+                        <i class="fas fa-chart-line"></i>
+                        <p>نمودار درحال بارگذاری...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- داده‌های زنده -->
+            <section class="live-data">
+                <div class="ticker-container">
+                    <div class="ticker-header">
+                        <h3>📈 حرکت‌کنندگان برتر</h3>
+                    </div>
+                    <div class="ticker-content">
+                        <div class="coin-ticker">
+                            <span class="coin-name">BTC</span>
+                            <span class="coin-price">$51,234</span>
+                            <span class="coin-change positive">+2.3%</span>
+                        </div>
+                        <div class="coin-ticker">
+                            <span class="coin-name">ETH</span>
+                            <span class="coin-price">$2,856</span>
+                            <span class="coin-change positive">+1.8%</span>
+                        </div>
+                        <div class="coin-ticker">
+                            <span class="coin-name">SOL</span>
+                            <span class="coin-price">$102.45</span>
+                            <span class="coin-change negative">-0.5%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- فوتر -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="system-status">
+                    <span class="status-dot online"></span>
+                    سیستم فعال - آخرین بروزرسانی: <span id="last-update">هم اکنون</span>
+                </div>
+                <div class="ai-stats">
+                    <span>🧠 100 نورون فعال</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
