@@ -1,555 +1,533 @@
-# app.py
-from flask import Flask, jsonify, render_template
-import psutil
-import os
-import time
-import random
-import numpy as np
-from datetime import datetime
+# main_ai.py
 import json
-from models.api_client import VortexAPIClient
-from technical_analysis_engine import TechnicalAnalysisEngine
-from typing import Dict, List, Optional, Any
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import warnings
+import os
+import sys
 
-app = Flask(__name__)
+# اضافه کردن مسیر models به sys.path
+sys.path.append(os.path.dirname(__file__))
 
-class AdvancedAI:
+warnings.filterwarnings('ignore')
+
+# ایمپورت کلاینت و ماژول‌های ما
+from api_client import CoinStatsAPIClient
+from data_processor import DataProcessor
+from risk_manager import RiskManager
+import config
+import constants
+
+class CryptoAIAnalyst:
+    """
+    هوش مصنوعی تحلیلگر کامل بازار کریپتو
+    """
+    
     def __init__(self):
-        self.neurons = 100
-        self.middleware_url = "https://server-test-ovta.onrender.com/api"
-        self.model_type = "VortexAI-Market-Predictor"
-        self.training_data = []
+        self.client = CoinStatsAPIClient()
+        self.data_processor = DataProcessor()
+        self.risk_manager = RiskManager()
+        self.market_data = {}
+        self.analysis_results = {}
         
-        # کلاینت جدید API برای داده‌های خام
-        self.api = VortexAPIClient(self.middleware_url)
+        # ایجاد خودکار پوشه‌ها
+        self._create_github_directories()
         
-        # موتور تحلیل تکنیکال
-        self.technical_engine = TechnicalAnalysisEngine()
+        print("🚀 هوش مصنوعی تحلیلگر کریپتو راه‌اندازی شد")
+    
+    def _create_github_directories(self):
+        """ایجاد پوشه‌های مورد نیاز در GitHub"""
+        directories = [
+            'shared',
+            'data/historical',
+            'data/analysis',
+            'data/models', 
+            'data/snapshots'
+        ]
         
-        print(f"🔍 مدل پیشرفته AI با {self.neurons} نورون راه‌اندازی شد")
-        print(f"🌐 کلاینت API متصل به: {self.api.base_url}")
-        print(f"📊 موتور تحلیل تکنیکال فعال با {sum(len(v) for v in self.technical_engine.available_indicators.values())} اندیکاتور")
+        for directory in directories:
+            try:
+                os.makedirs(directory, exist_ok=True)
+                print(f"✅ پوشه ایجاد شد: {directory}")
+            except Exception as e:
+                print(f"⚠️ خطا در ایجاد {directory}: {e}")
         
-        # تست اتصال اولیه
-        connection_status = self.api.test_connection()
-        if connection_status:
-            print("✅ اتصال به سرور میانی برقرار است")
-            
-            # تست جامع API
-            test_report = self.api.comprehensive_test()
-            success_rate = test_report['summary']['success_rate']
-            print(f"📡 تست جامع API: {success_rate}")
-        else:
-            print("⚠️ اتصال به سرور میانی با مشکل مواجه است")
-
-    def fetch_market_data(self):
-        """دریافت داده‌های بازار از طریق کلاینت جدید"""
-        return self.api.get_all_market_data()
-
-    def fetch_technical_data(self, symbol="BTC"):
-        """دریافت داده‌های تکنیکال برای یک ارز خاص"""
-        return self.api.get_ai_raw_single(symbol)
-
-    def predict_market_trend(self):
-        """پیش‌بینی روند بازار با داده‌های کامل"""
-        start_time = time.time()
+        # ایجاد فایل realtime_prices.json
+        realtime_file = 'shared/realtime_prices.json'
+        if not os.path.exists(realtime_file):
+            try:
+                with open(realtime_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        "timestamp": 0, 
+                        "realtime_data": {}
+                    }, f, indent=2, ensure_ascii=False)
+                print(f"✅ فایل ایجاد شد: {realtime_file}")
+            except Exception as e:
+                print(f"⚠️ خطا در ایجاد فایل: {e}")
+    
+    def load_market_data(self):
+        """بارگذاری کامل داده‌های بازار"""
+        print("🔄 در حال بارگذاری داده‌های بازار...")
         
-        # دریافت داده‌های خام برای پیش‌بینی
-        prediction_data = self.api.get_ai_prediction_data()
-        
-        if not prediction_data['success']:
-            return {
-                "prediction": "داده‌ای دریافت نشد",
-                "confidence": 0,
-                "data_source": "fallback",
-                "error": "عدم اتصال به سرور داده"
-            }
-        
-        # تحلیل داده‌های دریافتی
-        analysis_results = {}
-        
-        # تحلیل داده‌های بازار
-        market_data = prediction_data['prediction_data']['current_market']
-        if market_data['success']:
-            analysis_results['market_analysis'] = self.technical_engine.analyze_raw_api_data(
-                market_data['data']
-            )
-        
-        # تحلیل احساسات بازار
-        fear_greed_data = prediction_data['prediction_data']['market_sentiment']
-        if fear_greed_data['success']:
-            analysis_results['sentiment_analysis'] = self._analyze_market_sentiment(
-                fear_greed_data['data']
-            )
-        
-        # تحلیل دامیننس بیت‌کوین
-        btc_dominance_data = prediction_data['prediction_data']['btc_dominance']
-        if btc_dominance_data['success']:
-            analysis_results['btc_analysis'] = self._analyze_btc_dominance(
-                btc_dominance_data['data']
-            )
-        
-        # تولید پیش‌بینی نهایی
-        final_prediction = self._generate_final_prediction(analysis_results)
-        processing_time = round((time.time() - start_time) * 1000, 2)
-        
-        return {
-            **final_prediction,
-            "data_sources_used": len([k for k in analysis_results.keys() if analysis_results[k]]),
-            "processing_time_ms": processing_time,
-            "successful_sources": prediction_data['successful_sources'],
-            "timestamp": datetime.now().isoformat()
-        }
-
-    def _analyze_market_sentiment(self, fear_greed_data: Dict) -> Dict:
-        """تحلیل احساسات بازار"""
         try:
-            raw_data = fear_greed_data.get('raw_data', fear_greed_data)
-            fear_greed_value = raw_data.get('value', raw_data.get('now', {}).get('value', 50))
+            # 1. داده‌های اصلی بازار
+            self.market_data["coins"] = self.client.get_coins_list(limit=100)
+            self.market_data["realtime"] = self.client.get_realtime_data()
             
-            sentiment = "خنثی"
-            if fear_greed_value >= 70:
-                sentiment = "طمع شدید"
-            elif fear_greed_value >= 55:
-                sentiment = "طمع"
-            elif fear_greed_value <= 30:
-                sentiment = "ترس شدید"
-            elif fear_greed_value <= 45:
-                sentiment = "ترس"
+            # 2. داده‌های تحلیلی
+            self.market_data["analytics"] = {
+                "fear_greed": self.client.get_fear_greed_index(),
+                "btc_dominance": self.client.get_btc_dominance("all"),
+                "rainbow_btc": self.client.get_rainbow_chart("bitcoin"),
+                "rainbow_eth": self.client.get_rainbow_chart("ethereum")
+            }
             
-            return {
-                'fear_greed_index': fear_greed_value,
-                'sentiment': sentiment,
-                'classification': raw_data.get('value_classification', 'Neutral')
+            # 3. اخبار و احساسات
+            self.market_data["news"] = {
+                "trending": self.client.get_news_by_type("trending"),
+                "bullish": self.client.get_news_by_type("bullish"),
+                "bearish": self.client.get_news_by_type("bearish")
             }
-        except:
-            return {'error': 'خطا در تحلیل احساسات'}
-
-    def _analyze_btc_dominance(self, dominance_data: Dict) -> Dict:
-        """تحلیل دامیننس بیت‌کوین"""
-        try:
-            raw_data = dominance_data.get('raw_data', dominance_data)
-            dominance_value = raw_data.get('value', raw_data.get('percentage', 50))
             
-            trend = "پایدار"
-            if dominance_value > 55:
-                trend = "قدرتمند"
-            elif dominance_value < 45:
-                trend = "ضعیف"
+            print("✅ داده‌های بازار با موفقیت بارگذاری شد")
+            return True
             
-            return {
-                'btc_dominance': dominance_value,
-                'trend': trend,
-                'market_implication': 'آلت‌کوین‌ها فرصت دارند' if dominance_value < 45 else 'بیت‌کوین مسلط است'
-            }
-        except:
-            return {'error': 'خطا در تحلیل دامیننس'}
-
-    def _generate_final_prediction(self, analysis_results: Dict) -> Dict:
-        """تولید پیش‌بینی نهایی بر اساس تحلیل‌ها"""
-        # جمع‌آوری امتیازات از تحلیل‌های مختلف
-        bullish_score = 0
-        bearish_score = 0
-        confidence_factors = []
-        
-        # تحلیل تکنیکال
-        tech_analysis = analysis_results.get('market_analysis', {})
-        if 'overall_trend' in tech_analysis:
-            if tech_analysis['overall_trend'] == 'bullish':
-                bullish_score += 2
-                confidence_factors.append('روند تکنیکال صعودی')
-            elif tech_analysis['overall_trend'] == 'bearish':
-                bearish_score += 2
-                confidence_factors.append('روند تکنیکال نزولی')
-        
-        # تحلیل احساسات
-        sentiment_analysis = analysis_results.get('sentiment_analysis', {})
-        if 'sentiment' in sentiment_analysis:
-            sentiment = sentiment_analysis['sentiment']
-            if 'طمع' in sentiment:
-                bearish_score += 1  # طمع شدید معمولاً نشانه اصلاح است
-                confidence_factors.append('احساسات بازار به طمع نزدیک است')
-            elif 'ترس' in sentiment:
-                bullish_score += 1  # ترس شدید معمولاً فرصت خرید است
-                confidence_factors.append('احساسات بازار به ترس نزدیک است')
-        
-        # تحلیل بیت‌کوین
-        btc_analysis = analysis_results.get('btc_analysis', {})
-        if 'trend' in btc_analysis:
-            if btc_analysis['trend'] == 'قدرتمند':
-                bullish_score += 1
-                confidence_factors.append('بیت‌کوین در موقعیت قدرتمند')
-        
-        # تصمیم‌گیری نهایی
-        total_score = bullish_score - bearish_score
-        confidence = min(abs(total_score) * 20, 95)
-        
-        if total_score > 1:
-            prediction = "صعودی"
-        elif total_score < -1:
-            prediction = "نزولی"
-        else:
-            prediction = "خنثی"
-            confidence = max(confidence, 30)
-        
-        return {
-            "prediction": prediction,
-            "confidence": confidence,
-            "bullish_score": bullish_score,
-            "bearish_score": bearish_score,
-            "confidence_factors": confidence_factors,
-            "analysis_breakdown": {
-                "technical": tech_analysis.get('overall_trend', 'نامشخص'),
-                "sentiment": sentiment_analysis.get('sentiment', 'نامشخص'),
-                "btc_dominance": btc_analysis.get('trend', 'نامشخص')
-            }
-        }
-
-    def predict_system_load(self):
-        """پیش‌بینی مصرف منابع سیستم"""
-        health_data = self.api.get_health_combined()
-        
-        if not health_data or not health_data.get('success'):
-            return {
-                "predicted_ram_mb": 350,
-                "predicted_cpu_percent": 25,
-                "data_source": "fallback"
-            }
-        
-        # محاسبه پیش‌بینی بر اساس سلامت سیستم
-        health_info = health_data.get('data', {})
-        websocket_status = health_info.get('websocket_status', {})
-        api_status = health_info.get('api_status', {})
-        
-        active_coins = websocket_status.get('active_coins', 0)
-        api_requests = api_status.get('requests_count', 0)
-        
-        # مدل پیش‌بینی پیشرفته‌تر
-        base_ram = 200
-        ram_per_coin = 3
-        ram_per_request = 0.1
-        
-        base_cpu = 15
-        cpu_per_coin = 0.5
-        cpu_per_request = 0.05
-        
-        predicted_ram = base_ram + (active_coins * ram_per_coin) + (api_requests * ram_per_request)
-        predicted_cpu = base_cpu + (active_coins * cpu_per_coin) + (api_requests * cpu_per_request)
-        
-        return {
-            "predicted_ram_mb": min(round(predicted_ram), 450),
-            "predicted_cpu_percent": min(round(predicted_cpu), 80),
-            "active_coins": active_coins,
-            "api_requests": api_requests,
-            "data_source": "ai_calculation"
-        }
-
-    def comprehensive_analysis(self, symbol="BTC"):
-        """تحلیل جامع یک ارز خاص"""
-        start_time = time.time()
-        
-        # دریافت داده‌های مختلف
-        technical_data = self.api.get_ai_raw_single(symbol)
-        market_overview = self.api.get_market_cap()
-        fear_greed = self.api.get_fear_greed()
-        
-        analysis = {
-            "symbol": symbol.upper(),
-            "timestamp": datetime.now().isoformat(),
-            "technical_analysis": "در حال تحلیل...",
-            "market_context": "در حال دریافت...",
-            "market_sentiment": "در حال دریافت...",
-            "ai_recommendation": "در حال تحلیل...",
-            "signal_strength": 0,
-            "risk_level": "متوسط"
-        }
-        
-        # تحلیل تکنیکال
-        if technical_data and 'coin_data' in technical_data:
-            coin_data = technical_data['coin_data']
-            if coin_data['success']:
-                tech_analysis = self.technical_engine.analyze_raw_api_data(coin_data['data'])
-                analysis['technical_analysis'] = tech_analysis
-                
-                # استخراج سیگنال از تحلیل تکنیکال
-                if 'overall_trend' in tech_analysis:
-                    if tech_analysis['overall_trend'] == 'bullish':
-                        analysis['ai_recommendation'] = "مثبت"
-                        analysis['signal_strength'] = 75
-                        analysis['risk_level'] = "کم"
-                    elif tech_analysis['overall_trend'] == 'bearish':
-                        analysis['ai_recommendation'] = "منفی" 
-                        analysis['signal_strength'] = 65
-                        analysis['risk_level'] = "بالا"
-        
-        # تحلیل بازار
-        if market_overview and market_overview['success']:
-            analysis['market_context'] = self.technical_engine.analyze_raw_api_data(market_overview['data'])
-        
-        # تحلیل احساسات
-        if fear_greed and fear_greed['success']:
-            sentiment = self._analyze_market_sentiment(fear_greed['data'])
-            analysis['market_sentiment'] = sentiment
-        
-        analysis['processing_time_ms'] = round((time.time() - start_time) * 1000, 2)
-        return analysis
-
-    def get_market_insights(self):
-        """دریافت بینش‌های بازار"""
-        dashboard = self.api.get_insights_dashboard()
-        fear_greed = self.api.get_fear_greed()
-        btc_dominance = self.api.get_btc_dominance()
-        rainbow_chart = self.api.get_raw_rainbow_chart()
-        
-        return {
-            "dashboard": dashboard,
-            "fear_greed": fear_greed,
-            "btc_dominance": btc_dominance,
-            "rainbow_chart": rainbow_chart,
-            "timestamp": datetime.now().isoformat()
-        }
-
-    def get_raw_data_overview(self):
-        """دریافت نمای کلی داده‌های خام"""
-        training_data = self.api.get_ai_training_data()
-        
-        if training_data['success']:
-            return {
-                "success": True,
-                "data_sources": training_data['successful_sources'],
-                "total_sources": training_data['total_sources'],
-                "success_rate": training_data['success_rate'],
-                "processing_time": training_data['processing_time'],
-                "timestamp": training_data['timestamp']
-            }
-        else:
-            return {
-                "success": False,
-                "error": "عدم دریافت داده‌های آموزشی",
-                "timestamp": datetime.now().isoformat()
-            }
-
-# Initialize Advanced AI Model
-ai_model = AdvancedAI()
-
-# ========== توابع کمکی سیستم ==========
-
-def get_real_cpu_usage():
-    """روش ساده و مطمئن برای اندازه گیری CPU"""
-    try:
-        process = psutil.Process(os.getpid())
-        cpu_percent = process.cpu_percent(interval=0.5)
-
-        if cpu_percent == 0:
-            cpu_percent = random.uniform(0.1, 2.0)
-
-        return round(cpu_percent, 2)
-
-    except Exception as e:
-        return round(random.uniform(0.5, 3.0), 2)
-
-def get_system_info():
-    """اطلاعات سیستم"""
-    process = psutil.Process(os.getpid())
-
-    try:
-        cpu_percent = get_real_cpu_usage()
-        process_memory_mb = process.memory_info().rss / 1024 / 1024
-        total_ram_mb = 512
-        ram_percent = (process_memory_mb / total_ram_mb) * 100
-
-        return {
-            "ram_used_mb": round(process_memory_mb, 2),
-            "ram_percent": round(ram_percent, 2),
-            "total_ram_mb": total_ram_mb,
-            "cpu_percent": cpu_percent,
-            "neurons": ai_model.neurons,
-            "status": "سالم و فعال",
-            "server_time": time.strftime("%H:%M:%S"),
-            "model_type": ai_model.model_type
-        }
-
-    except Exception as e:
-        return {
-            "ram_used_mb": round(process.memory_info().rss / 1024 / 1024, 2),
-            "ram_percent": 8.8,
-            "total_ram_mb": 512,
-            "cpu_percent": 1.2,
-            "neurons": ai_model.neurons,
-            "status": "سالم و فعال",
-            "server_time": time.strftime("%H:%M:%S"),
-            "model_type": ai_model.model_type
-        }
-
-# ========== Routes ==========
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/health')
-def health():
-    return jsonify(get_system_info())
-
-@app.route('/predict/market')
-def predict_market():
-    """پیش‌بینی روند بازار با استفاده از داده‌های سرور میانی"""
-    start_time = time.time()
-
-    market_prediction = ai_model.predict_market_trend()
-    system_prediction = ai_model.predict_system_load()
-    processing_time = round((time.time() - start_time) * 1000, 2)
-
-    return jsonify({
-        "success": True,
-        "market_prediction": market_prediction,
-        "system_prediction": system_prediction,
-        "processing_time_ms": processing_time,
-        "neurons_used": ai_model.neurons,
-        "message": "پیش‌بینی بازار با موفقیت انجام شد"
-    })
-
-@app.route('/analyze/coin/<symbol>')
-def analyze_coin(symbol):
-    """تحلیل یک ارز خاص با داده‌های تکنیکال"""
-    analysis = ai_model.comprehensive_analysis(symbol)
-    return jsonify({
-        "success": True,
-        "analysis": analysis
-    })
-
-@app.route('/system/forecast')
-def system_forecast():
-    """پیش‌بینی مصرف منابع سیستم"""
-    prediction = ai_model.predict_system_load()
-    current_usage = get_system_info()
-
-    return jsonify({
-        "success": True,
-        "current_usage": current_usage,
-        "predicted_usage": prediction,
-        "forecast_timestamp": datetime.now().isoformat()
-    })
-
-@app.route('/insights/market')
-def market_insights():
-    """بینش‌های بازار"""
-    insights = ai_model.get_market_insights()
-    return jsonify({
-        "success": True,
-        "insights": insights
-    })
-
-@app.route('/data/overview')
-def data_overview():
-    """نمای کلی داده‌های موجود"""
-    data_overview = ai_model.get_raw_data_overview()
-    status_report = ai_model.api.get_status_report()
-    
-    return jsonify({
-        "success": data_overview['success'],
-        "data_overview": data_overview,
-        "status_report": status_report,
-        "timestamp": datetime.now().isoformat()
-    })
-
-@app.route('/test/middleware-connection')
-def test_middleware_connection():
-    """تست اتصال به سرور میانی"""
-    start_time = time.time()
-
-    connection_status = ai_model.api.test_connection()
-    status_report = ai_model.api.get_status_report()
-    comprehensive_test = ai_model.api.comprehensive_test()
-
-    processing_time = round((time.time() - start_time) * 1000, 2)
-
-    return jsonify({
-        "middleware_connection": "success" if connection_status else "failed",
-        "status_report": status_report,
-        "comprehensive_test": comprehensive_test,
-        "processing_time_ms": processing_time,
-        "middleware_url": ai_model.middleware_url
-    })
-
-@app.route('/technical/analyze/<symbol>')
-def technical_analyze(symbol):
-    """تحلیل تکنیکال پیشرفته یک ارز"""
-    start_time = time.time()
-    
-    # دریافت داده‌های خام
-    raw_data = ai_model.api.get_ai_raw_single(symbol)
-    
-    # تحلیل با موتور تکنیکال
-    analysis_results = {}
-    for data_type, data_response in raw_data.items():
-        if data_response and data_response.get('success'):
-            analysis = ai_model.technical_engine.analyze_raw_api_data(data_response['data'])
-            analysis_results[data_type] = analysis
-    
-    processing_time = round((time.time() - start_time) * 1000, 2)
-    
-    return jsonify({
-        "success": True,
-        "symbol": symbol.upper(),
-        "analysis_results": analysis_results,
-        "processing_time_ms": processing_time,
-        "timestamp": datetime.now().isoformat()
-    })
-
-# تست‌های CPU
-@app.route('/test-cpu')
-def test_cpu():
-    start_time = time.time()
-
-    result = 0
-    for i in range(500000):
-        result += i * 0.00001
-
-    pi_estimate = 0
-    for k in range(10000):
-        pi_estimate += (4.0 * (-1)**k) / (2*k + 1)
-
-    duration = (time.time() - start_time) * 1000
-
-    return jsonify({
-        "test_result": round(result, 6),
-        "pi_estimate": round(pi_estimate, 6),
-        "processing_time_ms": round(duration, 2),
-        "cpu_usage_note": "تست سنگین CPU انجام شد"
-    })
-
-@app.route('/light-cpu')
-def light_cpu():
-    start_time = time.time()
-    result = sum(i * 0.1 for i in range(1000))
-    duration = (time.time() - start_time) * 1000
-
-    return jsonify({
-        "test_result": round(result, 4),
-        "processing_time_ms": round(duration, 2),
-        "cpu_usage_note": "تست سبک CPU انجام شد"
-    })
-
-if __name__ == '__main__':
-    print("🚀 برنامه هوش مصنوعی پیشرفته شروع شد...")
-    print("📡 درحال اتصال به سرور میانی...")
-    
-    # تست نهایی اتصال
-    if ai_model.api.test_connection():
-        print("✅ همه چیز آماده است! سرور در حال راه‌اندازی...")
-        
-        # تست اولیه عملکرد
-        print("🧪 انجام تست اولیه عملکرد...")
-        try:
-            health = ai_model.api.get_health_combined()
-            if health.get('success'):
-                print("✅ تست سلامت سیستم موفقیت‌آمیز بود")
-            else:
-                print("⚠️ تست سلامت سیستم با مشکل مواجه شد")
         except Exception as e:
-            print(f"⚠️ خطا در تست اولیه: {e}")
-    else:
-        print("⚠️  هشدار: اتصال به سرور میانی با مشکل مواجه است")
+            print(f"❌ خطا در بارگذاری داده‌ها: {e}")
+            return False
     
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    def technical_analysis(self, coin_data):
+        """تحلیل تکنیکال پیشرفته"""
+        if not coin_data or len(coin_data) < 20:
+            return {"error": "داده ناکافی برای تحلیل تکنیکال"}
+        
+        # پردازش داده‌ها
+        df = self.data_processor.process_chart_data(coin_data)
+        df = self.data_processor.calculate_technical_indicators(df)
+        
+        if df.empty:
+            return {"error": "داده ناکافی پس از پاک‌سازی"}
+        
+        # محاسبه سیگنال‌ها
+        current_price = df['price'].iloc[-1] if 'price' in df.columns else 0
+        sma_20 = df['sma_20'].iloc[-1] if 'sma_20' in df.columns else 0
+        sma_50 = df['sma_50'].iloc[-1] if 'sma_50' in df.columns else 0
+        rsi = df['rsi'].iloc[-1] if 'rsi' in df.columns else 50
+        
+        # سیگنال‌های معاملاتی
+        signals = {
+            "current_price": current_price,
+            "trend": "صعودی" if sma_20 > sma_50 else "نزولی",
+            "rsi": round(rsi, 2),
+            "rsi_signal": "اشباع خرید" if rsi > 70 else "اشباع فروش" if rsi < 30 else "خنثی",
+            "momentum": "قوی" if abs(current_price - sma_20) / sma_20 > 0.05 else "ضعیف",
+            "support_level": round(df['price'].min(), 2),
+            "resistance_level": round(df['price'].max(), 2),
+            "volatility": round(df['price'].std() / df['price'].mean() * 100, 2)
+        }
+        
+        return signals
+    
+    def sentiment_analysis(self, news_data):
+        """تحلیل احساسات بازار"""
+        if not news_data:
+            return {"sentiment": "خنثی", "confidence": 0.5, "score": 50}
+        
+        positive_keywords = ['صعود', 'رشد', 'سود', 'خرید', 'بولیش', 'مثبت', 'افزایش', 'قوی']
+        negative_keywords = ['نزول', 'سقوط', 'ضرر', 'فروش', 'بیریش', 'منفی', 'کاهش', 'ضعیف']
+        
+        positive_count = 0
+        negative_count = 0
+        total_articles = 0
+        
+        for news_type, articles in news_data.items():
+            if isinstance(articles, list):
+                for article in articles[:10]:  # 10 خبر اول هر دسته
+                    if isinstance(article, dict):
+                        title = article.get('title', '').lower()
+                        description = article.get('description', '').lower()
+                        
+                        text = f"{title} {description}"
+                        positive_count += sum(1 for word in positive_keywords if word in text)
+                        negative_count += sum(1 for word in negative_keywords if word in text)
+                        total_articles += 1
+        
+        if total_articles == 0:
+            return {"sentiment": "خنثی", "confidence": 0.5, "score": 50}
+        
+        sentiment_score = (positive_count / (positive_count + negative_count)) * 100 if (positive_count + negative_count) > 0 else 50
+        
+        if sentiment_score > 65:
+            sentiment = "مثبت"
+        elif sentiment_score < 35:
+            sentiment = "منفی"
+        else:
+            sentiment = "خنثی"
+        
+        confidence = min(abs(sentiment_score - 50) / 50, 1.0)
+        
+        return {
+            "sentiment": sentiment,
+            "confidence": round(confidence, 2),
+            "score": round(sentiment_score, 2),
+            "positive_news": positive_count,
+            "negative_news": negative_count,
+            "total_articles": total_articles
+        }
+    
+    def market_health_analysis(self):
+        """تحلیل سلامت کلی بازار"""
+        fear_greed = self.market_data.get("analytics", {}).get("fear_greed", {})
+        btc_dominance = self.market_data.get("analytics", {}).get("btc_dominance", {})
+        coins_data = self.market_data.get("coins", {}).get("result", [])
+        
+        health_score = 0.5  # نمره پایه
+        
+        # تحلیل شاخص ترس و طمع
+        if fear_greed and 'value' in fear_greed:
+            fg_value = fear_greed['value']
+            if 25 <= fg_value <= 75:
+                health_score += 0.2  # بازار سالم
+            elif fg_value < 25:
+                health_score += 0.1  # ترس زیاد - ممکن است فرصت خرید باشد
+            else:
+                health_score -= 0.1  # طمع زیاد - خطرناک
+        
+        # تحلیل تعداد کوین‌های فعال
+        if coins_data and len(coins_data) > 50:
+            health_score += 0.1  # تنوع خوب
+        
+        # تحلیل حجم معاملات
+        if coins_data:
+            total_volume = sum(coin.get('volume', 0) for coin in coins_data[:10])
+            if total_volume > 1000000000:  # حجم بالای ۱ میلیارد
+                health_score += 0.1
+        
+        # نرمالایز کردن امتیاز بین ۰ و ۱
+        health_score = max(0, min(health_score, 1))
+        
+        # تعیین وضعیت
+        if health_score > 0.7:
+            status = "بسیار سالم"
+            color = "🟢"
+        elif health_score > 0.5:
+            status = "سالم"
+            color = "🟡"
+        elif health_score > 0.3:
+            status = "نیازمند احتیاط"
+            color = "🟠"
+        else:
+            status = "پرریسک"
+            color = "🔴"
+        
+        return {
+            "health_score": round(health_score, 2),
+            "status": status,
+            "color": color,
+            "fear_greed_index": fear_greed.get('value', 'نامشخص'),
+            "active_coins": len(coins_data) if coins_data else 0,
+            "market_cap_diversity": "خوب" if len(coins_data) > 50 else "متوسط"
+        }
+    
+    def generate_trading_strategy(self, coin_symbol):
+        """تولید استراتژی معاملاتی برای یک کوین"""
+        print(f"🎯 تولید استراتژی برای {coin_symbol}...")
+        
+        # دریافت داده‌های تاریخی
+        chart_data = self.client.get_coin_chart(coin_symbol.lower(), "1m")  # یک ماه اخیر
+        
+        if not chart_data:
+            return {"error": "داده تاریخی در دسترس نیست"}
+        
+        # تحلیل تکنیکال
+        tech_analysis = self.technical_analysis(chart_data)
+        
+        # تحلیل احساسات
+        sentiment = self.sentiment_analysis(self.market_data.get("news", {}))
+        
+        # تحلیل سلامت بازار
+        market_health = self.market_health_analysis()
+        
+        # قیمت لحظه‌ای
+        live_price = self.client.get_live_price(coin_symbol + "USDT")
+        
+        # تولید استراتژی
+        strategy = {
+            "coin": coin_symbol,
+            "timestamp": datetime.now().isoformat(),
+            "live_price": live_price,
+            "technical_analysis": tech_analysis,
+            "sentiment_analysis": sentiment,
+            "market_health": market_health,
+            "recommendation": self._generate_recommendation(tech_analysis, sentiment, market_health),
+            "risk_level": self._calculate_risk_level(tech_analysis, sentiment, market_health),
+            "position_sizing": self._calculate_position_size(tech_analysis, market_health),
+            "entry_points": self._calculate_entry_points(tech_analysis, live_price),
+            "exit_strategy": self._generate_exit_strategy(tech_analysis, live_price)
+        }
+        
+        return strategy
+    
+    def _generate_recommendation(self, tech_analysis, sentiment, market_health):
+        """تولید توصیه معاملاتی"""
+        if "error" in tech_analysis:
+            return "داده ناکافی - عدم توصیه"
+        
+        tech_trend = tech_analysis.get("trend", "خنثی")
+        rsi_signal = tech_analysis.get("rsi_signal", "خنثی")
+        market_sentiment = sentiment.get("sentiment", "خنثی")
+        health_status = market_health.get("status", "سالم")
+        
+        # منطق پیشرفته تصمیم‌گیری
+        conditions = []
+        
+        if tech_trend == "صعودی":
+            conditions.append("روند صعودی")
+        if market_sentiment == "مثبت":
+            conditions.append("احساسات مثبت")
+        if health_status in ["سالم", "بسیار سالم"]:
+            conditions.append("بازار سالم")
+        if rsi_signal == "اشباع فروش":
+            conditions.append("اشباع فروش")
+        if rsi_signal == "اشباع خرید":
+            conditions.append("اشباع خرید")
+        
+        # تولید توصیه بر اساس شرایط
+        if len(conditions) >= 3 and "اشباع خرید" not in conditions:
+            return "خرید قوی 📈"
+        elif "اشباع خرید" in conditions:
+            return "احتیاط در خرید ⚠️"
+        elif "اشباع فروش" in conditions and tech_trend == "صعودی":
+            return "فرصت خرید خوب ✅"
+        elif tech_trend == "نزولی" and market_sentiment == "منفی":
+            return "فروش یا انتظار 📉"
+        else:
+            return "انتظار برای سیگنال clearer 🔄"
+    
+    def _calculate_risk_level(self, tech_analysis, sentiment, market_health):
+        """محاسبه سطح ریسک"""
+        risk_score = 0.5
+        
+        if "error" not in tech_analysis:
+            # ریسک بر اساس نوسان
+            volatility = tech_analysis.get("volatility", 0)
+            if volatility > 10:  # نوسان بالا
+                risk_score += 0.3
+            elif volatility > 5:
+                risk_score += 0.15
+            
+            # ریسک بر اساس RSI
+            if tech_analysis.get("rsi_signal") in ["اشباع خرید", "اشباع فروش"]:
+                risk_score += 0.1
+        
+        # ریسک بر اساس احساسات
+        sentiment_confidence = sentiment.get("confidence", 0.5)
+        risk_score += (1 - sentiment_confidence) * 0.2
+        
+        # ریسک بر اساس سلامت بازار
+        health_score = market_health.get("health_score", 0.5)
+        risk_score += (1 - health_score) * 0.2
+        
+        # تعیین سطح ریسک
+        if risk_score > 0.7:
+            return "بالا 🔴"
+        elif risk_score > 0.4:
+            return "متوسط 🟡"
+        else:
+            return "پایین 🟢"
+    
+    def _calculate_position_size(self, tech_analysis, market_health):
+        """محاسبه سایز پوزیشن"""
+        base_size = 0.1  # 10% پایه
+        
+        if "error" in tech_analysis:
+            return f"{base_size * 100}% (پایه - داده ناکافی)"
+        
+        # تنظیم بر اساس تحلیل تکنیکال
+        if tech_analysis.get("trend") == "صعودی":
+            base_size += 0.1
+        if tech_analysis.get("rsi_signal") == "اشباع فروش":
+            base_size += 0.05
+        
+        # تنظیم بر اساس سلامت بازار
+        health_status = market_health.get("status", "سالم")
+        if health_status == "پرریسک":
+            base_size *= 0.5  # نصف کردن پوزیشن
+        elif health_status == "بسیار سالم":
+            base_size *= 1.2  # افزایش 20%
+        
+        return f"{min(base_size * 100, 30)}% از سرمایه"  # حداکثر 30%
+    
+    def _calculate_entry_points(self, tech_analysis, live_price):
+        """محاسبه نقاط ورود"""
+        if "error" in tech_analysis or not live_price:
+            return ["داده ناکافی"]
+        
+        support = tech_analysis.get("support_level", 0)
+        resistance = tech_analysis.get("resistance_level", 0)
+        current_price = tech_analysis.get("current_price", live_price)
+        
+        entry_points = []
+        
+        # نقطه ورود محافظه‌کارانه
+        conservative_entry = support * 1.02  # 2% بالاتر از ساپورت
+        if conservative_entry < current_price:
+            entry_points.append(f"ورود محافظه‌کارانه: ${conservative_entry:,.2f}")
+        
+        # نقطه ورود تهاجمی
+        aggressive_entry = current_price * 0.98  # 2% زیر قیمت فعلی
+        entry_points.append(f"ورود تهاجمی: ${aggressive_entry:,.2f}")
+        
+        return entry_points
+    
+    def _generate_exit_strategy(self, tech_analysis, live_price):
+        """تولید استراتژی خروج"""
+        if "error" in tech_analysis or not live_price:
+            return {"take_profit": "داده ناکافی", "stop_loss": "داده ناکافی"}
+        
+        current_price = tech_analysis.get("current_price", live_price)
+        resistance = tech_analysis.get("resistance_level", current_price * 1.1)
+        support = tech_analysis.get("support_level", current_price * 0.9)
+        
+        return {
+            "take_profit": f"${resistance:,.2f} ({((resistance - current_price) / current_price * 100):.1f}%)",
+            "stop_loss": f"${support:,.2f} ({((current_price - support) / current_price * 100):.1f}%)",
+            "risk_reward_ratio": f"{((resistance - current_price) / (current_price - support)):.2f}:1"
+        }
+    
+    def comprehensive_analysis(self, top_coins=5):
+        """تحلیل جامع بازار"""
+        print("🧠 شروع تحلیل جامع بازار...")
+        
+        if not self.market_data:
+            success = self.load_market_data()
+            if not success:
+                return {"error": "خطا در بارگذاری داده‌های بازار"}
+        
+        results = {
+            "timestamp": datetime.now().isoformat(),
+            "market_health": self.market_health_analysis(),
+            "sentiment_analysis": self.sentiment_analysis(self.market_data.get("news", {})),
+            "top_coins_analysis": [],
+            "overall_recommendation": "",
+            "risk_assessment": {},
+            "api_status": self.client.get_api_status()
+        }
+        
+        # تحلیل کوین‌های برتر
+        coins_data = self.market_data.get("coins", {}).get("result", [])
+        analyzed_coins = 0
+        
+        for coin in coins_data[:top_coins]:
+            symbol = coin.get('symbol')
+            if symbol and analyzed_coins < top_coins:
+                strategy = self.generate_trading_strategy(symbol)
+                if "error" not in strategy:
+                    results["top_coins_analysis"].append(strategy)
+                    analyzed_coins += 1
+        
+        # ارزیابی ریسک کلی
+        results["risk_assessment"] = {
+            "market_risk": results["market_health"]["status"],
+            "sentiment_risk": results["sentiment_analysis"]["sentiment"],
+            "overall_risk": "بالا" if (results["market_health"]["status"] == "پرریسک" or 
+                                     results["sentiment_analysis"]["sentiment"] == "منفی") else "متوسط"
+        }
+        
+        # توصیه کلی
+        health_status = results["market_health"]["status"]
+        sentiment = results["sentiment_analysis"]["sentiment"]
+        
+        if health_status in ["بسیار سالم", "سالم"] and sentiment == "مثبت":
+            results["overall_recommendation"] = "شرایط مطلوب برای سرمایه‌گذاری 🎯"
+        elif health_status == "پرریسک" or sentiment == "منفی":
+            results["overall_recommendation"] = "احتیاط - کاهش حجم معاملات ⚠️"
+        else:
+            results["overall_recommendation"] = "انتظار برای شرایط بهتر بهتر 🔄"
+        
+        print("✅ تحلیل جامع تکمیل شد")
+        
+        # ذخیره نتایج
+        self._save_analysis_results(results)
+        
+        return results
+    
+    def _save_analysis_results(self, results):
+        """ذخیره نتایج تحلیل"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"data/analysis/analysis_{timestamp}.json"
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
+            
+            print(f"💾 نتایج در {filename} ذخیره شد")
+            
+        except Exception as e:
+            print(f"⚠️ خطا در ذخیره نتایج: {e}")
+    
+    def print_analysis_summary(self, analysis):
+        """چاپ خلاصه تحلیل"""
+        print("\n" + "="*60)
+        print("📊 خلاصه تحلیل هوش مصنوعی بازار کریپتو")
+        print("="*60)
+        
+        # سلامت بازار
+        health = analysis['market_health']
+        print(f"\n🏥 سلامت بازار: {health['color']} {health['status']} (امتیاز: {health['health_score']})")
+        print(f"😨 شاخص ترس و طمع: {health['fear_greed_index']}")
+        
+        # احساسات
+        sentiment = analysis['sentiment_analysis']
+        print(f"😊 احساسات بازار: {sentiment['sentiment']} (امتیاز: {sentiment['score']})")
+        print(f"📰 اخبار مثبت/منفی: {sentiment['positive_news']}/{sentiment['negative_news']}")
+        
+        # توصیه کلی
+        print(f"\n💡 توصیه کلی: {analysis['overall_recommendation']}")
+        
+        # ریسک
+        risk = analysis['risk_assessment']
+        print(f"⚠️ ارزیابی ریسک: {risk['overall_risk']}")
+        
+        # تحلیل کوین‌ها
+        print(f"\n🎯 استراتژی‌های کوین‌های برتر:")
+        for coin_analysis in analysis['top_coins_analysis']:
+            coin = coin_analysis['coin']
+            recommendation = coin_analysis['recommendation']
+            risk_level = coin_analysis['risk_level']
+            live_price = coin_analysis.get('live_price', 'نامشخص')
+            
+            print(f"  • {coin}: {recommendation}")
+            print(f"    💰 قیمت: {live_price} | 🎯 ریسک: {risk_level}")
+            
+            # نمایش نقاط ورود
+            entry_points = coin_analysis.get('entry_points', [])
+            if entry_points and len(entry_points) > 0:
+                print(f"    📍 {entry_points[0]}")
+        
+        print(f"\n⏰ آخرین بروزرسانی: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("="*60)
+
+
+# اجرای اصلی
+if __name__ == "__main__":
+    print("🚀 راه‌اندازی هوش مصنوعی تحلیلگر کریپتو...")
+    
+    try:
+        # ایجاد تحلیلگر
+        ai_analyst = CryptoAIAnalyst()
+        
+        # تحلیل جامع
+        analysis = ai_analyst.comprehensive_analysis(top_coins=5)
+        
+        if "error" not in analysis:
+            # نمایش نتایج
+            ai_analyst.print_analysis_summary(analysis)
+        else:
+            print(f"❌ خطا: {analysis['error']}")
+            
+    except Exception as e:
+        print(f"❌ خطای غیرمنتظره: {e}")
+        import traceback
+        traceback.print_exc()
