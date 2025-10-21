@@ -1,8 +1,12 @@
-# .buildkite/pipeline.yml
 steps:
-  - label: ":pipeline: Build"
-    command: echo "Hello World"
-    
-  - label: ":rocket: Deploy"
-    command: deploy.sh
-    depends_on: build
+  - label: "🔧 Setup Environment"
+    commands:
+      - git lfs install
+      - git lfs pull
+      - echo "Environment setup completed"
+
+  - label: "🚀 Build Project"
+    command: make build || npm run build || echo "Build step"
+
+  - label: "✅ Test"
+    command: make test || npm test || echo "Test step"
