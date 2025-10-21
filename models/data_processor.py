@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
+import pandas_ta as ta  # ✅ اضافه شده
 
 class DataProcessor:
     """پردازش و پاک‌سازی داده‌های بازار"""
@@ -51,10 +52,51 @@ class DataProcessor:
         return df.dropna()
     
     def calculate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """محاسبه اندیکاتورهای تکنیکال"""
-        if df.empty:
+        """محاسبه اندیکاتورهای تکنیکال با pandas-ta"""
+        if df.empty or 'price' not in df.columns:
             return df
         
+        try:
+            # استفاده از pandas-ta برای اندیکاتورهای پیشرفته
+            # RSI
+            df['rsi'] = ta.rsi(df['price'], length=14)
+            
+            # MACD
+            macd = ta.macd(df['price'])
+            if macd is not None:
+                df['macd'] = macd['MACD_12_26_9']
+                df['macd_signal'] = macd['MACDs_12_26_9']
+                df['macd_histogram'] = macd['MACDh_12_26_9']
+            
+            # Bollinger Bands
+            bollinger = ta.bbands(df['price'], length=20)
+            if bollinger is not None:
+                df['bb_upper'] = bollinger['BBU_20_2.0']
+                df['bb_middle'] = bollinger['BBM_20_2.0'] 
+                df['bb_lower'] = bollinger['BBL_20_2.0']
+            
+            # Moving Averages
+            df['sma_20'] = ta.sma(df['price'], length=20)
+            df['sma_50'] = ta.sma(df['price'], length=50)
+            df['ema_12'] = ta.ema(df['price'], length=12)
+            
+            # Stochastic
+            stoch = ta.stoch(df['high'] if 'high' in df.columns else df['price'], 
+                           df['low'] if 'low' in df.columns else df['price'], 
+                           df['price'])
+            if stoch is not None:
+                df['stoch_k'] = stoch['STOCHk_14_3_3']
+                df['stoch_d'] = stoch['STOCHd_14_3_3']
+            
+            return df
+            
+        except Exception as e:
+            print(f"⚠️ خطا در محاسبه اندیکاتورها: {e}")
+            # Fallback به محاسبات ساده
+            return self._calculate_basic_indicators(df)
+    
+    def _calculate_basic_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """محاسبات پایه اندیکاتورها (fallback)"""
         # Moving Averages
         df['sma_20'] = df['price'].rolling(window=20).mean()
         df['sma_50'] = df['price'].rolling(window=50).mean()
@@ -62,33 +104,12 @@ class DataProcessor:
         # RSI
         df['rsi'] = self.calculate_rsi(df['price'])
         
-        # MACD
-        df['macd'] = self.calculate_macd(df['price'])
-        
-        # Bollinger Bands
-        df['bb_upper'], df['bb_lower'] = self.calculate_bollinger_bands(df['price'])
-        
         return df
     
     def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
-        """محاسبه RSI"""
+        """محاسبه RSI (fallback)"""
         delta = prices.diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
         rs = gain / loss
         return 100 - (100 / (1 + rs))
-    
-    def calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
-        """محاسبه MACD"""
-        exp1 = prices.ewm(span=fast).mean()
-        exp2 = prices.ewm(span=slow).mean()
-        macd = exp1 - exp2
-        return macd
-    
-    def calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> tuple:
-        """محاسبه باندهای بولینگر"""
-        sma = prices.rolling(window=period).mean()
-        std = prices.rolling(window=period).std()
-        upper_band = sma + (std * std_dev)
-        lower_band = sma - (std * std_dev)
-        return upper_band, lower_band
