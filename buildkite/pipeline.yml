@@ -1,12 +1,24 @@
 steps:
-  - label: "🔧 Setup Environment"
+  - label: "📥 Checkout with LFS"
     commands:
       - git lfs install
-      - git lfs pull
-      - echo "Environment setup completed"
+      - git lfs fetch
+      - git lfs checkout
+      - git lfs ls-files
 
-  - label: "🚀 Build Project"
-    command: make build || npm run build || echo "Build step"
+  - label: "🛠️ Build"
+    command: |
+      echo "Building project..."
+      # دستورات build شما
+      ls -la
 
-  - label: "✅ Test"
-    command: make test || npm test || echo "Test step"
+  - label: "🧪 Test"
+    command: |
+      echo "Running tests..."
+      # دستورات test شما
+
+  - wait
+
+  - label: "🚀 Deploy"
+    command: echo "Deploying..."
+    if: build.branch == "main"
