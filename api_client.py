@@ -16,7 +16,7 @@ class CoinStatsAPIClient:
     def __init__(self, 
                  api_key: str = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=", 
                  base_url: str = "https://openapiv1.coinstats.app",
-                 data_repo_url: str = "https://raw.githubusercontent.com/hanzo7656-prog/crypto-ai-dataset/main/raw_data"):
+                 data_repo_url: str = "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data"):
         
         self.api_key = api_key
         self.base_url = base_url
