@@ -9,6 +9,10 @@ import sys
 import psutil
 import logging
 import traceback
+try:
+    from data_processor_optimized import OptimizedDataProcessor as DataProcessor
+except ImportError:
+    from data_processor import DataProcessor
 
 # اضافه کردن مسیر فعلی به sys.path
 sys.path.append(os.path.dirname(__file__))
