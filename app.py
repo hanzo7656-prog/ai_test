@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 from models.api_client import VortexAPIClient
 from technical_analysis_engine import TechnicalAnalysisEngine
-from typing import Dict, List, Optional, any
+from typing import Dict, List, Optional, Any
 
 app = Flask(__name__)
 
