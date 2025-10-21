@@ -2,401 +2,433 @@
 import requests
 import json
 import time
-from typing import Dict, List, Optional, Any
+import os
+from typing import Dict, List, Optional, Union
+import logging
 from datetime import datetime
-import pandas as pd
-import numpy as np
 
-class VortexAPIClient:
-    def __init__(self, base_url: str = "https://server-test-ovta.onrender.com/api"):
+class CoinStatsAPIClient:
+    """
+    کلاینت کامل برای API کوین‌استتس
+    شامل تمام اندپوینت‌های مستند و داده‌های خام
+    """
+    
+    def __init__(self, api_key: str = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=", 
+                 base_url: str = "https://openapiv1.coinstats.app"):
+        self.api_key = api_key
         self.base_url = base_url
+        self.headers = {"X-API-KEY": api_key}
         self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'User-Agent': 'Vortex-AI-Client/1.0',
-            'Accept': 'application/json'
+        self.session.headers.update(self.headers)
+        
+        # تنظیمات لاگ
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+        
+        # کش داخلی برای داده‌های تکراری
+        self._cache = {}
+        
+    def _make_request(self, endpoint: str, params: Dict = None, method: str = "GET") -> Optional[Union[Dict, List]]:
+        """ساخت درخواست عمومی با مدیریت خطا"""
+        url = f"{self.base_url}/{endpoint.lstrip('/')}"
+        
+        try:
+            if method.upper() == "GET":
+                response = self.session.get(url, params=params, timeout=30)
+            else:
+                response = self.session.post(url, json=params, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                self.logger.warning(f"خطای {response.status_code} برای {url}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"خطا در درخواست {url}: {e}")
+            return None
+    
+    def _get_from_cache_or_api(self, cache_key: str, endpoint: str, params: Dict = None):
+        """اول از کش می‌خواند، اگر نبود از API می‌گیرد"""
+        if cache_key in self._cache:
+            self.logger.info(f"داده از کش بازیابی شد: {cache_key}")
+            return self._cache[cache_key]
+        
+        data = self._make_request(endpoint, params)
+        if data:
+            self._cache[cache_key] = data
+        return data
+
+    # ===== COINS ENDPOINTS =====
+    
+    def get_coins_list(self, limit: int = 100, page: int = 1, currency: str = "USD", 
+                      sort_by: str = "marketCap", sort_dir: str = "desc",
+                      coin_ids: str = None, search: str = None, symbol: str = None,
+                      blockchains: str = None, categories: str = None,
+                      include_risk_score: bool = False) -> Optional[Dict]:
+        """
+        دریافت لیست کوین‌ها
+        مستندات: صفحه ۱-۶
+        """
+        params = {
+            "limit": limit,
+            "page": page,
+            "currency": currency,
+            "sortBy": sort_by,
+            "sortDir": sort_dir
+        }
+        
+        # پارامترهای اختیاری
+        if coin_ids:
+            params["coinIds"] = coin_ids
+        if search:
+            params["name"] = search
+        if symbol:
+            params["symbol"] = symbol
+        if blockchains:
+            params["blockchains"] = blockchains
+        if categories:
+            params["categories"] = categories
+        if include_risk_score:
+            params["includeRiskScore"] = "true"
+            
+        return self._make_request("coins", params)
+    
+    def get_coin_details(self, coin_id: str, currency: str = "USD") -> Optional[Dict]:
+        """
+        دریافت جزئیات یک کوین خاص
+        مستندات: صفحه ۳۵-۳۶
+        """
+        return self._make_request(f"coins/{coin_id}", {"currency": currency})
+    
+    def get_coin_chart(self, coin_id: str, period: str = "all") -> Optional[List]:
+        """
+        دریافت داده‌های چارت یک کوین
+        مستندات: صفحه ۳۴-۳۵, ۳۷
+        
+        دوره‌های زمانی:
+        - all: تمام تاریخ
+        - 1y: یک سال
+        - 1m: یک ماه
+        - 1w: یک هفته
+        - 1d: یک روز
+        - 1h: یک ساعت
+        """
+        valid_periods = ["all", "1y", "1m", "1w", "1d", "1h"]
+        if period not in valid_periods:
+            self.logger.warning(f"دوره زمانی نامعتبر: {period}")
+            return None
+            
+        return self._make_request(f"coins/{coin_id}/charts", {"period": period})
+    
+    def get_multiple_coins_charts(self, coin_ids: List[str], period: str = "all") -> Dict[str, Optional[List]]:
+        """
+        دریافت چارت چندین کوین به صورت همزمان
+        """
+        results = {}
+        for coin_id in coin_ids:
+            results[coin_id] = self.get_coin_chart(coin_id, period)
+            time.sleep(0.5)  # مکث برای جلوگیری از rate limit
+        return results
+
+    # ===== PRICE ENDPOINTS =====
+    
+    def get_average_price(self, coin_id: str, timestamp: int) -> Optional[Dict]:
+        """
+        دریافت قیمت متوسط در زمان مشخص
+        مستندات: صفحه ۳۸
+        """
+        return self._make_request("coins/price/avg", {
+            "coinId": coin_id,
+            "timestamp": timestamp
         })
-        self.timeout = 30
+    
+    def get_exchange_price(self, exchange: str, from_coin: str, to_coin: str, timestamp: int) -> Optional[Dict]:
+        """
+        دریافت قیمت مبادله در صرافی خاص
+        مستندات: صفحه ۳۹-۴۰
+        """
+        return self._make_request("coins/price/exchange", {
+            "exchange": exchange,
+            "from": from_coin,
+            "to": to_coin,
+            "timestamp": timestamp
+        })
 
-    def _make_request(self, endpoint: str, params: Dict = None) -> Dict:
-        """درخواست عمومی به API"""
+    # ===== MARKET DATA ENDPOINTS =====
+    
+    def get_exchanges(self) -> Optional[List]:
+        """
+        دریافت لیست صرافی‌ها
+        مستندات: صفحه ۴۰-۴۱
+        """
+        return self._make_request("tickers/exchanges")
+    
+    def get_markets(self) -> Optional[List]:
+        """
+        دریافت لیست بازارهای معاملاتی
+        مستندات: صفحه ۴۱-۴۲
+        """
+        return self._make_request("tickers/markets")
+    
+    def get_fiats(self) -> Optional[List]:
+        """
+        دریافت لیست ارزهای فیات
+        مستندات: صفحه ۴۲-۴۳
+        """
+        return self._make_request("fiats")
+    
+    def get_currencies(self) -> Optional[List]:
+        """
+        دریافت لیست ارزها
+        مستندات: صفحه ۴۴-۴۵
+        """
+        return self._make_request("currencies")
+
+    # ===== NEWS ENDPOINTS =====
+    
+    def get_news_sources(self) -> Optional[List]:
+        """
+        دریافت منابع خبری
+        مستندات: صفحه ۴۵-۴۶
+        """
+        return self._make_request("news/sources")
+    
+    def get_news(self, limit: int = 50) -> Optional[List]:
+        """
+        دریافت اخبار
+        مستندات: صفحه ۴۶
+        """
+        return self._make_request("news", {"limit": limit})
+    
+    def get_news_by_type(self, news_type: str) -> Optional[List]:
+        """
+        دریافت اخبار بر اساس نوع
+        مستندات: صفحه ۴۷
+        
+        انواع:
+        - handpicked: انتخاب شده
+        - trending: ترندینگ
+        - latest: آخرین
+        - bullish: صعودی
+        - bearish: نزولی
+        """
+        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        if news_type not in valid_types:
+            self.logger.warning(f"نوع خبر نامعتبر: {news_type}")
+            return None
+            
+        return self._make_request(f"news/type/{news_type}")
+    
+    def get_news_detail(self, news_id: str) -> Optional[Dict]:
+        """
+        دریافت جزئیات یک خبر خاص
+        مستندات: صفحه ۴۸-۴۹
+        """
+        return self._make_request(f"news/{news_id}")
+
+    # ===== INSIGHTS ENDPOINTS =====
+    
+    def get_btc_dominance(self, timeframe: str = "all") -> Optional[Dict]:
+        """
+        دریافت تسلط بیت‌کوین
+        مستندات: صفحه ۴۹-۵۰
+        
+        تایم‌فریم‌ها:
+        - all, 1y, 1m, 1w, 1d, 1h
+        """
+        return self._make_request("insights/btc-dominance", {"type": timeframe})
+    
+    def get_fear_greed_index(self) -> Optional[Dict]:
+        """
+        دریافت شاخص ترس و طمع
+        مستندات: صفحه ۵۰-۵۱
+        """
+        return self._make_request("insights/fear-and-greed")
+    
+    def get_fear_greed_chart(self) -> Optional[List]:
+        """
+        دریافت نمودار شاخص ترس و طمع
+        مستندات: صفحه ۵۱-۵۲
+        """
+        return self._make_request("insights/fear-and-greed/chart")
+    
+    def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Optional[List]:
+        """
+        دریافت چارت رنگین کمان
+        مستندات: صفحه ۵۲-۵۳
+        """
+        return self._make_request(f"insights/rainbow-chart/{coin_id}")
+
+    # ===== DATA MANAGEMENT =====
+    
+    def load_raw_data(self, file_path: str) -> Optional[Dict]:
+        """بارگذاری داده‌های خام از فایل"""
         try:
-            url = f"{self.base_url}{endpoint}"
-            print(f"🤖 AI → {url}")
-            
-            # اضافه کردن پارامتر raw برای تمام درخواست‌ها
-            if params is None:
-                params = {}
-            params['raw'] = 'true'
-            
-            response = self.session.get(url, params=params, timeout=self.timeout)
-            response.raise_for_status()
-            
-            return {
-                'success': True,
-                'data': response.json(),
-                'timestamp': datetime.now().isoformat()
-            }
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
         except Exception as e:
-            print(f"❌ API Error: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }
-
-    # ==================== RAW COINS ENDPOINTS ====================
-
-    def get_raw_coins(self, limit: int = 500, currency: str = 'USD') -> Dict:
-        """دریافت داده‌های خام تمام کوین‌ها"""
-        return self._make_request('/coins', {'limit': limit, 'currency': currency})
-
-    def get_raw_coin_details(self, coin_id: str, currency: str = 'USD') -> Dict:
-        """دریافت داده‌های خام یک کوین خاص"""
-        return self._make_request(f'/coins/{coin_id}/details', {'currency': currency})
-
-    def get_raw_coin_charts(self, coin_id: str, period: str = '24h') -> Dict:
-        """دریافت داده‌های خام چارت کوین"""
-        return self._make_request(f'/coins/{coin_id}/charts', {'period': period})
-
-    # ==================== RAW MARKET DATA ENDPOINTS ====================
-
-    def get_raw_market_cap(self) -> Dict:
-        """دریافت داده‌های خام مارکت کپ"""
-        return self._make_request('/markets/cap')
-
-    def get_raw_market_summary(self) -> Dict:
-        """دریافت داده‌های خام خلاصه بازار"""
-        return self._make_request('/markets/summary')
-
-    def get_raw_market_exchanges(self) -> Dict:
-        """دریافت داده‌های خام صرافی‌ها"""
-        return self._make_request('/markets/exchanges')
-
-    def get_raw_global_data(self) -> Dict:
-        """دریافت داده‌های خام جهانی"""
-        return self._make_request('/markets/cap')
-
-    # ==================== RAW NEWS ENDPOINTS ====================
-
-    def get_raw_all_news(self, limit: int = 100, page: int = 1) -> Dict:
-        """دریافت داده‌های خام تمام اخبار"""
-        return self._make_request('/news', {'limit': limit, 'page': page})
-
-    def get_raw_latest_news(self, limit: int = 50) -> Dict:
-        """دریافت داده‌های خام آخرین اخبار"""
-        return self._make_request('/news/latest', {'limit': limit})
-
-    def get_raw_trending_news(self, limit: int = 50) -> Dict:
-        """دریافت داده‌های خام اخبار ترند"""
-        return self._make_request('/news/trending', {'limit': limit})
-
-    def get_raw_handpicked_news(self, limit: int = 50) -> Dict:
-        """دریافت داده‌های خام اخبار منتخب"""
-        return self._make_request('/news/handpicked', {'limit': limit})
-
-    def get_raw_bullish_news(self, limit: int = 50) -> Dict:
-        """دریافت داده‌های خام اخبار صعودی"""
-        return self._make_request('/news/bullish', {'limit': limit})
-
-    def get_raw_bearish_news(self, limit: int = 50) -> Dict:
-        """دریافت داده‌های خام اخبار نزولی"""
-        return self._make_request('/news/bearish', {'limit': limit})
-
-    def get_raw_news_sources(self) -> Dict:
-        """دریافت داده‌های خام منابع خبری"""
-        return self._make_request('/news/sources')
-
-    # ==================== RAW INSIGHTS ENDPOINTS ====================
-
-    def get_raw_fear_greed_index(self) -> Dict:
-        """دریافت داده‌های خام Fear & Greed"""
-        return self._make_request('/insights/fear-greed')
-
-    def get_raw_fear_greed_chart(self) -> Dict:
-        """دریافت داده‌های خام چارت Fear & Greed"""
-        return self._make_request('/insights/fear-greed-chart')
-
-    def get_raw_btc_dominance(self, dominance_type: str = 'all') -> Dict:
-        """دریافت داده‌های خام BTC Dominance"""
-        return self._make_request('/insights/btc-dominance', {'type': dominance_type})
-
-    def get_raw_rainbow_chart(self, coin: str = 'bitcoin') -> Dict:
-        """دریافت داده‌های خام چارت رنگین کمان"""
-        return self._make_request('/insights/rainbow-chart', {'coin': coin})
-
-    def get_raw_market_insights(self) -> Dict:
-        """دریافت داده‌های خام بینش بازار"""
-        return self._make_request('/insights/dashboard')
-
-    # ==================== RAW HISTORICAL DATA ENDPOINTS ====================
-
-    def get_raw_historical_1h(self, coin_id: str = 'bitcoin') -> Dict:
-        """داده‌های تاریخی 1 ساعته (خام)"""
-        return self._make_request(f'/coins/{coin_id}/charts', {'period': '1h'})
-
-    def get_raw_historical_24h(self, coin_id: str = 'bitcoin') -> Dict:
-        """داده‌های تاریخی 24 ساعته (خام)"""
-        return self._make_request(f'/coins/{coin_id}/charts', {'period': '24h'})
-
-    def get_raw_historical_7d(self, coin_id: str = 'bitcoin') -> Dict:
-        """داده‌های تاریخی 7 روزه (خام)"""
-        return self._make_request(f'/coins/{coin_id}/charts', {'period': '7d'})
-
-    def get_raw_historical_30d(self, coin_id: str = 'bitcoin') -> Dict:
-        """داده‌های تاریخی 30 روزه (خام)"""
-        return self._make_request(f'/coins/{coin_id}/charts', {'period': '30d'})
-
-    # ==================== RAW ANALYSIS ENDPOINTS ====================
-
-    def get_raw_technical_analysis(self, symbol: str, timeframe: str = '24h') -> Dict:
-        """دریافت داده‌های خام تحلیل تکنیکال"""
-        return self._make_request('/analysis/technical', {'symbol': symbol, 'timeframe': timeframe})
-
-    def get_raw_market_scan(self, limit: int = 100, filter_type: str = 'volume', timeframe: str = '24h') -> Dict:
-        """دریافت داده‌های خام اسکن بازار"""
-        return self._make_request('/scan', {'limit': limit, 'filter': filter_type, 'timeframe': timeframe})
-
-    # ==================== RAW SYSTEM ENDPOINTS ====================
-
-    def get_raw_system_stats(self) -> Dict:
-        """دریافت داده‌های خام آمار سیستم"""
-        return self._make_request('/system/stats')
-
-    def get_raw_websocket_status(self) -> Dict:
-        """دریافت داده‌های خام وضعیت وب‌سوکت"""
-        return self._make_request('/websocket/status')
-
-    def get_raw_performance_stats(self) -> Dict:
-        """دریافت داده‌های خام آمار عملکرد"""
-        return self._make_request('/system/stats')
-
-    # ==================== BATCH DATA FOR AI ====================
-
-    def get_ai_training_data(self) -> Dict:
-        """دریافت تمام داده‌های مورد نیاز برای آموزش هوش مصنوعی"""
-        start_time = time.time()
-        
-        # دریافت داده‌های اصلی
-        data_sources = {
-            'market_data': self.get_raw_coins(200),
-            'historical_1h': self.get_raw_historical_1h(),
-            'historical_24h': self.get_raw_historical_24h(),
-            'historical_7d': self.get_raw_historical_7d(),
-            'fear_greed': self.get_raw_fear_greed_index(),
-            'fear_greed_chart': self.get_raw_fear_greed_chart(),
-            'btc_dominance': self.get_raw_btc_dominance(),
-            'market_insights': self.get_raw_market_insights(),
-            'rainbow_chart': self.get_raw_rainbow_chart(),
-            'news': self.get_raw_all_news(50),
-            'market_scan': self.get_raw_market_scan(50),
-            'system_stats': self.get_raw_system_stats()
-        }
-        
-        processing_time = time.time() - start_time
-        
-        # تحلیل موفقیت‌ها
-        successful_sources = [k for k, v in data_sources.items() if v['success']]
-        
-        return {
-            'success': len(successful_sources) > 0,
-            'data_sources': data_sources,
-            'successful_sources': successful_sources,
-            'total_sources': len(data_sources),
-            'success_rate': f"{len(successful_sources)}/{len(data_sources)}",
-            'processing_time': round(processing_time, 2),
-            'timestamp': datetime.now().isoformat(),
-            'data_type': 'raw_training_data'
-        }
-
-    def get_ai_prediction_data(self) -> Dict:
-        """داده‌های بهینه‌شده برای پیش‌بینی هوش مصنوعی"""
-        start_time = time.time()
-        
-        # دریافت داده‌های ضروری برای پیش‌بینی
-        essential_data = {
-            'current_market': self.get_raw_coins(100),
-            'bitcoin_metrics': self.get_raw_coin_details('bitcoin'),
-            'market_sentiment': self.get_raw_fear_greed_index(),
-            'recent_trends': self.get_raw_historical_24h(),
-            'btc_dominance': self.get_raw_btc_dominance(),
-            'market_scan': self.get_raw_market_scan(30)
-        }
-        
-        processing_time = time.time() - start_time
-        
-        successful_sources = [k for k, v in essential_data.items() if v['success']]
-        
-        return {
-            'success': len(successful_sources) > 0,
-            'prediction_data': essential_data,
-            'successful_sources': successful_sources,
-            'processing_time': round(processing_time, 2),
-            'timestamp': datetime.now().isoformat(),
-            'data_type': 'prediction_optimized'
-        }
-
-    # ==================== COMPATIBILITY METHODS ====================
-
-    def get_all_market_data(self) -> Dict:
-        """متد سازگاری برای هوش مصنوعی فعلی"""
-        raw_data = self.get_ai_training_data()
-        
-        if raw_data['success']:
-            return {
-                'insights_dashboard': raw_data['data_sources']['market_insights'],
-                'fear_greed': raw_data['data_sources']['fear_greed'],
-                'fear_greed_chart': raw_data['data_sources']['fear_greed_chart'],
-                'btc_dominance': raw_data['data_sources']['btc_dominance'],
-                'market_cap': raw_data['data_sources']['market_data'],
-                'news': raw_data['data_sources']['news'],
-                'historical_data': raw_data['data_sources']['historical_24h'],
-                'rainbow_chart': raw_data['data_sources']['rainbow_chart'],
-                'market_scan': raw_data['data_sources']['market_scan']
-            }
-        return {}
-
-    def get_ai_raw_single(self, symbol: str) -> Dict:
-        """داده‌های خام برای یک ارز خاص"""
-        return {
-            'coin_data': self.get_raw_coin_details(symbol),
-            'historical_1h': self.get_raw_historical_1h(symbol),
-            'historical_24h': self.get_raw_historical_24h(symbol),
-            'technical_analysis': self.get_raw_technical_analysis(symbol)
-        }
-
-    def get_historical_data(self, symbol: str) -> Dict:
-        """داده‌های تاریخی برای سازگاری"""
-        return self.get_raw_historical_24h(symbol)
-
-    def get_market_cap(self) -> Dict:
-        """داده‌های مارکت کپ"""
-        return self.get_raw_market_cap()
-
-    def get_fear_greed(self) -> Dict:
-        """داده‌های Fear & Greed"""
-        return self.get_raw_fear_greed_index()
-
-    def get_btc_dominance(self) -> Dict:
-        """داده‌های BTC Dominance"""
-        return self.get_raw_btc_dominance()
-
-    def get_insights_dashboard(self) -> Dict:
-        """داده‌های دشبورد"""
-        return self.get_raw_market_insights()
-
-    def get_health_combined(self) -> Dict:
-        """داده‌های سلامت سیستم"""
-        return self._make_request('/health/combined')
-
-    # ==================== TEST METHODS ====================
-
-    def test_connection(self) -> bool:
-        """تست اتصال به سرور"""
+            self.logger.error(f"خطا در بارگذاری فایل {file_path}: {e}")
+            return None
+    
+    def save_raw_data(self, data: Dict, file_path: str):
+        """ذخیره داده‌های خام در فایل"""
         try:
-            result = self._make_request('/health')
-            return result['success']
-        except:
-            return False
-
-    def get_status_report(self) -> Dict:
-        """گزارش وضعیت اتصال"""
-        tests = [
-            ('Health Check', self.test_connection),
-            ('Market Data', lambda: self.get_raw_coins(1)['success']),
-            ('Historical Data', lambda: self.get_raw_historical_1h()['success']),
-            ('Fear Greed', lambda: self.get_raw_fear_greed_index()['success']),
-            ('BTC Dominance', lambda: self.get_raw_btc_dominance()['success']),
-            ('News', lambda: self.get_raw_all_news(1)['success']),
-            ('System Stats', lambda: self.get_raw_system_stats()['success'])
-        ]
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            self.logger.info(f"داده در {file_path} ذخیره شد")
+        except Exception as e:
+            self.logger.error(f"خطا در ذخیره فایل {file_path}: {e}")
+    
+    def get_data_with_fallback(self, cache_key: str, endpoint: str, params: Dict = None, 
+                             file_path: str = None) -> Optional[Union[Dict, List]]:
+        """
+        دریافت داده با fallback: اول فایل، سپس API
+        """
+        # اول از فایل بخوان
+        if file_path and os.path.exists(file_path):
+            file_data = self.load_raw_data(file_path)
+            if file_data:
+                self.logger.info(f"داده از فایل بازیابی شد: {file_path}")
+                return file_data
         
-        results = {}
-        for test_name, test_func in tests:
-            try:
-                results[test_name] = test_func()
-            except:
-                results[test_name] = False
+        # اگر فایل نبود، از API بگیر
+        api_data = self._get_from_cache_or_api(cache_key, endpoint, params)
+        if api_data and file_path:
+            self.save_raw_data(api_data, file_path)
+            
+        return api_data
+
+    # ===== BATCH OPERATIONS =====
+    
+    def get_complete_market_data(self, output_dir: str = "crypto_data") -> Dict[str, any]:
+        """
+        دریافت کامل داده‌های بازار برای هوش مصنوعی
+        """
+        market_data = {}
+        
+        # 1. داده‌های اصلی
+        market_data["coins"] = self.get_coins_list(limit=200)
+        market_data["exchanges"] = self.get_exchanges()
+        market_data["markets"] = self.get_markets()
+        
+        # 2. داده‌های تحلیلی
+        market_data["analytics"] = {
+            "fear_greed": self.get_fear_greed_index(),
+            "fear_greed_chart": self.get_fear_greed_chart(),
+            "btc_dominance": self.get_btc_dominance("all"),
+            "rainbow_btc": self.get_rainbow_chart("bitcoin"),
+            "rainbow_eth": self.get_rainbow_chart("ethereum")
+        }
+        
+        # 3. اخبار
+        market_data["news"] = {
+            "trending": self.get_news_by_type("trending"),
+            "latest": self.get_news_by_type("latest"),
+            "bullish": self.get_news_by_type("bullish"),
+            "bearish": self.get_news_by_type("bearish")
+        }
+        
+        # ذخیره در فایل
+        if output_dir:
+            self.save_raw_data(market_data, f"{output_dir}/complete_market_data.json")
+        
+        return market_data
+
+    # ===== REAL-TIME DATA INTEGRATION =====
+    
+    def get_realtime_data(self, file_path: str = "shared/realtime_prices.json") -> Dict:
+        """
+        خواندن داده‌های real-time از فایل مشترک با Node.js WebSocket
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('realtime_data', {})
+        except FileNotFoundError:
+            self.logger.warning("فایل realtime data یافت نشد")
+            return {}
+        except Exception as e:
+            self.logger.error(f"خطا در خواندن realtime data: {e}")
+            return {}
+    
+    def get_live_price(self, symbol: str) -> Optional[float]:
+        """
+        دریافت قیمت لحظه‌ای یک symbol خاص
+        """
+        realtime_data = self.get_realtime_data()
+        coin_data = realtime_data.get(symbol, {})
+        return coin_data.get('price')
+    
+    def get_market_overview(self) -> Dict:
+        """
+        نمای کلی بازار از ترکیب داده‌های API و real-time
+        """
+        api_data = self.get_coins_list(limit=50)
+        realtime_data = self.get_realtime_data()
         
         return {
-            'connection_tests': results,
-            'success_rate': f"{sum(results.values())}/{len(results)}",
+            'api_data': api_data,
+            'realtime_data': realtime_data,
+            'combined_coins': self._combine_data(api_data, realtime_data),
             'timestamp': datetime.now().isoformat()
         }
+    
+    def _combine_data(self, api_data: Dict, realtime_data: Dict) -> List[Dict]:
+        """
+        ترکیب داده‌های API و real-time
+        """
+        combined = []
+        
+        if api_data and 'result' in api_data:
+            for coin in api_data['result']:
+                symbol = coin.get('symbol')
+                if symbol and symbol in realtime_data:
+                    combined.append({
+                        **coin,
+                        'live_price': realtime_data[symbol].get('price'),
+                        'live_volume': realtime_data[symbol].get('volume'),
+                        'live_change': realtime_data[symbol].get('change'),
+                        'last_updated': realtime_data[symbol].get('last_updated')
+                    })
+        
+        return combined
 
-    def comprehensive_test(self) -> Dict:
-        """تست جامع تمام اندپوینت‌ها"""
-        print("🧪 شروع تست جامع API...")
-        start_time = time.time()
-        
-        # تست تمام دسته‌های داده
-        test_categories = {
-            'coins': [
-                ('لیست کوین‌ها', lambda: self.get_raw_coins(5)),
-                ('جزییات بیت‌کوین', lambda: self.get_raw_coin_details('bitcoin'))
-            ],
-            'market': [
-                ('مارکت کپ', self.get_raw_market_cap),
-                ('خلاصه بازار', self.get_raw_market_summary),
-                ('صرافی‌ها', self.get_raw_market_exchanges)
-            ],
-            'news': [
-                ('اخبار', lambda: self.get_raw_all_news(3)),
-                ('اخبار ترند', lambda: self.get_raw_trending_news(3)),
-                ('منابع خبری', self.get_raw_news_sources)
-            ],
-            'insights': [
-                ('Fear Greed', self.get_raw_fear_greed_index),
-                ('BTC Dominance', self.get_raw_btc_dominance),
-                ('چارت رنگین کمان', self.get_raw_rainbow_chart)
-            ],
-            'historical': [
-                ('تاریخی 1H', self.get_raw_historical_1h),
-                ('تاریخی 24H', self.get_raw_historical_24h),
-                ('تاریخی 7D', self.get_raw_historical_7d)
-            ],
-            'analysis': [
-                ('اسکن بازار', lambda: self.get_raw_market_scan(10)),
-                ('تحلیل تکنیکال', lambda: self.get_raw_technical_analysis('bitcoin'))
-            ]
-        }
-        
-        results = {}
-        for category, tests in test_categories.items():
-            results[category] = {}
-            for test_name, test_func in tests:
-                try:
-                    result = test_func()
-                    results[category][test_name] = {
-                        'success': result['success'],
-                        'response_time': 'N/A',
-                        'data_size': len(str(result)) if result['success'] else 0
-                    }
-                except Exception as e:
-                    results[category][test_name] = {
-                        'success': False,
-                        'error': str(e)
-                    }
-                time.sleep(0.5)  # تاخیر بین درخواست‌ها
-        
-        total_time = time.time() - start_time
-        
-        # محاسبه آمار
-        total_tests = sum(len(tests) for tests in test_categories.values())
-        successful_tests = sum(
-            1 for category in results.values() 
-            for test in category.values() 
-            if test.get('success', False)
-        )
+    # ===== UTILITY METHODS =====
+    
+    def clear_cache(self):
+        """پاک کردن کش داخلی"""
+        self._cache.clear()
+        self.logger.info("کش پاک شد")
+    
+    def get_api_status(self) -> Dict:
+        """بررسی وضعیت API"""
+        test_data = self.get_coins_list(limit=1)
         
         return {
-            'test_results': results,
-            'summary': {
-                'total_tests': total_tests,
-                'successful_tests': successful_tests,
-                'failed_tests': total_tests - successful_tests,
-                'success_rate': f"{(successful_tests/total_tests)*100:.1f}%",
-                'total_time': f"{total_time:.2f}ثانیه"
-            },
-            'timestamp': datetime.now().isoformat()
+            "api_connected": test_data is not None,
+            "cache_size": len(self._cache),
+            "last_checked": datetime.now().isoformat()
         }
+
+
+# نمونه استفاده سریع
+if __name__ == "__main__":
+    # ایجاد کلاینت
+    client = CoinStatsAPIClient()
+    
+    # تست اتصال
+    status = client.get_api_status()
+    print(f"✅ وضعیت API: {status}")
+    
+    # تست دریافت داده
+    coins = client.get_coins_list(limit=5)
+    if coins:
+        print(f"📊 تست موفق - تعداد کوین‌ها: {len(coins.get('result', []))}")
+        
+        # تست داده‌های real-time
+        realtime = client.get_realtime_data()
+        print(f"📡 داده‌های real-time: {len(realtime)} نماد")
+    else:
+        print("❌ خطا در اتصال به API")
