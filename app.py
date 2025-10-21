@@ -7,7 +7,7 @@ import random
 import numpy as np
 from datetime import datetime
 import json
-from api_client import VortexAPIClient
+from models.api_client import VortexAPIClient
 from technical_analysis_engine import TechnicalAnalysisEngine
 
 app = Flask(__name__)
