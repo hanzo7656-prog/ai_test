@@ -1,4 +1,3 @@
-# technical_analysis_engine.py
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Optional, Tuple, Union, Any
@@ -32,24 +31,9 @@ class TechnicalSignal:
     description: str
     timestamp: str
 
-class CandlePattern(Enum):
-    HAMMER = "hammer"
-    HANGING_MAN = "hanging_man"
-    DOJI = "doji"
-    SPINNING_TOP = "spinning_top"
-    BULLISH_ENGULFING = "bullish_engulfing"
-    BEARISH_ENGULFING = "bearish_engulfing"
-    PIERCING_LINE = "piercing_line"
-    DARK_CLOUD_COVER = "dark_cloud_cover"
-    MORNING_STAR = "morning_star"
-    EVENING_STAR = "evening_star"
-    THREE_WHITE_SOLDIERS = "three_white_soldiers"
-    THREE_BLACK_CROWS = "three_black_crows"
-
 class TechnicalAnalysisEngine:
     """
-    موتور کامل تحلیل تکنیکال با تمام ابزارهای پیشرفته
-    برای استفاده مستقیم توسط هوش مصنوعی
+    موتور کامل تحلیل تکنیکال با pandas-ta
     """
     
     def __init__(self):
@@ -58,13 +42,11 @@ class TechnicalAnalysisEngine:
             'momentum': ['rsi', 'stoch', 'williams_r', 'cci', 'mfi', 'awesome_oscillator'],
             'volatility': ['bollinger_bands', 'atr', 'keltner_channels', 'donchian_channels'],
             'volume': ['obv', 'volume_profile', 'vwap', 'accumulation_distribution'],
-            'support_resistance': ['pivot_points', 'fibonacci', 'candlestick_patterns'],
-            'advanced': ['harmonic_patterns', 'market_profile', 'order_flow', 'volume_delta']
+            'support_resistance': ['pivot_points', 'fibonacci', 'candlestick_patterns']
         }
         
-        print("🚀 موتور تحلیل تکنیکال پیشرفته راه‌اندازی شد")
-        print(f"📊 تعداد اندیکاتورهای موجود: {sum(len(v) for v in self.available_indicators.values())}")
-    
+        print("🚀 موتور تحلیل تکنیکال با pandas-ta راه‌اندازی شد")
+
     def _prepare_dataframe(self, price_data: List[Dict]) -> pd.DataFrame:
         """آماده سازی داده‌ها برای تحلیل"""
         if not price_data:
@@ -79,7 +61,6 @@ class TechnicalAnalysisEngine:
                 if col == 'timestamp':
                     df['timestamp'] = pd.date_range(start='2024-01-01', periods=len(df), freq='H')
                 else:
-                    # تولید داده‌های نمونه در صورت عدم وجود
                     if col in ['open', 'high', 'low', 'close']:
                         base_price = 50000
                         df[col] = [base_price + (i * 10) + np.random.normal(0, 100) for i in range(len(df))]
@@ -90,47 +71,53 @@ class TechnicalAnalysisEngine:
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # حذف مقادیر NaN
-        df = df.dropna()
-        
-        df = df.sort_values('timestamp').reset_index(drop=True)
+        df = df.dropna().sort_values('timestamp').reset_index(drop=True)
         return df
 
     def _calculate_trend_indicators(self, df: pd.DataFrame) -> Dict[str, Any]:
         """محاسبه اندیکاتورهای روند"""
-        close_prices = df['close'].values
-        high_prices = df['high'].values
-        low_prices = df['low'].values
+        close_prices = df['close']
+        high_prices = df['high']
+        low_prices = df['low']
         
         results = {}
         
         try:
-            # SMA
-            results['sma_20'] = talib.SMA(close_prices, timeperiod=20)
-            results['sma_50'] = talib.SMA(close_prices, timeperiod=50)
-            results['sma_200'] = talib.SMA(close_prices, timeperiod=200)
+            # Moving Averages
+            results['sma_20'] = ta.sma(close_prices, length=20)
+            results['sma_50'] = ta.sma(close_prices, length=50)
+            results['sma_200'] = ta.sma(close_prices, length=200)
             
-            # EMA
-            results['ema_12'] = talib.EMA(close_prices, timeperiod=12)
-            results['ema_26'] = talib.EMA(close_prices, timeperiod=26)
+            results['ema_12'] = ta.ema(close_prices, length=12)
+            results['ema_26'] = ta.ema(close_prices, length=26)
             
-            # WMA
-            results['wma_20'] = talib.WMA(close_prices, timeperiod=20)
+            results['wma_20'] = ta.wma(close_prices, length=20)
             
             # MACD
-            macd, macd_signal, macd_hist = talib.MACD(close_prices)
-            results['macd'] = macd
-            results['macd_signal'] = macd_signal
-            results['macd_histogram'] = macd_hist
+            macd_data = ta.macd(close_prices, fast=12, slow=26, signal=9)
+            if macd_data is not None:
+                results['macd'] = macd_data.get('MACD_12_26_9')
+                results['macd_signal'] = macd_data.get('MACDs_12_26_9')
+                results['macd_histogram'] = macd_data.get('MACDh_12_26_9')
             
             # ADX
-            results['adx'] = talib.ADX(high_prices, low_prices, close_prices, timeperiod=14)
+            adx_data = ta.adx(high_prices, low_prices, close_prices, length=14)
+            if adx_data is not None:
+                results['adx'] = adx_data.get('ADX_14')
             
             # Parabolic SAR
-            results['parabolic_sar'] = talib.SAR(high_prices, low_prices)
+            results['parabolic_sar'] = ta.psar(high_prices, low_prices)
             
             # Ichimoku Cloud
-            results['ichimoku'] = self._calculate_ichimoku(df)
+            ichimoku_data = ta.ichimoku(high_prices, low_prices, close_prices)
+            if ichimoku_data is not None:
+                results['ichimoku'] = {
+                    'tenkan_sen': ichimoku_data.get('ITS_9'),
+                    'kijun_sen': ichimoku_data.get('IKS_26'),
+                    'senkou_span_a': ichimoku_data.get('ISA_9'),
+                    'senkou_span_b': ichimoku_data.get('ISB_26'),
+                    'chikou_span': ichimoku_data.get('ICS_26')
+                }
             
         except Exception as e:
             print(f"⚠️ خطا در محاسبه اندیکاتورهای روند: {e}")
@@ -139,33 +126,34 @@ class TechnicalAnalysisEngine:
 
     def _calculate_momentum_indicators(self, df: pd.DataFrame) -> Dict[str, Any]:
         """محاسبه اندیکاتورهای مومنتوم"""
-        close_prices = df['close'].values
-        high_prices = df['high'].values
-        low_prices = df['low'].values
-        volume = df['volume'].values
+        close_prices = df['close']
+        high_prices = df['high']
+        low_prices = df['low']
+        volume = df['volume']
         
         results = {}
         
         try:
             # RSI
-            results['rsi'] = talib.RSI(close_prices, timeperiod=14)
+            results['rsi'] = ta.rsi(close_prices, length=14)
             
             # Stochastic
-            slowk, slowd = talib.STOCH(high_prices, low_prices, close_prices)
-            results['stoch_k'] = slowk
-            results['stoch_d'] = slowd
+            stoch_data = ta.stoch(high_prices, low_prices, close_prices)
+            if stoch_data is not None:
+                results['stoch_k'] = stoch_data.get('STOCHk_14_3_3')
+                results['stoch_d'] = stoch_data.get('STOCHd_14_3_3')
             
             # Williams %R
-            results['williams_r'] = talib.WILLR(high_prices, low_prices, close_prices, timeperiod=14)
+            results['williams_r'] = ta.willr(high_prices, low_prices, close_prices, length=14)
             
             # CCI
-            results['cci'] = talib.CCI(high_prices, low_prices, close_prices, timeperiod=20)
+            results['cci'] = ta.cci(high_prices, low_prices, close_prices, length=20)
             
             # MFI
-            results['mfi'] = talib.MFI(high_prices, low_prices, close_prices, volume, timeperiod=14)
+            results['mfi'] = ta.mfi(high_prices, low_prices, close_prices, volume, length=14)
             
             # Awesome Oscillator
-            results['awesome_oscillator'] = self._calculate_awesome_oscillator(df)
+            results['awesome_oscillator'] = ta.ao(high_prices, low_prices)
             
         except Exception as e:
             print(f"⚠️ خطا در محاسبه اندیکاتورهای مومنتوم: {e}")
@@ -174,28 +162,41 @@ class TechnicalAnalysisEngine:
 
     def _calculate_volatility_indicators(self, df: pd.DataFrame) -> Dict[str, Any]:
         """محاسبه اندیکاتورهای نوسان"""
-        close_prices = df['close'].values
-        high_prices = df['high'].values
-        low_prices = df['low'].values
+        close_prices = df['close']
+        high_prices = df['high']
+        low_prices = df['low']
         
         results = {}
         
         try:
             # Bollinger Bands
-            bb_upper, bb_middle, bb_lower = talib.BBANDS(close_prices, timeperiod=20, nbdevup=2, nbdevdn=2)
-            results['bollinger_upper'] = bb_upper
-            results['bollinger_middle'] = bb_middle
-            results['bollinger_lower'] = bb_lower
-            results['bollinger_bandwidth'] = (bb_upper - bb_lower) / bb_middle
+            bb_data = ta.bbands(close_prices, length=20, std=2)
+            if bb_data is not None:
+                results['bollinger_upper'] = bb_data.get('BBU_20_2.0')
+                results['bollinger_middle'] = bb_data.get('BBM_20_2.0')
+                results['bollinger_lower'] = bb_data.get('BBL_20_2.0')
+                results['bollinger_bandwidth'] = bb_data.get('BBB_20_2.0')
             
             # ATR
-            results['atr'] = talib.ATR(high_prices, low_prices, close_prices, timeperiod=14)
+            results['atr'] = ta.atr(high_prices, low_prices, close_prices, length=14)
             
             # Keltner Channels
-            results['keltner'] = self._calculate_keltner_channels(df)
+            kc_data = ta.kc(high_prices, low_prices, close_prices)
+            if kc_data is not None:
+                results['keltner'] = {
+                    'upper': kc_data.get('KCUe_20_2'),
+                    'middle': kc_data.get('KCBe_20_2'),
+                    'lower': kc_data.get('KCLe_20_2')
+                }
             
             # Donchian Channels
-            results['donchian'] = self._calculate_donchian_channels(df)
+            dc_data = ta.donchian(high_prices, low_prices, length=20)
+            if dc_data is not None:
+                results['donchian'] = {
+                    'upper': dc_data.get('DCU_20'),
+                    'middle': dc_data.get('DCM_20'),
+                    'lower': dc_data.get('DCL_20')
+                }
             
         except Exception as e:
             print(f"⚠️ خطا در محاسبه اندیکاتورهای نوسان: {e}")
@@ -204,121 +205,30 @@ class TechnicalAnalysisEngine:
 
     def _calculate_volume_indicators(self, df: pd.DataFrame) -> Dict[str, Any]:
         """محاسبه اندیکاتورهای حجم"""
-        close_prices = df['close'].values
-        high_prices = df['high'].values
-        low_prices = df['low'].values
-        volume = df['volume'].values
+        close_prices = df['close']
+        high_prices = df['high']
+        low_prices = df['low']
+        volume = df['volume']
         
         results = {}
         
         try:
             # OBV
-            results['obv'] = talib.OBV(close_prices, volume)
+            results['obv'] = ta.obv(close_prices, volume)
             
             # Volume Profile
             results['volume_profile'] = self._calculate_volume_profile(df)
             
             # VWAP
-            results['vwap'] = self._calculate_vwap(df)
+            results['vwap'] = ta.vwap(high_prices, low_prices, close_prices, volume)
             
             # Accumulation/Distribution
-            results['ad_line'] = talib.AD(high_prices, low_prices, close_prices, volume)
+            results['ad_line'] = ta.ad(high_prices, low_prices, close_prices, volume)
             
         except Exception as e:
             print(f"⚠️ خطا در محاسبه اندیکاتورهای حجم: {e}")
         
         return results
-
-    def _calculate_ichimoku(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """محاسبه ابر ایچیموکو"""
-        high_prices = df['high'].values
-        low_prices = df['low'].values
-        
-        try:
-            # Tenkan-sen (Conversion Line)
-            period9_high = talib.MAX(high_prices, timeperiod=9)
-            period9_low = talib.MIN(low_prices, timeperiod=9)
-            tenkan_sen = (period9_high + period9_low) / 2
-            
-            # Kijun-sen (Base Line)
-            period26_high = talib.MAX(high_prices, timeperiod=26)
-            period26_low = talib.MIN(low_prices, timeperiod=26)
-            kijun_sen = (period26_high + period26_low) / 2
-            
-            # Senkou Span A (Leading Span A)
-            senkou_span_a = ((tenkan_sen + kijun_sen) / 2)
-            
-            # Senkou Span B (Leading Span B)
-            period52_high = talib.MAX(high_prices, timeperiod=52)
-            period52_low = talib.MIN(low_prices, timeperiod=52)
-            senkou_span_b = ((period52_high + period52_low) / 2)
-            
-            # Chikou Span (Lagging Span)
-            chikou_span = df['close'].shift(-26).values
-            
-            return {
-                'tenkan_sen': tenkan_sen,
-                'kijun_sen': kijun_sen,
-                'senkou_span_a': senkou_span_a,
-                'senkou_span_b': senkou_span_b,
-                'chikou_span': chikou_span
-            }
-        except Exception as e:
-            print(f"⚠️ خطا در محاسبه ایچیموکو: {e}")
-            return {}
-
-    def _calculate_awesome_oscillator(self, df: pd.DataFrame) -> np.ndarray:
-        """محاسبه Awesome Oscillator"""
-        try:
-            high_prices = df['high'].values
-            low_prices = df['low'].values
-            
-            median_price = (high_prices + low_prices) / 2
-            sma5 = talib.SMA(median_price, timeperiod=5)
-            sma34 = talib.SMA(median_price, timeperiod=34)
-            
-            return sma5 - sma34
-        except:
-            return np.array([])
-
-    def _calculate_keltner_channels(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """محاسبه Keltner Channels"""
-        try:
-            high_prices = df['high'].values
-            low_prices = df['low'].values
-            close_prices = df['close'].values
-            
-            ema20 = talib.EMA(close_prices, timeperiod=20)
-            atr10 = talib.ATR(high_prices, low_prices, close_prices, timeperiod=10)
-            
-            upper_band = ema20 + (atr10 * 2)
-            lower_band = ema20 - (atr10 * 2)
-            
-            return {
-                'upper': upper_band,
-                'middle': ema20,
-                'lower': lower_band
-            }
-        except:
-            return {}
-
-    def _calculate_donchian_channels(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """محاسبه Donchian Channels"""
-        try:
-            high_prices = df['high'].values
-            low_prices = df['low'].values
-            
-            upper = talib.MAX(high_prices, timeperiod=20)
-            lower = talib.MIN(low_prices, timeperiod=20)
-            middle = (upper + lower) / 2
-            
-            return {
-                'upper': upper,
-                'middle': middle,
-                'lower': lower
-            }
-        except:
-            return {}
 
     def _calculate_volume_profile(self, df: pd.DataFrame) -> Dict[str, Any]:
         """محاسبه Volume Profile"""
@@ -329,7 +239,6 @@ class TechnicalAnalysisEngine:
             if len(prices) == 0:
                 return {}
                 
-            # تقسیم قیمت‌ها به 10 سطح
             price_min, price_max = prices.min(), prices.max()
             price_range = price_max - price_min
             
@@ -353,45 +262,23 @@ class TechnicalAnalysisEngine:
             print(f"⚠️ خطا در محاسبه Volume Profile: {e}")
             return {}
 
-    def _calculate_vwap(self, df: pd.DataFrame) -> np.ndarray:
-        """محاسبه VWAP"""
-        try:
-            typical_price = (df['high'] + df['low'] + df['close']) / 3
-            cumulative_tp_volume = (typical_price * df['volume']).cumsum()
-            cumulative_volume = df['volume'].cumsum()
-            
-            vwap = cumulative_tp_volume / cumulative_volume
-            return vwap.values
-        except:
-            return np.array([])
-
     def detect_candlestick_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
         """تشخیص الگوهای کندل استیک"""
         try:
-            open_prices = df['open'].values
-            high_prices = df['high'].values
-            low_prices = df['low'].values
-            close_prices = df['close'].values
+            open_prices = df['open']
+            high_prices = df['high']
+            low_prices = df['low']
+            close_prices = df['close']
             
             patterns = {}
             
-            # الگوهای تک کندلی
-            patterns['hammer'] = talib.CDLHAMMER(open_prices, high_prices, low_prices, close_prices)
-            patterns['hanging_man'] = talib.CDLHANGINGMAN(open_prices, high_prices, low_prices, close_prices)
-            patterns['doji'] = talib.CDLDOJI(open_prices, high_prices, low_prices, close_prices)
-            patterns['spinning_top'] = talib.CDLSPINNINGTOP(open_prices, high_prices, low_prices, close_prices)
-            
-            # الگوهای دو کندلی
-            patterns['engulfing_bullish'] = talib.CDLENGULFING(open_prices, high_prices, low_prices, close_prices)
-            patterns['engulfing_bearish'] = patterns['engulfing_bullish'] * -1
-            patterns['harami_bullish'] = talib.CDLHARAMI(open_prices, high_prices, low_prices, close_prices)
-            patterns['harami_bearish'] = talib.CDLHARAMICROSS(open_prices, high_prices, low_prices, close_prices)
-            
-            # الگوهای سه کندلی
-            patterns['morning_star'] = talib.CDLMORNINGSTAR(open_prices, high_prices, low_prices, close_prices)
-            patterns['evening_star'] = talib.CDLEVENINGSTAR(open_prices, high_prices, low_prices, close_prices)
-            patterns['three_white_soldiers'] = talib.CDL3WHITESOLDIERS(open_prices, high_prices, low_prices, close_prices)
-            patterns['three_black_crows'] = talib.CDL3BLACKCROWS(open_prices, high_prices, low_prices, close_prices)
+            # الگوهای کندل استیک با pandas-ta
+            patterns['doji'] = ta.cdl_doji(open_prices, high_prices, low_prices, close_prices)
+            patterns['hammer'] = ta.cdl_hammer(open_prices, high_prices, low_prices, close_prices)
+            patterns['engulfing_bullish'] = ta.cdl_engulfing(open_prices, high_prices, low_prices, close_prices)
+            patterns['engulfing_bearish'] = -ta.cdl_engulfing(open_prices, high_prices, low_prices, close_prices)
+            patterns['morning_star'] = ta.cdl_morningstar(open_prices, high_prices, low_prices, close_prices)
+            patterns['evening_star'] = ta.cdl_eveningstar(open_prices, high_prices, low_prices, close_prices)
             
             return patterns
         except Exception as e:
@@ -455,7 +342,6 @@ class TechnicalAnalysisEngine:
             if len(price_data) < 20:
                 return {"error": "داده‌های ناکافی برای تحلیل", "minimum_data_points": 20}
             
-            # تبدیل داده‌ها به فرمت مناسب
             df = self._prepare_dataframe(price_data)
             
             results = {
@@ -490,9 +376,9 @@ class TechnicalAnalysisEngine:
         
         try:
             # تحلیل RSI
-            rsi_data = indicators.get('momentum_indicators', {}).get('rsi', [])
-            if len(rsi_data) > 0:
-                rsi = rsi_data[-1]
+            rsi_data = indicators.get('momentum_indicators', {}).get('rsi')
+            if rsi_data is not None and len(rsi_data) > 0:
+                rsi = rsi_data.iloc[-1] if hasattr(rsi_data, 'iloc') else rsi_data[-1]
                 if not np.isnan(rsi):
                     if rsi < 30:
                         signals.append(TechnicalSignal(
@@ -516,90 +402,63 @@ class TechnicalAnalysisEngine:
                         ))
             
             # تحلیل MACD
-            macd_data = indicators.get('trend_indicators', {}).get('macd', [])
-            macd_signal_data = indicators.get('trend_indicators', {}).get('macd_signal', [])
-            if len(macd_data) > 0 and len(macd_signal_data) > 0:
-                macd = macd_data[-1]
-                macd_signal = macd_signal_data[-1]
-                if not np.isnan(macd) and not np.isnan(macd_signal):
-                    if macd > macd_signal and macd_signal > 0:
-                        signals.append(TechnicalSignal(
-                            indicator="MACD",
-                            value=float(macd),
-                            signal="خرید قوی",
-                            strength=SignalStrength.VERY_STRONG,
-                            trend=TrendDirection.BULLISH,
-                            description="MACD بالای خط سیگنال و مثبت",
-                            timestamp=datetime.now().isoformat()
-                        ))
-                    elif macd < macd_signal and macd_signal < 0:
-                        signals.append(TechnicalSignal(
-                            indicator="MACD",
-                            value=float(macd),
-                            signal="فروش قوی",
-                            strength=SignalStrength.VERY_STRONG,
-                            trend=TrendDirection.BEARISH,
-                            description="MACD زیر خط سیگنال و منفی",
-                            timestamp=datetime.now().isoformat()
-                        ))
+            macd_data = indicators.get('trend_indicators', {}).get('macd')
+            macd_signal_data = indicators.get('trend_indicators', {}).get('macd_signal')
+            if macd_data is not None and macd_signal_data is not None:
+                if len(macd_data) > 0 and len(macd_signal_data) > 0:
+                    macd = macd_data.iloc[-1] if hasattr(macd_data, 'iloc') else macd_data[-1]
+                    macd_signal = macd_signal_data.iloc[-1] if hasattr(macd_signal_data, 'iloc') else macd_signal_data[-1]
+                    if not np.isnan(macd) and not np.isnan(macd_signal):
+                        if macd > macd_signal and macd_signal > 0:
+                            signals.append(TechnicalSignal(
+                                indicator="MACD",
+                                value=float(macd),
+                                signal="خرید قوی",
+                                strength=SignalStrength.VERY_STRONG,
+                                trend=TrendDirection.BULLISH,
+                                description="MACD بالای خط سیگنال و مثبت",
+                                timestamp=datetime.now().isoformat()
+                            ))
             
             # تحلیل Moving Averages
-            sma_20_data = indicators.get('trend_indicators', {}).get('sma_20', [])
-            sma_50_data = indicators.get('trend_indicators', {}).get('sma_50', [])
+            sma_20_data = indicators.get('trend_indicators', {}).get('sma_20')
+            sma_50_data = indicators.get('trend_indicators', {}).get('sma_50')
             current_price = indicators.get('price_action', {}).get('current_price', 0)
             
-            if len(sma_20_data) > 0 and len(sma_50_data) > 0:
-                sma_20 = sma_20_data[-1]
-                sma_50 = sma_50_data[-1]
-                if not np.isnan(sma_20) and not np.isnan(sma_50):
-                    if current_price > sma_20 > sma_50:
-                        signals.append(TechnicalSignal(
-                            indicator="Moving Averages",
-                            value=float(current_price),
-                            signal="خرید",
-                            strength=SignalStrength.STRONG,
-                            trend=TrendDirection.BULLISH,
-                            description="قیمت بالای میانگین‌های متحرک",
-                            timestamp=datetime.now().isoformat()
-                        ))
-                    elif current_price < sma_20 < sma_50:
-                        signals.append(TechnicalSignal(
-                            indicator="Moving Averages",
-                            value=float(current_price),
-                            signal="فروش",
-                            strength=SignalStrength.STRONG,
-                            trend=TrendDirection.BEARISH,
-                            description="قیمت زیر میانگین‌های متحرک",
-                            timestamp=datetime.now().isoformat()
-                        ))
+            if sma_20_data is not None and sma_50_data is not None:
+                if len(sma_20_data) > 0 and len(sma_50_data) > 0:
+                    sma_20 = sma_20_data.iloc[-1] if hasattr(sma_20_data, 'iloc') else sma_20_data[-1]
+                    sma_50 = sma_50_data.iloc[-1] if hasattr(sma_50_data, 'iloc') else sma_50_data[-1]
+                    if not np.isnan(sma_20) and not np.isnan(sma_50):
+                        if current_price > sma_20 > sma_50:
+                            signals.append(TechnicalSignal(
+                                indicator="Moving Averages",
+                                value=float(current_price),
+                                signal="خرید",
+                                strength=SignalStrength.STRONG,
+                                trend=TrendDirection.BULLISH,
+                                description="قیمت بالای میانگین‌های متحرک",
+                                timestamp=datetime.now().isoformat()
+                            ))
             
             # تحلیل Bollinger Bands
-            bb_upper_data = indicators.get('volatility_indicators', {}).get('bollinger_upper', [])
-            bb_lower_data = indicators.get('volatility_indicators', {}).get('bollinger_lower', [])
-            if len(bb_upper_data) > 0 and len(bb_lower_data) > 0:
-                bb_upper = bb_upper_data[-1]
-                bb_lower = bb_lower_data[-1]
-                if not np.isnan(bb_upper) and not np.isnan(bb_lower):
-                    if current_price < bb_lower:
-                        signals.append(TechnicalSignal(
-                            indicator="Bollinger Bands",
-                            value=float(current_price),
-                            signal="خرید",
-                            strength=SignalStrength.STRONG,
-                            trend=TrendDirection.BULLISH,
-                            description="قیمت در ناحیه پایین باند بولینگر",
-                            timestamp=datetime.now().isoformat()
-                        ))
-                    elif current_price > bb_upper:
-                        signals.append(TechnicalSignal(
-                            indicator="Bollinger Bands",
-                            value=float(current_price),
-                            signal="فروش",
-                            strength=SignalStrength.STRONG,
-                            trend=TrendDirection.BEARISH,
-                            description="قیمت در ناحیه بالای باند بولینگر",
-                            timestamp=datetime.now().isoformat()
-                        ))
+            bb_upper_data = indicators.get('volatility_indicators', {}).get('bollinger_upper')
+            bb_lower_data = indicators.get('volatility_indicators', {}).get('bollinger_lower')
+            if bb_upper_data is not None and bb_lower_data is not None:
+                if len(bb_upper_data) > 0 and len(bb_lower_data) > 0:
+                    bb_upper = bb_upper_data.iloc[-1] if hasattr(bb_upper_data, 'iloc') else bb_upper_data[-1]
+                    bb_lower = bb_lower_data.iloc[-1] if hasattr(bb_lower_data, 'iloc') else bb_lower_data[-1]
+                    if not np.isnan(bb_upper) and not np.isnan(bb_lower):
+                        if current_price < bb_lower:
+                            signals.append(TechnicalSignal(
+                                indicator="Bollinger Bands",
+                                value=float(current_price),
+                                signal="خرید",
+                                strength=SignalStrength.STRONG,
+                                trend=TrendDirection.BULLISH,
+                                description="قیمت در ناحیه پایین باند بولینگر",
+                                timestamp=datetime.now().isoformat()
+                            ))
                         
         except Exception as e:
             print(f"⚠️ خطا در تولید سیگنال‌ها: {e}")
@@ -662,11 +521,11 @@ class TechnicalAnalysisEngine:
     def _assess_market_condition(self, indicators: Dict[str, Any]) -> str:
         """ارزیابی شرایط بازار"""
         try:
-            atr_data = indicators.get('volatility_indicators', {}).get('atr', [])
+            atr_data = indicators.get('volatility_indicators', {}).get('atr')
             current_price = indicators.get('price_action', {}).get('current_price', 1)
             
-            if len(atr_data) > 0:
-                volatility = atr_data[-1]
+            if atr_data is not None and len(atr_data) > 0:
+                volatility = atr_data.iloc[-1] if hasattr(atr_data, 'iloc') else atr_data[-1]
                 if not np.isnan(volatility):
                     volatility_ratio = (volatility / current_price) * 100
                     
@@ -682,16 +541,16 @@ class TechnicalAnalysisEngine:
     def _calculate_risk_assessment(self, indicators: Dict[str, Any]) -> Dict[str, Any]:
         """محاسبه ارزیابی ریسک"""
         try:
-            rsi_data = indicators.get('momentum_indicators', {}).get('rsi', [])
-            adx_data = indicators.get('trend_indicators', {}).get('adx', [])
-            atr_data = indicators.get('volatility_indicators', {}).get('atr', [])
+            rsi_data = indicators.get('momentum_indicators', {}).get('rsi')
+            adx_data = indicators.get('trend_indicators', {}).get('adx')
+            atr_data = indicators.get('volatility_indicators', {}).get('atr')
             current_price = indicators.get('price_action', {}).get('current_price', 1)
             
             risk_score = 0
             factors = {}
             
-            if len(rsi_data) > 0:
-                rsi = rsi_data[-1]
+            if rsi_data is not None and len(rsi_data) > 0:
+                rsi = rsi_data.iloc[-1] if hasattr(rsi_data, 'iloc') else rsi_data[-1]
                 if not np.isnan(rsi):
                     if rsi > 70 or rsi < 30:
                         risk_score += 2
@@ -699,8 +558,8 @@ class TechnicalAnalysisEngine:
                     else:
                         factors['overbought_oversold'] = False
             
-            if len(adx_data) > 0:
-                adx = adx_data[-1]
+            if adx_data is not None and len(adx_data) > 0:
+                adx = adx_data.iloc[-1] if hasattr(adx_data, 'iloc') else adx_data[-1]
                 if not np.isnan(adx):
                     if adx > 25:
                         risk_score += 1
@@ -708,8 +567,8 @@ class TechnicalAnalysisEngine:
                     else:
                         factors['trend_strength'] = False
             
-            if len(atr_data) > 0:
-                volatility = atr_data[-1]
+            if atr_data is not None and len(atr_data) > 0:
+                volatility = atr_data.iloc[-1] if hasattr(atr_data, 'iloc') else atr_data[-1]
                 if not np.isnan(volatility):
                     if (volatility / current_price) > 0.03:
                         risk_score += 1
@@ -734,20 +593,16 @@ class TechnicalAnalysisEngine:
     def analyze_raw_api_data(self, raw_api_response: Dict) -> Dict:
         """تحلیل داده‌های خام دریافتی از API"""
         try:
-            # استخراج داده‌های قیمت از پاسخ خام API
             raw_data = raw_api_response
             
-            # بررسی ساختارهای مختلف داده
             price_data = []
             
             if isinstance(raw_data, dict) and 'raw_data' in raw_data:
-                # ساختار اصلی با فیلد raw_data
                 actual_data = raw_data['raw_data']
             else:
                 actual_data = raw_data
             
             if isinstance(actual_data, list):
-                # داده‌های لیستی (مانند لیست کوین‌ها)
                 for item in actual_data:
                     if isinstance(item, dict):
                         price = item.get('price', item.get('close', 0))
@@ -760,7 +615,6 @@ class TechnicalAnalysisEngine:
                             'volume': item.get('volume', item.get('total_volume', 1000))
                         })
             elif isinstance(actual_data, dict) and 'chart' in actual_data:
-                # داده‌های چارت تاریخی
                 chart_data = actual_data['chart']
                 for point in chart_data:
                     if isinstance(point, list) and len(point) >= 2:
@@ -773,7 +627,6 @@ class TechnicalAnalysisEngine:
                             'volume': point[5] if len(point) > 5 else 1000
                         })
             else:
-                # داده‌های نامشخص - ایجاد داده‌های نمونه
                 base_price = 50000
                 for i in range(100):
                     price_data.append({
@@ -793,12 +646,10 @@ class TechnicalAnalysisEngine:
                 'timestamp': datetime.now().isoformat()
             }
 
-# نمونه استفاده
+# تست موتور
 if __name__ == "__main__":
-    # تست موتور تحلیل تکنیکال
     engine = TechnicalAnalysisEngine()
     
-    # تولید داده‌های نمونه
     sample_data = []
     base_price = 50000
     for i in range(100):
@@ -812,7 +663,6 @@ if __name__ == "__main__":
             'volume': np.random.randint(1000, 10000)
         })
     
-    # تحلیل کامل
     report = engine.market_analysis_report(sample_data)
     print(f"📊 گزارش تحلیل بازار:")
     print(f"روند کلی: {report.get('overall_trend', 'N/A')}")
