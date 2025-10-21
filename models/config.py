@@ -2,6 +2,27 @@
 import os
 from datetime import timedelta
 
+# تنظیمات بهینه‌سازی حافظه
+MEMORY_OPTIMIZATION = {
+    'dtype_optimization': True,
+    'downcast_numbers': True,
+    'remove_unused_columns': True,
+    'chunk_processing': True,
+    'chunk_size': 1000,
+    'max_data_points': 5000,  # حداکثر نقطه داده برای پردازش
+    'cleanup_interval': 100   # هر 100 پردازش، حافظه پاک‌سازی شود
+}
+
+# تنظیمات اندیکاتورها
+INDICATOR_CONFIG = {
+    'enable_basic_indicators': True,
+    'enable_advanced_indicators': False,  # غیرفعال برای صرفه‌جویی حافظه
+    'rsi_period': 14,
+    'sma_periods': [20, 50],  # فقط میانگین‌های ضروری
+    'bb_period': 20,
+    'max_indicators': 10  # حداکثر تعداد اندیکاتورها
+}
+
 # تنظیمات API
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
