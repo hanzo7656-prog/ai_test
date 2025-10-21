@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Dict, List, Optional, Tuple, Union, Any
 from dataclasses import dataclass
 from enum import Enum
-import talib
+import pandas_ta as ta
 from scipy import stats
 import math
 from datetime import datetime, timedelta
