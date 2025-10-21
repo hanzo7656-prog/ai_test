@@ -1,0 +1,8 @@
+# .buildkite/pipeline.yml
+steps:
+  - label: ":pipeline: Build"
+    command: echo "Hello World"
+    
+  - label: ":rocket: Deploy"
+    command: deploy.sh
+    depends_on: build
