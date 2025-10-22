@@ -1,0 +1,48 @@
+# 📁 requirements.txt
+
+# FastAPI و سرور
+fastapi>=0.104.1
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# داده و محاسبات
+pandas>=2.1.3
+numpy>=1.24.3
+scikit-learn>=1.3.2
+scipy>=1.11.3
+
+# شبکه عصبی
+torch>=2.1.0
+torchvision>=0.16.0
+
+# درخواست‌های HTTP
+requests>=2.31.0
+aiohttp>=3.9.1
+
+# کش
+redis>=5.0.1
+
+# تاریخ و زمان
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# لاگینگ
+structlog>=23.2.0
+
+# محیط و تنظیمات
+python-dotenv>=1.0.0
+pydantic-settings>=2.1.0
+
+# مستندات
+mkdocs>=1.5.3
+mkdocs-material>=9.5.3
+
+# تست
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+httpx>=0.25.2
+
+# توسعه
+black>=23.11.0
+flake8>=6.1.0
+mypy>=1.7.1
