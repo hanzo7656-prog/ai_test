@@ -1,21 +1,44 @@
-# 📁 src/api/main.py  (فقط API - نه موتور!)
+# 📁 src/api/main.py
 
 from fastapi import FastAPI
-from .routes.analysis import analysis_router
-from .routes.trading import trading_router  
-from .routes.system import system_router
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
+# ایجاد اپلیکیشن FastAPI
 app = FastAPI(
     title="Crypto Market Analyzer API",
-    description="Real-time cryptocurrency market analysis and trading signals", 
-    version="1.0.0"
+    description="Real-time cryptocurrency market analysis and trading signals",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
-# رجیستر کردن روت‌ها
-app.include_router(analysis_router, prefix="/api/v1/analysis", tags=["Analysis"])
-app.include_router(trading_router, prefix="/api/v1/trading", tags=["Trading"]) 
-app.include_router(system_router, prefix="/api/v1/system", tags=["System"])
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # در production محدود کن
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
     return {"message": "Crypto Market Analyzer API", "status": "running"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "crypto-analyzer"}
+
+# روت‌های ساده برای تست
+@app.get("/api/test")
+async def test_endpoint():
+    return {"message": "API is working!"}
+
+@app.get("/api/symbols/{symbol}")
+async def get_symbol_info(symbol: str):
+    return {"symbol": symbol, "price": 50000, "change": 2.5}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
