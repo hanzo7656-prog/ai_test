@@ -1,22 +1,13 @@
-# 📁 main.py  (ریشه پروژه)
+# 📁 main.py
 
-import asyncio
+import uvicorn
 import os
-import sys
-from src.api.main import app
 
 if __name__ == "__main__":
-    # اجرای سرور FastAPI
-    import uvicorn
-    
-    # ایجاد پوشه‌های لازم
-    os.makedirs('logs', exist_ok=True)
-    os.makedirs('models', exist_ok=True)
-    
     uvicorn.run(
         "src.api.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,  # فقط برای توسعه
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", 8000)),
+        reload=False,  # در production همیشه false
         log_level="info"
     )
