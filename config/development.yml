@@ -1,0 +1,32 @@
+# 📁 config/development.yaml
+
+environment: "development"
+debug: true
+
+logging:
+  level: "DEBUG"
+  file: "logs/development.log"
+
+api:
+  host: "127.0.0.1"
+  port: 8000
+  cors_origins: ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+database:
+  url: "sqlite:///./crypto_analyzer_dev.db"
+  echo: true
+
+cache:
+  type: "memory"
+  ttl: 300
+
+data_sources:
+  primary: "github"
+  fallback: "api"
+  rate_limiting:
+    requests_per_minute: 30
+    burst_limit: 5
+
+testing:
+  mock_data: true
+  sample_size: 100
