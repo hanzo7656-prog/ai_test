@@ -11,6 +11,7 @@ import os
 import gc
 import logging
 import time
+from new_endpoints import app
 
 # Configure logging
 logging.basicConfig(
