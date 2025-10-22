@@ -1,22 +1,21 @@
-# 📁 main.py  (ریشه پروژه)
+# 📁 src/api/main.py  (فقط API - نه موتور!)
 
-import asyncio
-import os
-import sys
-from src.api.main import app
+from fastapi import FastAPI
+from .routes.analysis import analysis_router
+from .routes.trading import trading_router  
+from .routes.system import system_router
 
-if __name__ == "__main__":
-    # اجرای سرور FastAPI
-    import uvicorn
-    
-    # ایجاد پوشه‌های لازم
-    os.makedirs('logs', exist_ok=True)
-    os.makedirs('models', exist_ok=True)
-    
-    uvicorn.run(
-        "src.api.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,  # فقط برای توسعه
-        log_level="info"
-    )
+app = FastAPI(
+    title="Crypto Market Analyzer API",
+    description="Real-time cryptocurrency market analysis and trading signals", 
+    version="1.0.0"
+)
+
+# رجیستر کردن روت‌ها
+app.include_router(analysis_router, prefix="/api/v1/analysis", tags=["Analysis"])
+app.include_router(trading_router, prefix="/api/v1/trading", tags=["Trading"]) 
+app.include_router(system_router, prefix="/api/v1/system", tags=["System"])
+
+@app.get("/")
+async def root():
+    return {"message": "Crypto Market Analyzer API", "status": "running"}
