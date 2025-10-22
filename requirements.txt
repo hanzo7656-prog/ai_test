@@ -1,26 +1,26 @@
-# 🚀 ULTRA-LIGHT REQUIREMENTS FOR 512MB RAM
+# 🚀 UPDATED REQUIREMENTS FOR PYTHON 3.13 & RENDER
 
-# === CORE ML (MINIMAL) ===
-torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
-numpy==1.26.0
-scipy==1.11.0
+# === CORE ML (LATEST VERSIONS) ===
+torch>=2.5.0
+numpy>=1.26.0
+scipy>=1.11.0
 
-# === DATA PROCESSING (ESSENTIAL) ===
-pandas==2.1.0
-requests==2.31.0
+# === DATA PROCESSING ===
+pandas>=2.1.0
+requests>=2.31.0
 
-# === WEB & API (LIGHTWEIGHT) ===
-fastapi==0.104.0
-uvicorn==0.24.0
-python-multipart==0.0.6
+# === WEB & API ===
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.0
 
-# === SYSTEM MONITORING (MINIMAL) ===
-psutil==5.9.0
+# === SYSTEM MONITORING ===
+psutil>=5.9.0
 
-# === UTILITIES (TINY) ===
-tqdm==4.66.0
-colorama==0.4.6
+# === UTILITIES ===
+tqdm>=4.66.0
+colorama>=0.4.6
 
-# === OPTIONAL (ONLY IF NEEDED) ===
-# websocket-client==1.6.0  # فقط اگر وب‌سوکت نیاز دارید
-# beautifulsoup4==4.12.0  # فقط اگر اسکرپینگ نیاز دارید
+# === OPTIONAL (REMOVE IF NOT NEEDED) ===
+# websocket-client>=1.6.0
+# beautifulsoup4>=4.12.0
