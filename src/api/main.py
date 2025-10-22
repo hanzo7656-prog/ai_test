@@ -35,9 +35,10 @@ async def health():
 async def test_endpoint():
     return {"message": "API is working!"}
 
-@app.get("/api/symbols/{symbol}")
-async def get_symbol_info(symbol: str):
-    return {"symbol": symbol, "price": 50000, "change": 2.5}
+# این روت رو حذف کردم چون داده ساختگی برمیگردوند
+# @app.get("/api/symbols/{symbol}")
+# async def get_symbol_info(symbol: str):
+#     return {"symbol": symbol, "price": 50000, "change": 2.5}
 
 if __name__ == "__main__":
     import uvicorn
