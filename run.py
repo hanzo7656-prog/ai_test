@@ -8,7 +8,7 @@ if __name__ == "__main__":
     # بارگذاری متغیرهای محیطی
     load_dotenv()
     
-    # اجرای سرور
+    # اجرای سرور - مستقیماً از مسیر درست
     uvicorn.run(
         "src.api.main:app",
         host=os.getenv("HOST", "0.0.0.0"),
