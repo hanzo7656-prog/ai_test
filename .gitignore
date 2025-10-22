@@ -1,0 +1,43 @@
+# مدل‌ها و داده‌های حجیم
+/models/
+/data/raw/
+/data/processed/
+*.npz
+*.h5
+*.pkl
+*.joblib
+
+# محیط مجازی Python
+venv/
+env/
+.venv/
+
+# لاگ‌ها
+*.log
+logs/
+
+# فایل‌های موقت
+*.tmp
+*.temp
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# سیستم عامل
+.DS_Store
+Thumbs.db
+
+# پایتون
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# تست‌ها
+.coverage
+.pytest_cache/
