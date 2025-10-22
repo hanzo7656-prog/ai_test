@@ -1,9 +1,12 @@
-# 🚀 UPDATED REQUIREMENTS FOR PYTHON 3.13 & RENDER
+# 🚀 UPDATED REQUIREMENTS WITH TA-LIB
 
-# === CORE ML (LATEST VERSIONS) ===
+# === CORE ML ===
 torch>=2.5.0
 numpy>=1.26.0
 scipy>=1.11.0
+
+# === TECHNICAL ANALYSIS ===
+TA-Lib>=0.4.29
 
 # === DATA PROCESSING ===
 pandas>=2.1.0
@@ -20,7 +23,3 @@ psutil>=5.9.0
 # === UTILITIES ===
 tqdm>=4.66.0
 colorama>=0.4.6
-
-# === OPTIONAL (REMOVE IF NOT NEEDED) ===
-# websocket-client>=1.6.0
-# beautifulsoup4>=4.12.0
