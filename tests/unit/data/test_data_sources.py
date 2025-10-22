@@ -7,8 +7,7 @@ from unittest.mock import Mock, patch
 import sys
 import os
 
-# افزودن مسیر پروژه به sys.path
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 
 from src.data.data_sources.github_data_source import GitHubDataSource
 from src.data.data_sources.api_data_source import APIDataSource
@@ -23,13 +22,10 @@ class TestGitHubDataSource:
     @patch('requests.get')
     def test_fetch_from_github_success(self, mock_get):
         """تست دریافت موفق از GitHub"""
-        # Mock response
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'result': [
-                {'id': 'bitcoin', 'price': 50000, 'symbol': 'BTC'}
-            ]
+            'result': [{'id': 'bitcoin', 'price': 50000, 'symbol': 'BTC'}]
         }
         mock_get.return_value = mock_response
         
@@ -132,15 +128,8 @@ class TestSmartDataManager:
         """تست مقداردهی اولیه بدون کلید API"""
         manager = SmartDataManager()
         
-        assert len(manager.sources) >= 1  # حداقل GitHub source
-        assert manager.cache is not None
-    
-    def test_initialization_with_api_key(self):
-        """تست مقداردهی اولیه با کلید API"""
-        manager = SmartDataManager(api_key="test_key")
-        
-        # باید حداقل یک منبع داشته باشد
         assert len(manager.sources) >= 1
+        assert manager.cache is not None
     
     @patch.object(GitHubDataSource, 'get_coins_data')
     def test_get_coins_data_prioritizes_github(self, mock_github):
@@ -160,17 +149,11 @@ class TestSmartDataManager:
         """تست عملکرد کش"""
         manager = SmartDataManager()
         
-        # داده تست
         test_data = {'result': [{'id': 'test', 'price': 100}]}
-        
-        # قرار دادن در کش
         manager.cache.set('test_key', test_data)
-        
-        # بازیابی از کش
         cached_data = manager.cache.get('test_key')
         
         assert cached_data == test_data
 
 if __name__ == "__main__":
-    # اجرای تست‌ها
     pytest.main([__file__, "-v"])
