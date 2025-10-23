@@ -1,13 +1,15 @@
-# complete_coinstats_manager.py - نسخه بدون پانداز
+# complete_coinstats_manager.py - نسخه اصلاح شده کامل
 import requests
 import json
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import glob
-import websocket
-import threading
 import time
+import logging
+
+# تنظیم لاگینگ
+logger = logging.getLogger(__name__)
 
 class CompleteCoinStatsManager:
     def __init__(self, raw_data_path: str = "raw_data", repo_url: str = None):
@@ -17,11 +19,9 @@ class CompleteCoinStatsManager:
         self.api_key = "oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt123YtbpA="
         self.headers = {"X-API-KEY": self.api_key}
 
-        # WebSocket configuration
-        self.ws_url = "wss://www.lbank.net/ws/V2/"
-        self.ws_client = None
-        self.realtime_data = {}
-        self.ws_connected = False
+        # WebSocket configuration - استفاده از مدیر جدید
+        self.ws_manager = None
+        self._initialize_websocket()
 
         # تابع‌فریم‌های پشتیبانی شده
         self.supported_timeframes = ["1h", "4h", "8h", "1d", "7d", "1m", "3m", "1y", "all"]
@@ -32,8 +32,28 @@ class CompleteCoinStatsManager:
         # پوشه‌های موجود در رپو
         self.repo_folders = ["A", "B", "C", "D"]
 
-        # WebSocket راه‌اندازی
-        self._initialize_websocket()
+    def _initialize_websocket(self):
+        """راه‌اندازی WebSocket برای داده‌های لحظه‌ای"""
+        try:
+            from lbank_websocket import LBankWebSocketManager
+            self.ws_manager = LBankWebSocketManager()
+            self.ws_manager.start()
+            
+            # اضافه کردن callback برای به‌روزرسانی داده‌ها
+            self.ws_manager.add_callback(self._on_websocket_data)
+            
+            logger.info("✅ WebSocket Manager Initialized")
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در راه اندازی WebSocket: {e}")
+
+    def _on_websocket_data(self, symbol, data):
+        """Callback برای داده‌های WebSocket"""
+        try:
+            # لاگ کردن داده‌های دریافتی
+            logger.debug(f"📊 WebSocket data received for {symbol}: ${data.get('price', 0)}")
+        except Exception as e:
+            logger.error(f"❌ خطا در پردازش داده WebSocket: {e}")
 
     def _read_csv_simple(self, file_path):
         """خواندن CSV بدون پانداز - جایگزین سبک‌وزن"""
@@ -89,10 +109,10 @@ class CompleteCoinStatsManager:
                             row_data[header] = value
                     data.append(row_data)
                 else:
-                    print(f"⚠️ خط {line_num}: تعداد ستون‌ها مطابقت ندارد. انتظار: {len(headers)}، دریافت: {len(values)}")
+                    logger.warning(f"⚠️ خط {line_num}: تعداد ستون‌ها مطابقت ندارد. انتظار: {len(headers)}، دریافت: {len(values)}")
                     
         except Exception as e:
-            print(f"❌ خطا در خواندن فایل CSV {file_path}: {e}")
+            logger.error(f"❌ خطا در خواندن فایل CSV {file_path}: {e}")
         
         return data
 
@@ -105,98 +125,6 @@ class CompleteCoinStatsManager:
             return True
         except ValueError:
             return False
-
-    def _initialize_websocket(self):
-        """راه‌اندازی WebSocket برای داده‌های لحظه‌ای"""
-        try:
-            self.ws_client = websocket.WebSocketApp(
-                self.ws_url,
-                on_open=self._on_ws_open,
-                on_message=self._on_ws_message,
-                on_error=self._on_ws_error,
-                on_close=self._on_ws_close
-            )
-
-            def run_ws():
-                self.ws_client.run_forever()
-
-            ws_thread = threading.Thread(target=run_ws)
-            ws_thread.daemon = True
-            ws_thread.start()
-        except Exception as e:
-            print(f"خطا در راه اندازی WebSocket: {e}")
-
-    def _on_ws_open(self, ws):
-        """WebSocket هنگام باز شدن اتصال"""
-        print("WebSocket به LBank متصل شد")
-        self.ws_connected = True
-        self._subscribe_to_major_pairs()
-
-    def _on_ws_message(self, ws, message):
-        """WebSocket پردازش پیام های دریافتی"""
-        try:
-            data = json.loads(message)
-            if data.get('type') == 'tick' and 'tick' in data:
-                symbol = data.get('pair', '')
-                tick_data = data['tick']
-
-                # ذخیره داده لحظه ای
-                self.realtime_data[symbol] = {
-                    'symbol': symbol,
-                    'price': float(tick_data.get('latest', 0)),
-                    'high_24h': float(tick_data.get('high', 0)),
-                    'low_24h': float(tick_data.get('low', 0)),
-                    'volume': float(tick_data.get('vol', 0)),
-                    'change': float(tick_data.get('change', 0)),
-                    'timestamp': data.get('TS', ""),
-                    'last_updated': time.time(),
-                    'source': 'lbank_websocket'
-                }
-        except json.JSONDecodeError as e:
-            print(f"❌ خطای JSON در WebSocket: {e}")
-
-    def _on_ws_error(self, ws, error):
-        """WebSocket خطاهای مدیریت"""
-        print(f"❌ خطای WebSocket: {error}")
-        self.ws_connected = False
-
-    def _on_ws_close(self, ws, close_status_code, close_msg):
-        """WebSocket بسته شدن اتصال هنگام"""
-        print(f"WebSocket بسته شد")
-        self.ws_connected = False
-        self._schedule_ws_reconnect()
-
-    def _schedule_ws_reconnect(self):
-        """WebSocket تلاش برای اتصال مجدد"""
-        time.sleep(10)
-        self._initialize_websocket()
-
-    def _subscribe_to_major_pairs(self):
-        """اشتراک در جفت ارزهای اصلی"""
-        major_pairs = [
-            "btc_usdt", "eth_usdt", "sol_usdt", "bnb_usdt",
-            "ada_usdt", "xrp_usdt", "doge_usdt", "dot_usdt"
-        ]
-
-        for pair in major_pairs:
-            self._subscribe_to_pair(pair)
-
-    def _subscribe_to_pair(self, pair: str):
-        """اشتراک در یک جفت ارز خاص"""
-        if not self.ws_connected or not self.ws_client:
-            return
-
-        subscription_msg = {
-            "action": "subscribe",
-            "subscribe": "tick",
-            "pair": pair
-        }
-
-        try:
-            self.ws_client.send(json.dumps(subscription_msg))
-            print(f"✔ اشتراک WebSocket برای {pair}")
-        except Exception as e:
-            print(f"✖ خطای اشتراک WebSocket برای {pair}: {e}")
 
     # ========================= متدهای مدیریت داده خام =========================
 
@@ -243,7 +171,7 @@ class CompleteCoinStatsManager:
                             'folder': folder
                         }
                 except Exception as e:
-                    print(f"❌ خطا در بارگذاری {file_path}: {e}")
+                    logger.error(f"❌ خطا در بارگذاری {file_path}: {e}")
 
         return raw_data
 
@@ -267,7 +195,7 @@ class CompleteCoinStatsManager:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"خطا در درخواست API به {endpoint}: {e}")
+            logger.error(f"❌ خطا در درخواست API به {endpoint}: {e}")
             return {}
 
     # ========================= اندپوینت‌های اصلی =========================
@@ -547,22 +475,46 @@ class CompleteCoinStatsManager:
 
     def get_realtime_price(self, symbol: str = None) -> Dict:
         """دریافت قیمت لحظه‌ای از WebSocket"""
-        if symbol:
-            lbank_symbol = symbol.lower().replace('/', '_')
-            return self.realtime_data.get(lbank_symbol, {})
-        return self.realtime_data
+        if self.ws_manager:
+            return self.ws_manager.get_realtime_data(symbol)
+        return {}
 
     def get_websocket_status(self) -> Dict[str, Any]:
         """دریافت وضعیت WebSocket"""
+        if self.ws_manager:
+            status = self.ws_manager.get_connection_status()
+            return {
+                'websocket_connected': status['connected'],
+                'active_realtime_pairs': status['active_pairs'],
+                'major_prices': {
+                    'BTC/USDT': self.get_realtime_price('btc_usdt').get('price', 0),
+                    'ETH/USDT': self.get_realtime_price('eth_usdt').get('price', 0),
+                    'SOL/USDT': self.get_realtime_price('sol_usdt').get('price', 0)
+                }
+            }
         return {
-            'websocket_connected': self.ws_connected,
-            'active_realtime_pairs': len(self.realtime_data),
+            'websocket_connected': False,
+            'active_realtime_pairs': [],
             'major_prices': {
-                'BTC/USDT': self.realtime_data.get('btc_usdt', {}).get('price', 0),
-                'ETH/USDT': self.realtime_data.get('eth_usdt', {}).get('price', 0),
-                'SOL/USDT': self.realtime_data.get('sol_usdt', {}).get('price', 0)
+                'BTC/USDT': 0,
+                'ETH/USDT': 0,
+                'SOL/USDT': 0
             }
         }
+
+    @property
+    def ws_connected(self):
+        """Property برای وضعیت اتصال"""
+        if self.ws_manager:
+            return self.ws_manager.connected
+        return False
+
+    @property
+    def realtime_data(self):
+        """Property برای داده‌های لحظه‌ای"""
+        if self.ws_manager:
+            return self.ws_manager.realtime_data
+        return {}
 
     # ========================= متدهای جدید برای لود کردن از فایل =========================
 
@@ -571,10 +523,10 @@ class CompleteCoinStatsManager:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 saved_data = json.load(f)
-            print(f"✔️ داده‌ها از {file_path} با موفقیت لود شد")
+            logger.info(f"✅ داده‌ها از {file_path} با موفقیت لود شد")
             return saved_data
         except Exception as e:
-            print(f"❌ خطا در لود کردن فایل: {e}")
+            logger.error(f"❌ خطا در لود کردن فایل: {e}")
             return {}
 
     def get_latest_saved_file(self) -> str:
@@ -594,13 +546,13 @@ class CompleteCoinStatsManager:
         if latest_file:
             file_age = (time.time() - os.path.getctime(latest_file)) / 60  # به دقیقه
             if file_age < max_age_minutes:
-                print(f"√ استفاده از داده‌های کش شده ({file_age:.1f} دقیقه گذشته)")
+                logger.info(f"✅ استفاده از داده‌های کش شده ({file_age:.1f} دقیقه گذشته)")
                 data = self.load_from_saved_file(latest_file)
                 data['data_source'] = f"cached_{int(file_age)}min"
                 return data
 
         # داده‌های جدید
-        print("...دریافت داده‌های تازه")
+        logger.info("🔄 دریافت داده‌های تازه")
         data = self.collect_comprehensive_data()
         self.save_comprehensive_data()
         return data
@@ -617,7 +569,7 @@ class CompleteCoinStatsManager:
             "websocket_status": self.get_websocket_status(),
             "collected_data": {}
         }
-
+        
         # بارگذاری داده‌های خام
         raw_data = self._load_raw_data()
         if raw_data:
@@ -625,8 +577,9 @@ class CompleteCoinStatsManager:
             comprehensive_data["raw_files_count"] = len(raw_data)
 
         # 1. داده‌های لحظه‌ای WebSocket
+        ws_data = self.get_realtime_price()
         comprehensive_data["collected_data"]['realtime'] = {
-            "websocket_data": self.realtime_data,
+            "websocket_data": ws_data,
             "major_prices": {
                 'BTC': self.get_realtime_price('btc_usdt'),
                 'ETH': self.get_realtime_price('eth_usdt'),
@@ -700,7 +653,7 @@ class CompleteCoinStatsManager:
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
-        print(f"✔️ داده‌های جامع ذخیره شد در {file_path}")
+        logger.info(f"✅ داده‌های جامع ذخیره شد در {file_path}")
         self.print_complete_stats(data)
 
     def print_complete_stats(self, data: Dict):
@@ -742,9 +695,10 @@ class CompleteCoinStatsManager:
             raw_data_path="./raw_data",
             repo_url="https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data"
         )
-        print("...راه‌اندازی سیستم کامل داده")
+        print("🔄 راه‌اندازی سیستم کامل داده...")
 
-        # منتظر ماندن برای اتصال WebSocket
+        # منتظر اتصال WebSocket
+        import time
         time.sleep(5)
 
         # تست تمام اندپوینت‌ها
