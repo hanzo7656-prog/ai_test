@@ -294,18 +294,49 @@ async def market_overview():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# در complete_routes.py - آپدیت route symbols/list
 @router.get("/symbols/list")
 async def list_symbols():
-    """لیست نمادها"""
-    symbols = [
-        "BTC", "ETH", "SOL", "BNB", "ADA", 
-        "XRP", "DOT", "LTC", "LINK", "MATIC"
-    ]
-    
-    websocket_symbols = list(lbank_ws.realtime_data.keys()) if lbank_ws else []
-    
-    return {
-        "symbols": symbols,
-        "websocket_symbols": websocket_symbols,
-        "count": len(symbols)
-    }
+    """لیست کامل نمادها"""
+    try:
+        # دریافت لیست کامل کوین‌ها
+        coins_data = data_service.get_coins_list(limit=150)
+        all_symbols = []
+        
+        if coins_data and 'result' in coins_data:
+            for coin in coins_data['result']:
+                if 'symbol' in coin:
+                    all_symbols.append(coin['symbol'])
+        
+        # اگر از API چیزی نگرفتیم، لیست پیش‌فرض
+        if not all_symbols:
+            all_symbols = [
+                "BTC", "ETH", "SOL", "BNB", "ADA", "XRP", "DOT", "LTC", "LINK", "MATIC",
+                "AVAX", "DOGE", "ATOM", "XLM", "ALGO", "NEAR", "FTM", "SAND", "MANA", "UNI",
+                "TRX", "ETC", "XMR", "EOS", "XTZ", "AAVE", "MKR", "COMP", "YFI", "SNX",
+                "CRV", "SUSHI", "1INCH", "REN", "BAL", "LRC", "BAT", "ZRX", "ENJ", "REP",
+                "KNC", "BNT", "OCEAN", "NMR", "UMA", "API3", "BADGER", "CVP", "FARM", "GTC"
+            ]
+        
+        # نمادهای WebSocket
+        websocket_symbols = []
+        if lbank_ws and hasattr(lbank_ws, 'get_active_pairs'):
+            websocket_symbols = lbank_ws.get_active_pairs()
+        
+        return {
+            "symbols": all_symbols[:100],  # حداکثر 100 نماد
+            "websocket_symbols": websocket_symbols,
+            "total_symbols": len(all_symbols),
+            "active_websocket_pairs": len(websocket_symbols),
+            "data_source": "coinstats_api"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ خطا در دریافت لیست نمادها: {e}")
+        return {
+            "symbols": [],
+            "websocket_symbols": [],
+            "total_symbols": 0,
+            "active_websocket_pairs": 0,
+            "error": str(e)
+        }
