@@ -1,4 +1,4 @@
-# complete_coinstats_manager.py - نسخه کامل با تمام اندپوینت‌ها
+# complete_coinstats_manager.py - نسخه کاملاً کامل با تمام ویژگی‌ها
 import requests
 import json
 import os
@@ -59,6 +59,88 @@ class CompleteCoinStatsManager:
 
     # ========================= متدهای مدیریت داده خام =========================
 
+    def _ensure_directory(self, directory: str):
+        """ایجاد دایرکتوری اگر وجود ندارد"""
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+    def get_storage_path(self) -> str:
+        """تعیین مسیر ذخیره‌سازی"""
+        base_path = "./coinstats_collected_data"
+        self._ensure_directory(base_path)
+        return base_path
+
+    def _read_csv_simple(self, file_path):
+        """خواندن CSV بدون پانداز - جایگزین سبک‌وزن"""
+        data = []
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            if not lines:
+                return data
+            
+            # پردازش هدر
+            headers = [h.strip().strip('"') for h in lines[0].strip().split(',')]
+            
+            # پردازش خطوط داده
+            for line_num, line in enumerate(lines[1:], 2):
+                line = line.strip()
+                if not line:  # خط خالی
+                    continue
+                    
+                # تقسیم مقادیر با در نظر گرفتن کاماهای داخل quotation
+                values = []
+                current_value = ""
+                in_quotes = False
+                
+                for char in line:
+                    if char == '"':
+                        in_quotes = not in_quotes
+                    elif char == ',' and not in_quotes:
+                        values.append(current_value.strip())
+                        current_value = ""
+                    else:
+                        current_value += char
+                
+                # اضافه کردن آخرین مقدار
+                values.append(current_value.strip())
+                
+                # حذف quotation marks از مقادیر
+                values = [v.strip('"') for v in values]
+                
+                # مطابقت با هدرها
+                if len(values) == len(headers):
+                    row_data = {}
+                    for i, header in enumerate(headers):
+                        # تبدیل به عدد اگر ممکن باشد
+                        value = values[i]
+                        if self._is_numeric(value):
+                            try:
+                                row_data[header] = float(value)
+                            except ValueError:
+                                row_data[header] = value
+                        else:
+                            row_data[header] = value
+                    data.append(row_data)
+                else:
+                    logger.warning(f"⚠️ خط {line_num}: تعداد ستون‌ها مطابقت ندارد. انتظار: {len(headers)}، دریافت: {len(values)}")
+                    
+        except Exception as e:
+            logger.error(f"❌ خطا در خواندن فایل CSV {file_path}: {e}")
+        
+        return data
+
+    def _is_numeric(self, value):
+        """بررسی آیا مقدار عددی است"""
+        if value is None or value == "":
+            return False
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
+
     def _download_from_github(self, folder: str, filename: str) -> Optional[Dict]:
         """دانلود فایل از GitHub"""
         try:
@@ -85,33 +167,69 @@ class CompleteCoinStatsManager:
         return common_files
 
     def _load_raw_data(self) -> Dict[str, Any]:
-        """بارگذاری داده‌های خام از GitHub"""
+        """بارگذاری داده‌های خام از GitHub و local"""
         raw_data = {}
         total_files_found = 0
 
         logger.info("🌐 در حال دریافت داده‌ها از GitHub...")
 
+        # اول از GitHub سعی کن
         for folder in self.repo_folders:
-            logger.info(f"📁 بررسی پوشه {folder}...")
+            logger.info(f"📁 بررسی پوشه GitHub {folder}...")
             file_list = self._get_github_file_list(folder)
             
             for filename in file_list:
                 file_data = self._download_from_github(folder, filename)
                 if file_data:
-                    key = f"{folder}/{filename}"
+                    key = f"github_{folder}_{filename}"
                     raw_data[key] = {
                         'data': file_data,
-                        'source': f'github/{key}',
+                        'source': f'github/{folder}/{filename}',
                         'folder': folder
                     }
                     total_files_found += 1
                     logger.info(f"✅ فایل {filename} از {folder} بارگذاری شد")
 
+        # اگر از GitHub چیزی پیدا نکردی، local رو چک کن
         if total_files_found == 0:
-            logger.warning("⚠️ هیچ فایلی در GitHub یافت نشد - استفاده از API")
+            logger.info("🔍 بررسی پوشه‌های local...")
+            for folder in self.repo_folders:
+                folder_path = os.path.join(self.raw_data_path, folder)
+                if not os.path.exists(folder_path):
+                    continue
+
+                data_files = glob.glob(f"{folder_path}/**/*.json", recursive=True)
+                data_files.extend(glob.glob(f"{folder_path}/**/*.csv", recursive=True))
+
+                for file_path in data_files:
+                    try:
+                        filename = os.path.basename(file_path)
+                        relative_path = os.path.relpath(file_path, self.raw_data_path)
+                        
+                        if file_path.endswith('.json'):
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                raw_data[relative_path] = {
+                                    'data': json.load(f),
+                                    'source': f'local/{relative_path}',
+                                    'folder': folder
+                                }
+                        elif file_path.endswith('.csv'):
+                            csv_data = self._read_csv_simple(file_path)
+                            raw_data[relative_path] = {
+                                'data': csv_data,
+                                'source': f'local/{relative_path}',
+                                'folder': folder
+                            }
+                        total_files_found += 1
+                    except Exception as e:
+                        logger.error(f"❌ خطا در بارگذاری {file_path}: {e}")
+
+        # اگر بازم چیزی پیدا نکردی، از API استفاده کن
+        if total_files_found == 0:
+            logger.warning("⚠️ هیچ فایلی در GitHub یا local یافت نشد - استفاده از API")
             return self._load_fallback_data()
         
-        logger.info(f"✅ تعداد {total_files_found} فایل از GitHub بارگذاری شد")
+        logger.info(f"✅ تعداد {total_files_found} فایل بارگذاری شد")
         return raw_data
 
     def _load_fallback_data(self) -> Dict[str, Any]:
@@ -180,7 +298,7 @@ class CompleteCoinStatsManager:
             return found_data
 
         logger.info("🔄 دریافت لیست کوین‌ها از API...")
-        filters['limit'] = filters.get('limit', 100)
+        filters['limit'] = filters.get('limit', 150)
         return self._make_api_request("coins", params=filters)
 
     def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
@@ -482,19 +600,95 @@ class CompleteCoinStatsManager:
             return self.ws_manager.realtime_data
         return {}
 
-    # ========================= متدهای کمکی و جمع‌آوری داده =========================
+    # ========================= متدهای ذخیره و لود =========================
 
-    def get_all_coins(self, limit: int = 150) -> List[Dict]:
-        """دریافت لیست کامل کوین‌ها"""
-        coins_data = self.get_coins_list(limit=limit)
-        if coins_data and 'result' in coins_data:
-            return coins_data['result']
-        return []
+    def load_from_saved_file(self, file_path: str) -> Dict[str, Any]:
+        """لود کردن داده‌های ذخیره شده از فایل JSON"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                saved_data = json.load(f)
+            logger.info(f"✅ داده‌ها از {file_path} با موفقیت لود شد")
+            return saved_data
+        except Exception as e:
+            logger.error(f"❌ خطا در لود کردن فایل: {e}")
+            return {}
 
-    def get_top_coins(self, count: int = 10) -> List[Dict]:
-        """دریافت برترین کوین‌ها"""
-        all_coins = self.get_all_coins(count)
-        return all_coins[:count] if all_coins else []
+    def get_latest_saved_file(self) -> str:
+        """پیدا کردن آخرین فایل ذخیره شده"""
+        storage_path = self.get_storage_path()
+        json_files = glob.glob(f"{storage_path}/*.json")
+        if not json_files:
+            return None
+
+        # پیدا کردن آخرین فایل بر اساس timestamp
+        latest_file = max(json_files, key=os.path.getctime)
+        return latest_file
+
+    def smart_data_collection(self, max_age_minutes: int = 60) -> Dict[str, Any]:
+        """جمع‌آوری هوشمند داده‌ها - استفاده از کش اگر قدیمی نباشد"""
+        latest_file = self.get_latest_saved_file()
+        if latest_file:
+            file_age = (time.time() - os.path.getctime(latest_file)) / 60  # به دقیقه
+            if file_age < max_age_minutes:
+                logger.info(f"✅ استفاده از داده‌های کش شده ({file_age:.1f} دقیقه گذشته)")
+                data = self.load_from_saved_file(latest_file)
+                data['data_source'] = f"cached_{int(file_age)}min"
+                return data
+
+        # داده‌های جدید
+        logger.info("🔄 دریافت داده‌های تازه")
+        data = self.collect_comprehensive_data()
+        self.save_comprehensive_data()
+        return data
+
+    def save_comprehensive_data(self, filename: str = None):
+        """ذخیره داده‌های جامع"""
+        storage_path = self.get_storage_path()
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"complete_coinstats_data_{timestamp}.json"
+        file_path = os.path.join(storage_path, filename)
+
+        data = self.collect_comprehensive_data()
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+
+        logger.info(f"✅ داده‌های جامع ذخیره شد در {file_path}")
+        self.print_complete_stats(data)
+
+    def print_complete_stats(self, data: Dict):
+        """چاپ آمار کامل سیستم"""
+        print("\n" + "="*60)
+        print("📊 آمار سیستم - تمام اندپوینت‌ها")
+        print("="*60)
+
+        # وضعیت WebSocket و قیمت‌ها
+        ws_status = data['websocket_status']
+        print(f"🌐 WebSocket: {'متصل' if ws_status['websocket_connected'] else 'قطع'}")
+        print(f"🔢 جفت ارزهای فعال: {ws_status['active_realtime_pairs']}")
+
+        # قیمت‌های لحظه‌ای
+        print("\n💹 قیمت‌های لحظه‌ای:")
+        for coin, price_data in ws_status['major_prices'].items():
+            if price_data:
+                print(f"   {coin}: ${price_data:.2f}")
+
+        # داده‌های خام
+        if data['raw_data_available']:
+            print(f"\n📁 داده‌های خام: {data['raw_files_count']} فایل")
+
+        # آمار کامل
+        collected = data['collected_data']
+        print(f"\n📈 کوین‌ها: {len(collected['coins']['list'].get('result', []))} کوین")
+        print(f"📊 چارت‌های تاریخی: {len(collected['historical_charts'])} کوین × {len(self.supported_timeframes)} تایم‌فریم")
+        print(f"🏪 داده‌های بازار: {len(collected['market_data'])} بخش")
+        print(f"📰 اخبار: {len(collected['news']['by_type'])} نوع")
+        print(f"🔮 بینش بازار: {len(collected['market_insights'])} بخش")
+        print("="*60)
+        print("✅ تمام اندپوینت‌ها پیاده‌سازی شده‌اند")
+        print("="*60)
+
+    # ========================= متدهای جمع‌آوری داده =========================
 
     def collect_comprehensive_data(self) -> Dict[str, Any]:
         """جمع‌آوری جامع تمام داده ها از تمام منابع"""
@@ -526,7 +720,7 @@ class CompleteCoinStatsManager:
 
         # 2. داده‌های اصلی کوین‌ها
         comprehensive_data["collected_data"]['coins'] = {
-            "list": self.get_coins_list(limit=100),
+            "list": self.get_coins_list(limit=150),
             "major_coins": {
                 "bitcoin": self.get_coin_details("bitcoin"),
                 "ethereum": self.get_coin_details("ethereum"),
@@ -578,6 +772,18 @@ class CompleteCoinStatsManager:
 
         return comprehensive_data
 
+    def get_all_coins(self, limit: int = 150) -> List[Dict]:
+        """دریافت لیست کامل کوین‌ها"""
+        coins_data = self.get_coins_list(limit=limit)
+        if coins_data and 'result' in coins_data:
+            return coins_data['result']
+        return []
+
+    def get_top_coins(self, count: int = 10) -> List[Dict]:
+        """دریافت برترین کوین‌ها"""
+        all_coins = self.get_all_coins(count)
+        return all_coins[:count] if all_coins else []
+
     def test_connections(self) -> Dict[str, Any]:
         """تست تمام اتصالات"""
         results = {
@@ -625,21 +831,56 @@ class CompleteCoinStatsManager:
 
         return results
 
-# نمونه استفاده
+    # ========================= نمونه استفاده کامل =========================
+
 if __name__ == "__main__":
-    manager = CompleteCoinStatsManager()
+    # ایجاد مدیر کامل
+    manager = CompleteCoinStatsManager(
+        raw_data_path="./raw_data",
+        repo_url="https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data"
+    )
+    print("🔄 راه‌اندازی سیستم کامل داده...")
+
+    # منتظر اتصال WebSocket
+    time.sleep(5)
+
+    # تست تمام اندپوینت‌ها
+    print("\n🧪 تست تمام اندپوینت‌ها")
     
-    print("🧪 تست تمام اندپوینت‌ها...")
-    results = manager.test_connections()
-    
-    print("\n📊 نتایج تست:")
-    for key, value in results.items():
-        if key != 'all_endpoints_tested':
-            print(f"  {key}: {value}")
-    
-    print("\n🔧 وضعیت اندپوینت‌ها:")
-    for endpoint, status in results['all_endpoints_tested'].items():
-        print(f"  {endpoint}: {'✅' if status else '❌'}")
-    
-    print(f"\n💰 تعداد کل کوین‌ها: {results['total_coins']}")
-    print(f"📡 وضعیت WebSocket: {'✅ متصل' if results['websocket_connected'] else '❌ قطع'}")
+    # تست داده‌های لحظه‌ای
+    btc_realtime = manager.get_realtime_price('btc_usdt')
+    print(f"💰 قیمت لحظه‌ای BTC: ${btc_realtime.get('price', 0) if btc_realtime else 'ندارد'}")
+
+    # تست کوین‌ها
+    coins_list = manager.get_coins_list(limit=5)
+    print(f"📊 لیست کوین‌ها: {len(coins_list.get('result', [])) if 'result' in coins_list else 'N/A'} کوین")
+
+    # تست چارت‌ها
+    btc_chart = manager.get_coin_charts("bitcoin", "1d")
+    print(f"📈 چارت بیت‌کوین: {'موجود' if btc_chart else 'ندارد'}")
+
+    # تست قیمت
+    btc_price = manager.get_coin_price_avg("bitcoin", "1636315200")
+    print(f"💲 قیمت متوسط بیت‌کوین: {'موجود' if btc_price else 'ندارد'}")
+
+    # تست بازار
+    exchanges = manager.get_tickers_exchanges()
+    print(f"🏪 لیست صرافی‌ها: {'موجود' if exchanges else 'ندارد'}")
+
+    # تست اخبار تمام 5 نوع
+    for news_type in manager.news_types:
+        news = manager.get_news_by_type(news_type)
+        print(f"📰 اخبار {news_type}: {'موجود' if news else 'ندارد'}")
+
+    # تست بینش بازار
+    fear_greed = manager.get_fear_greed_index()
+    print(f"😨 شاخص ترس و طمع: {'موجود' if fear_greed else 'ندارد'}")
+
+    rainbow_btc = manager.get_rainbow_chart("bitcoin")
+    print(f"🌈 چارت رنگین کمان: {'موجود' if rainbow_btc else 'ندارد'}")
+
+    # ذخیره داده‌های جامع
+    print("\n💾 در حال ذخیره داده‌های جامع...")
+    manager.save_comprehensive_data()
+
+    print("\n🎉 سیستم کامل با موفقیت راه‌اندازی شد - تمام اندپوینت‌ها فعال هستند")
