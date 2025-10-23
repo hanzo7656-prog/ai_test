@@ -3,7 +3,7 @@
 
 # Core FastAPI - سازگار با همه نسخه‌ها
 fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+uvicorn>=0.24.0
 
 # AI/ML - PyTorch برای Python 3.11 تا 3.13
 torch>=2.1.0
