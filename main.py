@@ -22,11 +22,13 @@ app.add_middleware(
 from complete_coinstats_manager import CompleteCoinStatsManager
 from technical_engine_complete import CompleteTechnicalEngine
 from ultra_efficient_trading_transformer import TradingSignalPredictor
+from system_monitor import ResourceMonitor, get_project_size, get_library_sizes, get_cache_size, get_log_size
 
 # ایجاد مدیر داده و موتور فنی
 data_manager = CompleteCoinStatsManager()
 technical_engine = CompleteTechnicalEngine()
 signal_predictor = TradingSignalPredictor()
+monitor = ResourceMonitor()
 
 # منتظر اتصال WebSocket
 async def wait_for_websocket():
@@ -54,33 +56,43 @@ async def get_chart_data(symbol: str, period: str = "1d"):
         
         # پردازش داده‌های واقعی برای نمودار
         if isinstance(chart_data, dict) and 'result' in chart_data:
-            prices = [float(item['price']) for item in chart_data['result'] if 'price' in item]
-            timestamps = [item['timestamp'] for item in chart_data['result'] if 'timestamp' in item]
+            prices = []
+            timestamps = []
+            
+            for item in chart_data['result']:
+                if 'price' in item and 'timestamp' in item:
+                    try:
+                        prices.append(float(item['price']))
+                        timestamps.append(item['timestamp'])
+                    except (ValueError, TypeError):
+                        continue
+            
+            if len(prices) < 2:
+                raise HTTPException(status_code=400, detail="داده‌های کافی نیست")
             
             # محاسبه اندیکاتورهای تکنیکال از داده‌های واقعی
-            if len(prices) >= 20:
-                ohlc_data = {
-                    'open': prices[:-1],
-                    'high': [max(prices[i], prices[i+1]) for i in range(len(prices)-1)],
-                    'low': [min(prices[i], prices[i+1]) for i in range(len(prices)-1)],
-                    'close': prices[1:],
-                    'volume': [1000000] * len(prices)  # حجم نمونه
+            ohlc_data = {
+                'open': prices[:-1],
+                'high': [max(prices[i], prices[i+1]) for i in range(len(prices)-1)],
+                'low': [min(prices[i], prices[i+1]) for i in range(len(prices)-1)],
+                'close': prices[1:],
+                'volume': [1000000] * (len(prices) - 1)
+            }
+            
+            indicators = technical_engine.calculate_all_indicators(ohlc_data)
+            
+            return {
+                "success": True,
+                "symbol": symbol,
+                "period": period,
+                "prices": prices,
+                "timestamps": timestamps,
+                "technical_indicators": {
+                    "sma_20": [indicators.get('sma_20', prices[-1])] * len(prices),
+                    "rsi": [indicators.get('rsi', 50)] * len(prices),
+                    "volume": [1000000] * len(prices)
                 }
-                
-                indicators = technical_engine.calculate_all_indicators(ohlc_data)
-                
-                return {
-                    "success": True,
-                    "symbol": symbol,
-                    "period": period,
-                    "prices": prices,
-                    "timestamps": timestamps,
-                    "technical_indicators": {
-                        "sma_20": [indicators.get('sma_20', 0)] * len(prices),
-                        "rsi": [indicators.get('rsi', 50)] * len(prices),
-                        "volume": [1000000] * len(prices)
-                    }
-                }
+            }
         
         raise HTTPException(status_code=404, detail="داده‌های کافی نیست")
         
@@ -117,7 +129,7 @@ async def get_trading_signals():
                 }
             },
             'market_data': {
-                'fear_greed_index': {'value': 50}  # مقدار پیش‌فرض
+                'fear_greed_index': {'value': 50}
             }
         }
         
@@ -170,68 +182,56 @@ async def get_market_overview():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"خطا در دریافت داده‌های بازار: {str(e)}")
 
-@app.get("/api/technical/indicators")
-async def get_technical_indicators(symbol: str = "bitcoin"):
-    """دریافت اندیکاتورهای تکنیکال واقعی"""
+@app.get("/api/system/resources")
+async def get_system_resources():
+    """دریافت مصرف واقعی منابع"""
     try:
-        # دریافت داده‌های تاریخی
-        historical_data = data_manager.get_coin_charts(symbol, "1d")
+        usage = monitor.get_system_usage()
         
-        if not historical_data or 'result' not in historical_data:
-            raise HTTPException(status_code=404, detail="داده‌های تاریخی یافت نشد")
+        # اطلاعات پروژه
+        project_size = get_project_size()
+        lib_sizes = get_library_sizes()
+        cache_size = get_cache_size()
+        log_size = get_log_size()
         
-        # استخراج قیمت‌ها
-        prices = [float(item['price']) for item in historical_data['result'] if 'price' in item]
-        
-        if len(prices) < 20:
-            raise HTTPException(status_code=400, detail="داده‌های تاریخی کافی نیست")
-        
-        # محاسبه اندیکاتورهای واقعی
-        ohlc_data = {
-            'open': prices[:-1],
-            'high': [max(prices[i], prices[i+1]) for i in range(len(prices)-1)],
-            'low': [min(prices[i], prices[i+1]) for i in range(len(prices)-1)],
-            'close': prices[1:],
-            'volume': [1000000] * (len(prices) - 1)
-        }
-        
-        indicators = technical_engine.calculate_all_indicators(ohlc_data)
+        total_estimated_size = project_size + sum(lib_sizes.values())
         
         return {
             "success": True,
-            "symbol": symbol,
-            "indicators": {
-                "rsi": indicators.get('rsi', 50),
-                "macd": indicators.get('macd', 0),
-                "sma_20": indicators.get('sma_20', 0),
-                "sma_50": indicators.get('sma_50', 0),
-                "bollinger_upper": indicators.get('bb_upper', 0),
-                "bollinger_lower": indicators.get('bb_lower', 0),
-                "stochastic_k": indicators.get('stoch_k', 50),
-                "stochastic_d": indicators.get('stoch_d', 50)
+            "system_usage": usage,
+            "project_info": {
+                "total_size_mb": total_estimated_size,
+                "code_size_mb": project_size,
+                "libraries_size_mb": lib_sizes,
+                "data_cache_size_mb": cache_size,
+                "log_files_size_mb": log_size
             },
-            "timestamp": datetime.now().isoformat()
+            "breakdown": {
+                "fastapi": lib_sizes.get('fastapi', 0),
+                "torch": lib_sizes.get('torch', 0),
+                "numpy": lib_sizes.get('numpy', 0),
+                "other_libs": sum(lib_sizes.values()) - lib_sizes.get('fastapi', 0) - lib_sizes.get('torch', 0) - lib_sizes.get('numpy', 0),
+                "project_code": project_size,
+                "cache_data": cache_size,
+                "logs": log_size
+            }
         }
-        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"خطا در محاسبه اندیکاتورها: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 @app.get("/api/system/status")
 async def get_system_status():
     """دریافت وضعیت سیستم"""
     try:
-        # اطلاعات حافظه
-        import psutil
-        process = psutil.Process()
-        memory_info = process.memory_info()
+        usage = monitor.get_system_usage()
         
         return {
             "success": True,
             "websocket_connected": data_manager.ws_connected,
             "active_pairs": len(data_manager.realtime_data),
-            "memory_usage_mb": memory_info.rss / 1024 / 1024,
-            "memory_percent": process.memory_percent(),
-            "cpu_percent": process.cpu_percent(),
+            "memory_usage_mb": usage['memory']['used_mb'],
+            "memory_percent": usage['memory']['percent'],
+            "cpu_percent": usage['cpu']['process_percent'],
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
