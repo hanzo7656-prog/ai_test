@@ -1,25 +1,25 @@
-# 🚀 UPDATED REQUIREMENTS WITH TA-LIB
+# requirements.txt - سازگار با Python 3.11+ تا 3.13+
+# حجم کل: ~180-200MB
 
-# === CORE ML ===
-torch>=2.5.0
-numpy>=1.26.0
+# Core FastAPI - سازگار با همه نسخه‌ها
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# AI/ML - PyTorch برای Python 3.11 تا 3.13
+torch>=2.1.0
+
+# Data Processing - سازگار با همه نسخه‌ها
+numpy>=1.24.0
 scipy>=1.11.0
 
-# === TECHNICAL ANALYSIS ===
-TA-Lib>=0.4.29
-
-# === DATA PROCESSING ===
-pandas>=2.1.0
+# WebSocket & HTTP
+websocket-client>=1.6.0
 requests>=2.31.0
+aiohttp>=3.9.0
 
-# === WEB & API ===
-fastapi>=0.104.0
-uvicorn>=0.24.0
-pydantic>=2.4.0
-
-# === SYSTEM MONITORING ===
+# Utilities
+python-dotenv>=1.0.0
 psutil>=5.9.0
+pydantic>=2.5.0
 
-# === UTILITIES ===
-tqdm>=4.66.0
-colorama>=0.4.6
+gunicorn>=21.2.0
