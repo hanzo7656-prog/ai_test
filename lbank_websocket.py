@@ -1,4 +1,4 @@
-# lbank_websocket.py - نسخه اصلاح شده با URL درست
+# lbank_websocket.py - نسخه کامل با متدهای سازگاری
 import websocket
 import json
 import threading
@@ -153,6 +153,33 @@ class LBankWebSocketManager:
         
         logger.info(f"✅ Subscribed to {len(pairs)} pairs")
 
+    # ========================= متدهای سازگاری =========================
+    
+    def is_connected(self):
+        """بررسی وضعیت اتصال (برای سازگاری با کد قدیمی)"""
+        return self.connected
+
+    def start(self):
+        """متد start برای سازگاری با کد قدیمی"""
+        logger.info("🔄 WebSocket already auto-started in constructor")
+        # اگر قطع شده، reconnect کن
+        if not self.connected:
+            logger.info("🔄 WebSocket disconnected, attempting reconnect...")
+            self.connect()
+        return self.connected
+
+    @property
+    def connected(self):
+        """Property برای وضعیت اتصال (سازگاری با کد قدیمی)"""
+        return self._connected
+
+    @connected.setter
+    def connected(self, value):
+        """Setter برای وضعیت اتصال"""
+        self._connected = value
+
+    # ========================= متدهای اصلی =========================
+
     def subscribe_to_major_pairs(self):
         """اشتراک در جفت ارزهای اصلی (برای سازگاری با کد قدیمی)"""
         self.subscribe_to_all_pairs()
@@ -195,27 +222,11 @@ class LBankWebSocketManager:
         """اضافه کردن callback برای داده‌های جدید"""
         self.callbacks.append(callback)
 
-    def test_gist_connection(self):
-        """تست اتصال Gist"""
-        if self.gist_manager:
-            try:
-                status = self.gist_manager.get_status()
-                logger.info(f"🧪 Gist Manager Test: {status}")
-                return status
-            except Exception as e:
-                return {'error': f'Gist Manager error: {e}'}
-        return {'error': 'Gist Manager not available'}
-
-    # متدهای اضافی برای مدیریت
     def disconnect(self):
         """قطع اتصال WebSocket"""
         if self.ws:
             self.ws.close()
         self.connected = False
-
-    def is_connected(self):
-        """بررسی وضعیت اتصال"""
-        return self.connected
 
     def get_active_pairs(self):
         """دریافت لیست جفت ارزهای فعال"""
@@ -228,6 +239,10 @@ if __name__ == "__main__":
     
     ws_manager = LBankWebSocketManager()
     ws_manager.add_callback(test_callback)
+    
+    # تست متدهای سازگاری
+    print("🔗 Connected:", ws_manager.is_connected())
+    print("🔗 connected property:", ws_manager.connected)
     
     # منتظر داده‌ها
     time.sleep(10)
