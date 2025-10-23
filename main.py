@@ -219,24 +219,57 @@ async def get_system_resources():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-@app.get("/api/system/status")
-async def get_system_status():
-    """دریافت وضعیت سیستم"""
+# در main.py - استفاده از system_monitor واقعی
+from system_monitor import ResourceMonitor, get_project_size, get_library_sizes, get_cache_size, get_log_size
+
+# ایجاد مانیتور
+monitor = ResourceMonitor()
+
+@app.get("/api/system/resources")
+async def system_resources_real():
+    """مصرف واقعی منابع سیستم"""
     try:
         usage = monitor.get_system_usage()
         
+        # اطلاعات پروژه
+        project_size = get_project_size()
+        lib_sizes = get_library_sizes()
+        cache_size = get_cache_size()
+        log_size = get_log_size()
+        
+        total_estimated_size = project_size + sum(lib_sizes.values())
+        
         return {
             "success": True,
-            "websocket_connected": data_manager.ws_connected,
-            "active_pairs": len(data_manager.realtime_data),
-            "memory_usage_mb": usage['memory']['used_mb'],
-            "memory_percent": usage['memory']['percent'],
-            "cpu_percent": usage['cpu']['process_percent'],
-            "timestamp": datetime.now().isoformat()
+            "system_usage": usage,
+            "project_info": {
+                "total_size_mb": total_estimated_size,
+                "code_size_mb": project_size,
+                "libraries_size_mb": lib_sizes,
+                "data_cache_size_mb": cache_size,
+                "log_files_size_mb": log_size
+            },
+            "breakdown": {
+                "fastapi": lib_sizes.get('fastapi', 0),
+                "torch": lib_sizes.get('torch', 0),
+                "numpy": lib_sizes.get('numpy', 0),
+                "other_libs": sum(lib_sizes.values()) - lib_sizes.get('fastapi', 0) - lib_sizes.get('torch', 0) - lib_sizes.get('numpy', 0),
+                "project_code": project_size,
+                "cache_data": cache_size,
+                "logs": log_size
+            }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"خطا در دریافت وضعیت سیستم: {str(e)}")
-
+        return {
+            "success": False,
+            "error": str(e),
+            "system_usage": {
+                "memory": {"used_mb": 0, "percent": 0},
+                "cpu": {"process_percent": 0, "system_percent": 0},
+                "disk": {"used_gb": 0, "total_gb": 0, "percent": 0}
+            }
+        }
+        
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
