@@ -12,7 +12,7 @@ router = APIRouter(prefix="/ai", tags=["AI Analysis"])
 class AIAnalysisService:
     def __init__(self):
         self.api_base_url = "https://openapiv1.coinstats.app"
-        self.api_key = "oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
+        self.api_key = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
         self.headers = {"X-API-KEY": self.api_key}
         self.raw_data_path = "./raw_data"
     
