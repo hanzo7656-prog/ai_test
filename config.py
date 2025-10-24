@@ -31,10 +31,10 @@ MAJOR_TRADING_PAIRS = [
     "ltc_usdt", "link_usdt", "matic_usdt", "avax_usdt"
 ]
 
-# تنظیمات API - با API Key مستقیم
+# تنظیمات API - با کلید مستقیم
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
-    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
+    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',  # کلید مستقیم
     'timeout': 30,
     'retry_attempts': 3,
     'rate_limit_per_minute': 60
