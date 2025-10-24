@@ -3,17 +3,19 @@
 
 """
 🎯 AI Trading Assistant - Complete Version v3.0
-با WebSocket LBank و تمام routeهای جدید
 """
 
 import asyncio
 import sys
 import os
 import logging
-from fastapi import FastAPI
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware  # 🔽 این خط را اضافه کن
 
 # تنظیم لاگینگ
 logging.basicConfig(
@@ -29,7 +31,7 @@ lbank_ws = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """مدیریت طول عمر برنامه با روش جدید FastAPI"""
+    """مدیریت طول عمر برنامه"""
     # Startup
     logger.info("🚀 Starting AI Trading Assistant v3.0...")
     
@@ -42,12 +44,6 @@ async def lifespan(app: FastAPI):
         
         # منتظر اتصال اولیه WebSocket
         await asyncio.sleep(3)
-        
-        # بررسی وضعیت اتصال
-        if lbank_ws and lbank_ws.is_connected():
-            logger.info("✅ WebSocket connected successfully")
-        else:
-            logger.warning("⚠️ WebSocket not connected yet (still trying in background)")
         
     except Exception as e:
         logger.error(f"❌ Error initializing WebSocket: {e}")
@@ -63,18 +59,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Error setting up routes: {e}")
     
     logger.info("✅ All services initialized")
-    logger.info("📡 Available endpoints:")
-    logger.info("   GET  / - صفحه اصلی")
-    logger.info("   GET  /health - بررسی سلامت")
-    logger.info("   GET  /websocket/status - وضعیت WebSocket")
-    logger.info("   GET  /websocket/data/{symbol} - داده‌های لحظه‌ای")
-    logger.info("   POST /ai/analysis - تحلیل هوش مصنوعی")
-    logger.info("   GET  /news/latest - اخبار بازار")
-    logger.info("   POST /alerts/create - ایجاد هشدار")
-    logger.info("   GET  /alerts/list - لیست هشدارها")
-    logger.info("   GET  /data/raw/{data_type} - داده‌های خام")
-    logger.info("   GET  /api/system/resources - مصرف منابع سیستم")
-    logger.info("   GET  /market/overview - نمای کلی بازار")
     
     yield  # برنامه اجرا می‌شود
     
@@ -103,6 +87,72 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 🔽 MIDDLEWARE جدید را اینجا اضافه کن - دقیقاً بعد از CORS
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        logger.info(f"📥 {request.method} {request.url}")
+        try:
+            response = await call_next(request)
+            logger.info(f"📤 {response.status_code}")
+            return response
+        except Exception as e:
+            logger.error(f"❌ Error: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Internal Server Error", "message": str(e)}
+            )
+
+# اضافه کردن middleware به اپ
+app.add_middleware(LoggingMiddleware)
+
+# 🔽 Exception handlers را اینجا اضافه کن - بعد از middleware
+@app.exception_handler(500)
+async def internal_server_error_handler(request: Request, exc: Exception):
+    logger.error(f"💥 Internal server error: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "message": "خطای داخلی سرور رخ داده است",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not Found", 
+            "message": "آدرس درخواستی یافت نشد",
+            "path": str(request.url.path),
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "HTTP Exception",
+            "detail": exc.detail,
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"💥 Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "message": "خطای غیرمنتظره رخ داده است",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 # سرو کردن فایل‌های استاتیک
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -139,7 +189,7 @@ async def root():
         "active_pairs": active_pairs,
         "endpoints": {
             "health": "/health",
-            "websocket_status": "/websocket/status",
+            "websocket_status": "/websocket/status", 
             "market_data": "/market/overview",
             "ai_analysis": "/ai/analysis",
             "system_resources": "/api/system/resources"
@@ -151,32 +201,21 @@ async def health_check():
     """بررسی سلامت سرویس"""
     websocket_connected = False
     active_pairs = 0
-    memory_usage = "unknown"
     
     if lbank_ws:
         websocket_connected = lbank_ws.is_connected()
         active_pairs = len(lbank_ws.get_realtime_data())
     
-    # بررسی مصرف حافظه
-    try:
-        import psutil
-        process = psutil.Process()
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        memory_usage = f"{memory_mb:.1f}MB"
-    except:
-        memory_usage = "unavailable"
-    
     return {
         "status": "healthy",
-        "timestamp": asyncio.get_event_loop().time(),
+        "timestamp": int(datetime.now().timestamp()),
         "services": {
             "api": "running",
             "websocket": "connected" if websocket_connected else "disconnected",
             "data_service": "ready"
         },
         "metrics": {
-            "active_websocket_pairs": active_pairs,
-            "memory_usage": memory_usage
+            "active_websocket_pairs": active_pairs
         }
     }
 
@@ -189,13 +228,10 @@ async def websocket_status():
             "error": "WebSocket not initialized"
         }
     
-    status = lbank_ws.get_connection_status()
     return {
         "connected": lbank_ws.is_connected(),
-        "active_pairs": status.get('active_pairs', []),
-        "data_count": status.get('data_count', 0),
-        "subscribed_pairs": status.get('subscribed_pairs', []),
-        "total_subscribed": status.get('total_subscribed', 0)
+        "active_pairs": list(lbank_ws.realtime_data.keys()),
+        "data_count": len(lbank_ws.realtime_data)
     }
 
 @app.get("/websocket/data/{symbol}")
@@ -219,24 +255,8 @@ async def get_websocket_data(symbol: str):
         "data": data
     }
 
-# هندل خطاهای عمومی
-@app.exception_handler(500)
-async def internal_server_error_handler(request, exc):
-    logger.error(f"💥 Internal server error: {exc}")
-    return {
-        "error": "Internal server error",
-        "message": str(exc)
-    }
-
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    return {
-        "error": "Endpoint not found",
-        "path": request.url.path
-    }
-
 async def main():
-    """تابع اصلی - نسخه تعمیر شده"""
+    """تابع اصلی"""
     try:
         import uvicorn
         
@@ -246,8 +266,8 @@ async def main():
         os.makedirs("coinstats_collected_data", exist_ok=True)
         os.makedirs("raw_data", exist_ok=True)
         
-        # 🔧 دریافت پورت از محیط - نسخه درست
-        port = int(os.environ.get("PORT", 8000))  # ✅ درست شد!
+        # دریافت پورت از محیط
+        port = int(os.environ.get("PORT", 8000))
         
         config = uvicorn.Config(
             app,
@@ -259,7 +279,6 @@ async def main():
         
         server = uvicorn.Server(config)
         logger.info(f"🌐 Server starting on port {port}")
-        logger.info(f"📊 Access the API at: http://localhost:{port}")
         
         await server.serve()
         
@@ -272,17 +291,6 @@ if __name__ == "__main__":
         # بررسی نسخه پایتون
         logger.info(f"🐍 Python version: {sys.version}")
         
-        # بررسی کتابخانه‌های نصب شده
-        try:
-            import fastapi
-            import uvicorn
-            import websocket
-            import requests
-            logger.info("✅ All required packages are installed")
-        except ImportError as e:
-            logger.error(f"❌ Missing package: {e}")
-            sys.exit(1)
-            
         asyncio.run(main())
         
     except KeyboardInterrupt:
