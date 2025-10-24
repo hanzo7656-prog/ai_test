@@ -8,6 +8,7 @@ import glob
 from datetime import datetime
 import requests
 import logging
+from config import API_CONFIG
 
 # تنظیم لاگینگ
 logger = logging.getLogger(__name__)
@@ -28,9 +29,11 @@ alerts_db = {}
 class DataService:
     def __init__(self):
         self.api_base_url = "https://openapiv1.coinstats.app"
-        self.api_key = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
+        self.api_key = API_CONFIG['api_key']
         self.headers = {"X-API-KEY": self.api_key}
         self.raw_data_path = "./raw_data"
+
+        self.supported_timeframes = SUPPORTED_TIMEFRAMES
     
     def _load_raw_data(self) -> Dict[str, Any]:
         """بارگذاری داده‌های خام از ریپو"""
