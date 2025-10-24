@@ -8,6 +8,7 @@ import glob
 from datetime import datetime
 import requests
 import logging
+from config import API_CONFIG
 
 # تنظیم لاگینگ
 logger = logging.getLogger(__name__)
