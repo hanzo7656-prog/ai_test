@@ -16,7 +16,7 @@ class CompleteCoinStatsManager:
         self.raw_data_path = raw_data_path
         self.repo_url = repo_url or "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data"
         self.api_base_url = "https://openapiv1.coinstats.app"
-        self.api_key = "oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt123YtbpA="
+        self.api_key = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
         self.headers = {"X-API-KEY": self.api_key}
 
         # WebSocket configuration
