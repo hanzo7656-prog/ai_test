@@ -1,4 +1,4 @@
-# complete_routes.py
+# complete_routes.py - نسخه کاملاً اصلاح شده
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -7,6 +7,10 @@ import os
 import glob
 from datetime import datetime
 import requests
+import logging
+
+# تنظیم لاگینگ
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -51,7 +55,7 @@ class DataService:
         """ساخت درخواست به API"""
         url = f"{self.api_base_url}/{endpoint}"
         try:
-            response = requests.get(url, headers=self.headers, params=params)
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -79,6 +83,17 @@ class DataService:
             insights["fear_greed"] = fear_greed
         
         return insights
+
+    def get_coins_list(self, limit: int = 150) -> List[Dict]:
+        """دریافت لیست کوین‌ها - نسخه تعمیر شده"""
+        try:
+            coins_data = self._make_api_request("coins", {"limit": limit})
+            if coins_data and 'result' in coins_data:
+                return coins_data['result']
+            return []
+        except Exception as e:
+            logger.error(f"Error getting coins list: {e}")
+            return []
 
 # ایجاد سرویس داده
 data_service = DataService()
@@ -294,17 +309,16 @@ async def market_overview():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# در complete_routes.py - آپدیت route symbols/list
 @router.get("/symbols/list")
 async def list_symbols():
-    """لیست کامل نمادها"""
+    """لیست کامل نمادها - نسخه تعمیر شده"""
     try:
         # دریافت لیست کامل کوین‌ها
         coins_data = data_service.get_coins_list(limit=150)
         all_symbols = []
         
-        if coins_data and 'result' in coins_data:
-            for coin in coins_data['result']:
+        if coins_data:
+            for coin in coins_data:
                 if 'symbol' in coin:
                     all_symbols.append(coin['symbol'])
         
@@ -312,19 +326,16 @@ async def list_symbols():
         if not all_symbols:
             all_symbols = [
                 "BTC", "ETH", "SOL", "BNB", "ADA", "XRP", "DOT", "LTC", "LINK", "MATIC",
-                "AVAX", "DOGE", "ATOM", "XLM", "ALGO", "NEAR", "FTM", "SAND", "MANA", "UNI",
-                "TRX", "ETC", "XMR", "EOS", "XTZ", "AAVE", "MKR", "COMP", "YFI", "SNX",
-                "CRV", "SUSHI", "1INCH", "REN", "BAL", "LRC", "BAT", "ZRX", "ENJ", "REP",
-                "KNC", "BNT", "OCEAN", "NMR", "UMA", "API3", "BADGER", "CVP", "FARM", "GTC"
+                "AVAX", "DOGE", "ATOM", "XLM", "ALGO", "NEAR", "FTM", "SAND", "MANA", "UNI"
             ]
         
         # نمادهای WebSocket
         websocket_symbols = []
-        if lbank_ws and hasattr(lbank_ws, 'get_active_pairs'):
-            websocket_symbols = lbank_ws.get_active_pairs()
+        if lbank_ws and hasattr(lbank_ws, 'realtime_data'):
+            websocket_symbols = list(lbank_ws.realtime_data.keys())
         
         return {
-            "symbols": all_symbols[:100],  # حداکثر 100 نماد
+            "symbols": all_symbols[:50],  # حداکثر ۵۰ نماد
             "websocket_symbols": websocket_symbols,
             "total_symbols": len(all_symbols),
             "active_websocket_pairs": len(websocket_symbols),
@@ -334,9 +345,9 @@ async def list_symbols():
     except Exception as e:
         logger.error(f"❌ خطا در دریافت لیست نمادها: {e}")
         return {
-            "symbols": [],
+            "symbols": ["BTC", "ETH", "SOL", "BNB", "ADA", "XRP", "DOT", "LTC"],
             "websocket_symbols": [],
-            "total_symbols": 0,
+            "total_symbols": 8,
             "active_websocket_pairs": 0,
             "error": str(e)
         }
