@@ -236,7 +236,7 @@ async def not_found_handler(request, exc):
     }
 
 async def main():
-    """تابع اصلی"""
+    """تابع اصلی - نسخه تعمیر شده"""
     try:
         import uvicorn
         
@@ -246,8 +246,8 @@ async def main():
         os.makedirs("coinstats_collected_data", exist_ok=True)
         os.makedirs("raw_data", exist_ok=True)
         
-        # دریافت پورت از محیط
-        port = int(os.getenv("PORT", "10000"))
+        # 🔧 دریافت پورت از محیط - نسخه درست
+        port = int(os.environ.get("PORT", 8000))  # ✅ درست شد!
         
         config = uvicorn.Config(
             app,
@@ -259,7 +259,7 @@ async def main():
         
         server = uvicorn.Server(config)
         logger.info(f"🌐 Server starting on port {port}")
-        logger.info(f"📊 Access the dashboard at: http://localhost:{port}")
+        logger.info(f"📊 Access the API at: http://localhost:{port}")
         
         await server.serve()
         
