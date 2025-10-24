@@ -119,7 +119,7 @@ class AIAnalysisService:
             return {}
 
     def get_coin_data(self, symbol: str, currency: str = "USD") -> Dict[str, Any]:
-    """دریافت داده‌های کامل یک کوین - نسخه واقعی"""
+        """دریافت داده‌های کامل یک کوین - نسخه واقعی"""
         try:
         # اول از داده‌های خام
             raw_data = self._load_raw_data()
@@ -252,7 +252,7 @@ class AIAnalysisService:
 
     
      def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
-    """آماده‌سازی داده‌های ورودی برای هوش مصنوعی - نسخه واقعی"""
+        """آماده‌سازی داده‌های ورودی برای هوش مصنوعی - نسخه واقعی"""
         ai_input = {
             "timestamp": int(datetime.now().timestamp()),
             "analysis_scope": "multi_symbol" if len(symbols) > 1 else "single_symbol",
