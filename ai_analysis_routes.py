@@ -119,18 +119,29 @@ class AIAnalysisService:
             return {}
 
     def get_coin_data(self, symbol: str, currency: str = "USD") -> Dict[str, Any]:
-        """دریافت داده‌های کامل یک کوین"""
+    """دریافت داده‌های کامل یک کوین - نسخه واقعی"""
+        try:
         # اول از داده‌های خام
-        raw_data = self._load_raw_data()
-        for filename, data in raw_data.items():
-            if symbol.lower() in filename.lower():
-                logger.info(f"Found raw data for {symbol}: {filename}")
-                return data
+            raw_data = self._load_raw_data()
+            for filename, data in raw_data.items():
+                if symbol.lower() in filename.lower():
+                    logger.info(f"Found raw data for {symbol}: {filename}")
+                    return data
 
-        # اگر پیدا نشد، از API استفاده کن
-        coin_data = self._make_api_request(f"coins/{symbol}", {"currency": currency})
-        return coin_data.get('result', {}) if 'result' in coin_data else coin_data
-
+        # اگر پیدا نشد، از API واقعی استفاده کن
+            logger.info(f"📡 دریافت داده‌های {symbol} از API...")
+            coin_data = self._make_api_request(f"coins/{symbol}", {"currency": currency})
+        
+            if coin_data and 'result' in coin_data:
+                logger.info(f"✅ داده‌های {symbol} از API دریافت شد")
+                return coin_data['result']
+            else:
+                logger.warning(f"⚠️ داده‌های {symbol} از API دریافت نشد")
+                return {}
+            
+        except Exception as e:
+            logger.error(f"خطا در دریافت داده‌های {symbol}: {e}")
+            return {}
     def get_historical_data(self, symbol: str, period: str = "all") -> Dict[str, Any]:
         """دریافت داده‌های تاریخی"""
         return self._make_api_request(f"coins/{symbol}/charts", {"period": period})
