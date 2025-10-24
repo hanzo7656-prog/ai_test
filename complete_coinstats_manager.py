@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any
 import glob
 import time
 import logging
+from config import API_CONFIG
 
 # تنظیم لاگینگ
 logger = logging.getLogger(__name__)
@@ -16,8 +17,10 @@ class CompleteCoinStatsManager:
         self.raw_data_path = raw_data_path
         self.repo_url = repo_url or "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data"
         self.api_base_url = "https://openapiv1.coinstats.app"
-        self.api_key = "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
+        self.api_key = API_CONFIG['api_key']
         self.headers = {"X-API-KEY": self.api_key}
+
+        self.supported_timeframes = SUPPORTED_TIMEFRAMES
 
         # WebSocket configuration
         self.ws_manager = None
