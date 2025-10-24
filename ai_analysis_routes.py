@@ -121,14 +121,14 @@ class AIAnalysisService:
     def get_coin_data(self, symbol: str, currency: str = "USD") -> Dict[str, Any]:
         """دریافت داده‌های کامل یک کوین - نسخه واقعی"""
         try:
-        # اول از داده‌های خام
+            # اول از داده‌های خام
             raw_data = self._load_raw_data()
             for filename, data in raw_data.items():
                 if symbol.lower() in filename.lower():
                     logger.info(f"Found raw data for {symbol}: {filename}")
                     return data
 
-        # اگر پیدا نشد، از API واقعی استفاده کن
+            # اگر پیدا نشد، از API واقعی استفاده کن
             logger.info(f"📡 دریافت داده‌های {symbol} از API...")
             coin_data = self._make_api_request(f"coins/{symbol}", {"currency": currency})
         
@@ -142,6 +142,7 @@ class AIAnalysisService:
         except Exception as e:
             logger.error(f"خطا در دریافت داده‌های {symbol}: {e}")
             return {}
+
     def get_historical_data(self, symbol: str, period: str = "all") -> Dict[str, Any]:
         """دریافت داده‌های تاریخی"""
         return self._make_api_request(f"coins/{symbol}/charts", {"period": period})
@@ -250,8 +251,7 @@ class AIAnalysisService:
                 'all_probabilities': {'BUY': 0.33, 'SELL': 0.33, 'HOLD': 0.34}
             }
 
-    
-     def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
+    def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
         """آماده‌سازی داده‌های ورودی برای هوش مصنوعی - نسخه واقعی"""
         ai_input = {
             "timestamp": int(datetime.now().timestamp()),
@@ -275,27 +275,27 @@ class AIAnalysisService:
                 ai_input["data_sources"]['repo_data'] = True
                 ai_input["raw_files_count"] = len(raw_data)
 
-        # داده‌های بازار
+            # داده‌های بازار
             market_data = self.get_market_data()
             if market_data:
                 ai_input["market_data"] = market_data
                 ai_input["data_sources"]['api_data'] = True
 
-        # بینش‌های بازار
+            # بینش‌های بازار
             insights = self.get_market_insights()
             if insights:
                 ai_input["insights_data"] = insights
 
-        # اخبار
+            # اخبار
             news = self.get_news_data()
             if news:
                 ai_input["news_data"] = news
 
-        # داده‌های هر نماد - فقط اگر API کار کند
+            # داده‌های هر نماد - فقط اگر API کار کند
             for symbol in symbols:
                 symbol_data = {}
             
-            # اطلاعات اصلی کوین از API واقعی
+                # اطلاعات اصلی کوین از API واقعی
                 coin_data = self.get_coin_data(symbol)
                 if coin_data:
                     symbol_data["coin_info"] = coin_data
@@ -304,12 +304,12 @@ class AIAnalysisService:
                     logger.warning(f"⚠️ داده‌های {symbol} از API دریافت نشد")
                     continue
 
-            # داده‌های تاریخی
+                # داده‌های تاریخی
                 historical_data = self.get_historical_data(symbol, period)
                 if historical_data and 'result' in historical_data:
                     symbol_data["historical"] = historical_data
                 
-                # استخراج قیمت‌ها و حجم‌ها
+                    # استخراج قیمت‌ها و حجم‌ها
                     prices = []
                     volumes = []
                     for item in historical_data['result']:
@@ -324,14 +324,14 @@ class AIAnalysisService:
                     symbol_data["volumes"] = volumes
                     logger.info(f"📊 داده‌های تاریخی {symbol}: {len(prices)} نقطه")
 
-            # اندیکاتورهای تکنیکال فقط اگر داده کافی داریم
+                # اندیکاتورهای تکنیکال فقط اگر داده کافی داریم
                 if symbol_data.get("prices") and len(symbol_data["prices"]) > 20:
                     technical_indicators = self.get_technical_indicators(symbol, period)
                     if technical_indicators:
                         symbol_data["technical_indicators"] = technical_indicators
                         logger.info(f"📈 اندیکاتورهای تکنیکال {symbol} محاسبه شد")
 
-            # پیش‌بینی AI فقط اگر داده کافی داریم
+                # پیش‌بینی AI فقط اگر داده کافی داریم
                 if symbol_data:
                     ai_prediction = self.get_ai_prediction(symbol, symbol_data)
                     symbol_data["ai_prediction"] = ai_prediction
@@ -344,8 +344,8 @@ class AIAnalysisService:
         
         except Exception as e:
             logger.error(f"خطا در آماده‌سازی داده‌های AI: {e}")
-        # بازگرداندن داده‌های خالی به جای fallback
-            return ai_input   
+            # بازگرداندن داده‌های خالی به جای fallback
+            return ai_input
 
     def generate_analysis_report(self, ai_input: Dict) -> Dict[str, Any]:
         """تولید گزارش تحلیل کامل"""
