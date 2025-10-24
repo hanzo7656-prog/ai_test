@@ -239,8 +239,9 @@ class AIAnalysisService:
                 'all_probabilities': {'BUY': 0.33, 'SELL': 0.33, 'HOLD': 0.34}
             }
 
-    def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
-        """آماده‌سازی داده‌های ورودی برای هوش مصنوعی"""
+    
+     def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
+    """آماده‌سازی داده‌های ورودی برای هوش مصنوعی - نسخه واقعی"""
         ai_input = {
             "timestamp": int(datetime.now().timestamp()),
             "analysis_scope": "multi_symbol" if len(symbols) > 1 else "single_symbol",
@@ -256,63 +257,84 @@ class AIAnalysisService:
             "insights_data": {}
         }
 
-        # بارگذاری داده‌های خام
-        raw_data = self._load_raw_data()
-        if raw_data:
-            ai_input["data_sources"]['repo_data'] = True
-            ai_input["raw_files_count"] = len(raw_data)
+        try:
+            # بارگذاری داده‌های خام
+            raw_data = self._load_raw_data()
+            if raw_data:
+                ai_input["data_sources"]['repo_data'] = True
+                ai_input["raw_files_count"] = len(raw_data)
 
         # داده‌های بازار
-        market_data = self.get_market_data()
-        if market_data:
-            ai_input["market_data"] = market_data
-            ai_input["data_sources"]['api_data'] = True
+            market_data = self.get_market_data()
+            if market_data:
+                ai_input["market_data"] = market_data
+                ai_input["data_sources"]['api_data'] = True
 
         # بینش‌های بازار
-        insights = self.get_market_insights()
-        if insights:
-            ai_input["insights_data"] = insights
+            insights = self.get_market_insights()
+            if insights:
+                ai_input["insights_data"] = insights
 
         # اخبار
-        news = self.get_news_data()
-        if news:
-            ai_input["news_data"] = news
+            news = self.get_news_data()
+            if news:
+                ai_input["news_data"] = news
 
-        # داده‌های هر نماد
-        for symbol in symbols[:3]:  # محدود کردن به ۳ نماد برای عملکرد بهتر
-            symbol_data = {}
+        # داده‌های هر نماد - فقط اگر API کار کند
+            for symbol in symbols:
+                symbol_data = {}
             
-            # اطلاعات اصلی کوین
-            coin_data = self.get_coin_data(symbol)
-            if coin_data:
-                symbol_data["coin_info"] = coin_data
+            # اطلاعات اصلی کوین از API واقعی
+                coin_data = self.get_coin_data(symbol)
+                if coin_data:
+                    symbol_data["coin_info"] = coin_data
+                    logger.info(f"✅ داده‌های {symbol} از API دریافت شد")
+                else:
+                    logger.warning(f"⚠️ داده‌های {symbol} از API دریافت نشد")
+                    continue
 
             # داده‌های تاریخی
-            historical_data = self.get_historical_data(symbol, period)
-            if historical_data:
-                symbol_data["historical"] = historical_data
+                historical_data = self.get_historical_data(symbol, period)
+                if historical_data and 'result' in historical_data:
+                    symbol_data["historical"] = historical_data
                 
                 # استخراج قیمت‌ها و حجم‌ها
-                if 'result' in historical_data:
-                    prices = [float(item['price']) for item in historical_data['result'] if 'price' in item]
-                    volumes = [float(item.get('volume', 1000000)) for item in historical_data['result']]
+                    prices = []
+                    volumes = []
+                    for item in historical_data['result']:
+                        if 'price' in item:
+                            try:
+                                prices.append(float(item['price']))
+                                volumes.append(float(item.get('volume', 1000000)))
+                            except (ValueError, TypeError):
+                                continue
+                  
                     symbol_data["prices"] = prices
                     symbol_data["volumes"] = volumes
+                    logger.info(f"📊 داده‌های تاریخی {symbol}: {len(prices)} نقطه")
 
-            # اندیکاتورهای تکنیکال
-            technical_indicators = self.get_technical_indicators(symbol, period)
-            if technical_indicators:
-                symbol_data["technical_indicators"] = technical_indicators
+            # اندیکاتورهای تکنیکال فقط اگر داده کافی داریم
+                if symbol_data.get("prices") and len(symbol_data["prices"]) > 20:
+                    technical_indicators = self.get_technical_indicators(symbol, period)
+                    if technical_indicators:
+                        symbol_data["technical_indicators"] = technical_indicators
+                        logger.info(f"📈 اندیکاتورهای تکنیکال {symbol} محاسبه شد")
 
-            # پیش‌بینی AI
-            if symbol_data:
-                ai_prediction = self.get_ai_prediction(symbol, symbol_data)
-                symbol_data["ai_prediction"] = ai_prediction
+            # پیش‌بینی AI فقط اگر داده کافی داریم
+                if symbol_data:
+                    ai_prediction = self.get_ai_prediction(symbol, symbol_data)
+                    symbol_data["ai_prediction"] = ai_prediction
+                    logger.info(f"🤖 پیش‌بینی AI برای {symbol} انجام شد")
 
-            if symbol_data:
-                ai_input["symbols_data"][symbol] = symbol_data
+                if symbol_data:
+                    ai_input["symbols_data"][symbol] = symbol_data
 
-        return ai_input
+            return ai_input
+        
+        except Exception as e:
+            logger.error(f"خطا در آماده‌سازی داده‌های AI: {e}")
+        # بازگرداندن داده‌های خالی به جای fallback
+            return ai_input   
 
     def generate_analysis_report(self, ai_input: Dict) -> Dict[str, Any]:
         """تولید گزارش تحلیل کامل"""
