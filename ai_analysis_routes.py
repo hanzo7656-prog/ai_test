@@ -454,26 +454,32 @@ ai_service = AIAnalysisService()
 
 @router.get("/analysis")
 async def ai_analysis(
-    symbols: List[str] = Query(..., description="نمادها برای تحلیل"),
+    symbols: str = Query(..., description="نمادها برای تحلیل (با کاما جدا شده)"),
     period: str = Query("7d", regex="^(1h|4h|1d|7d|30d|90d|all)$"),
     include_news: bool = True,
     include_market_data: bool = True,
     include_technical: bool = True,
     analysis_type: str = "comprehensive"
 ):
-    """تحلیل هوش مصنوعی برای نمادها - نسخه ایمن شده"""
+    """تحلیل هوش مصنوعی برای نمادها - نسخه واقعی"""
     try:
+        # تبدیل رشته به لیست
+        symbols_list = [s.strip().upper() for s in symbols.split(',')]
+        
         # محدود کردن تعداد نمادها برای عملکرد بهتر
-        symbols = symbols[:5]
+        symbols_list = symbols_list[:3]
+        
+        logger.info(f"🔍 Analyzing symbols: {symbols_list}")
         
         # آماده‌سازی داده های ورودی برای هوش مصنوعی
-        ai_input = ai_service.prepare_ai_input(symbols, period)
+        ai_input = ai_service.prepare_ai_input(symbols_list, period)
         
-        # اگر داده دریافت نشد
-        if not ai_input["data_sources"]["repo_data"] and not ai_input["data_sources"]["api_data"]:
-            logger.warning("No data sources available, using fallback analysis")
-            # استفاده از تحلیل fallback
-            return await fallback_ai_analysis(symbols, period)
+        # بررسی اینکه آیا داده واقعی دریافت شده
+        if not ai_input.get("symbols_data"):
+            raise HTTPException(
+                status_code=503, 
+                detail="داده‌های بازار در دسترس نیست. لطفاً بعداً تلاش کنید."
+            )
         
         # تولید گزارش تحلیل
         analysis_report = ai_service.generate_analysis_report(ai_input)
@@ -492,38 +498,14 @@ async def ai_analysis(
             }
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in AI analysis: {e}")
-        # Fallback به تحلیل ساده
-        return await fallback_ai_analysis(symbols, period)
-
-async def fallback_ai_analysis(symbols: List[str], period: str) -> Dict[str, Any]:
-    """تحلیل fallback در صورت خطا"""
-    analysis_results = {}
-    
-    for symbol in symbols:
-        analysis_results[symbol] = {
-            "symbol": symbol,
-            "current_price": 50000 if symbol == "BTC" else 3000,
-            "signal": "HOLD",
-            "confidence": 0.75,
-            "technical_score": 0.6,
-            "recommendation": "منتظر سیگنال بهتر بمانید",
-            "timestamp": int(datetime.now().timestamp())
-        }
-    
-    return {
-        "status": "success",
-        "message": "تحلیل AI (Fallback) با موفقیت انجام شد",
-        "analysis_period": period,
-        "symbols_analyzed": list(analysis_results.keys()),
-        "results": analysis_results,
-        "market_overview": {
-            "sentiment": "neutral",
-            "risk_level": "medium"
-        },
-        "fallback_mode": True
-    }
+        raise HTTPException(
+            status_code=500, 
+            detail=f"خطا در تحلیل AI: {str(e)}"
+        )
 
 @router.get("/analysis/status/{analysis_id}")
 async def get_analysis_status(analysis_id: str):
