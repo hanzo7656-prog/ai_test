@@ -2,8 +2,9 @@
 import requests
 import json
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
+import logging
 
 class CoinStatsAPI:
     def __init__(self, api_key: str = None):
@@ -13,12 +14,11 @@ class CoinStatsAPI:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
         
-        # لاگینگ
+        # تنظیمات لاگینگ
         self.setup_logging()
     
     def setup_logging(self):
         """تنظیمات لاگینگ"""
-        import logging
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -151,16 +151,16 @@ class CoinStatsAPI:
             
         # اضافه کردن فیلترهای پیشرفته از PDF
         filter_mappings = {
-            'marketCap~greaterThan': 'marketCap~greaterThan',
-            'marketCap~lessThan': 'marketCap~lessThan',
-            'volume~greaterThan': 'volume~greaterThan', 
-            'priceChange1h~greaterThan': 'priceChange1h~greaterThan',
-            'priceChange1d~greaterThan': 'priceChange1d~greaterThan',
-            'priceChange7d~greaterThan': 'priceChange7d~greaterThan',
-            'rank~greaterThan': 'rank~greaterThan',
-            'rank~lessThan': 'rank~lessThan',
-            'price~greaterThan': 'price~greaterThan',
-            'price~lessThan': 'price~lessThan'
+            'market_cap_greater_than': 'marketCap~greaterThan',
+            'market_cap_less_than': 'marketCap~lessThan',
+            'volume_greater_than': 'volume~greaterThan', 
+            'price_change_1h_greater_than': 'priceChange1h~greaterThan',
+            'price_change_1d_greater_than': 'priceChange1d~greaterThan',
+            'price_change_7d_greater_than': 'priceChange7d~greaterThan',
+            'rank_greater_than': 'rank~greaterThan',
+            'rank_less_than': 'rank~lessThan',
+            'price_greater_than': 'price~greaterThan',
+            'price_less_than': 'price~lessThan'
         }
         
         for filter_key, api_key in filter_mappings.items():
@@ -321,16 +321,16 @@ class CoinStatsAPI:
 
     # ========================= مثال‌های کاربردی =========================
     
-    def get_top_10_coins(self) -> List[Dict]:
-        """دریافت 10 کوین برتر"""
-        data = self.get_coins_list(limit=10, sort_by="marketCap", sort_dir="desc")
+    def get_top_coins(self, limit: int = 10) -> List[Dict]:
+        """دریافت کوین‌های برتر"""
+        data = self.get_coins_list(limit=limit, sort_by="marketCap", sort_dir="desc")
         if data and 'result' in data:
             return data['result']
         return []
     
-    def search_coins_by_name(self, name: str) -> List[Dict]:
+    def search_coins_by_name(self, name: str, limit: int = 20) -> List[Dict]:
         """جستجوی کوین بر اساس نام"""
-        data = self.get_coins_list(name=name, limit=20)
+        data = self.get_coins_list(name=name, limit=limit)
         if data and 'result' in data:
             return data['result']
         return []
@@ -342,6 +342,13 @@ class CoinStatsAPI:
         }
         period = period_map.get(days, "all")
         return self.get_coin_charts(coin_id, period)
+    
+    def get_coins_by_category(self, category: str, limit: int = 20) -> List[Dict]:
+        """دریافت کوین‌ها بر اساس دسته‌بندی"""
+        data = self.get_coins_list(categories=category, limit=limit)
+        if data and 'result' in data:
+            return data['result']
+        return []
 
 # ========================= اجرای تست =========================
 
