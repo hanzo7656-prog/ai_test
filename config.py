@@ -1,11 +1,10 @@
-# config.py - نسخه سازگار با Render
-import os
+# config.py - نسخه با کلید مستقیم
 from typing import List, Dict, Any
 
 # ==================== تنظیمات اصلی API ====================
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
-    'api_key': os.environ.get('COINSTATS_API_KEY', 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA='),
+    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',  # کلید مستقیم
     'timeout': 30,
     'retry_attempts': 3,
     'rate_limit_per_minute': 60
@@ -65,37 +64,14 @@ AI_MODEL_CONFIG = {
 # ==================== تنظیمات سرور ====================
 SERVER_CONFIG = {
     'host': '0.0.0.0',
-    'port': int(os.environ.get('PORT', 8000)),
-    'debug': os.environ.get('DEBUG', 'False').lower() == 'true',
+    'port': 8000,
+    'debug': False,
     'workers': 1
 }
 
 # ==================== تنظیمات لاگ ====================
 LOGGING_CONFIG = {
-    'level': os.environ.get('LOG_LEVEL', 'INFO'),
+    'level': 'INFO',
     'format': '%(asctime)s - %(levelname)s - %(message)s',
     'datefmt': '%Y-%m-%d %H:%M:%S'
-}
-
-# ==================== اندپوینت‌های اصلی ====================
-ENDPOINTS_CONFIG = {
-    'coins': '/coins',
-    'coins_charts': '/coins/charts',
-    'coin_details': '/coins/{}',
-    'coin_charts': '/coins/{}/charts',
-    'price_avg': '/coins/price/avg',
-    'exchange_price': '/coins/price/exchange',
-    'tickers_exchanges': '/tickers/exchanges',
-    'tickers_markets': '/tickers/markets',
-    'fiats': '/fiats',
-    'markets': '/markets',
-    'currencies': '/currencies',
-    'news_sources': '/news/sources',
-    'news': '/news',
-    'news_by_type': '/news/type/{}',
-    'news_by_id': '/news/{}',
-    'btc_dominance': '/insights/btc-dominance',
-    'fear_greed': '/insights/fear-and-greed',
-    'fear_greed_chart': '/insights/fear-and-greed/chart',
-    'rainbow_chart': '/insights/rainbow-chart/{}'
 }
