@@ -8,7 +8,13 @@ import glob
 from datetime import datetime
 import requests
 import logging
-from config import API_CONFIG
+
+# تنظیمات API - مستقیم از config کپی شده
+API_CONFIG = {
+    'base_url': 'https://openapiv1.coinstats.app',
+    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
+    'timeout': 30
+}
 
 # تنظیم لاگینگ
 logger = logging.getLogger(__name__)
@@ -28,80 +34,63 @@ alerts_db = {}
 # سرویس مستقل برای جلوگیری از circular import
 class DataService:
     def __init__(self):
-        self.api_base_url = "https://openapiv1.coinstats.app"
+        self.api_base_url = API_CONFIG['base_url']
         self.api_key = API_CONFIG['api_key']
         self.headers = {"X-API-KEY": self.api_key}
         self.raw_data_path = "./raw_data"
-
-    
-    def _load_raw_data(self) -> Dict[str, Any]:
-        """بارگذاری داده‌های خام از ریپو"""
-        raw_data = {}
-        try:
-            for folder in ["A", "B", "C", "D"]:
-                folder_path = os.path.join(self.raw_data_path, folder)
-                if os.path.exists(folder_path):
-                    data_files = glob.glob(f"{folder_path}/**/*.json", recursive=True)
-                    for file_path in data_files:
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                filename = os.path.basename(file_path)
-                                raw_data[filename] = json.load(f)
-                        except Exception as e:
-                            print(f"Error loading {file_path}: {e}")
-        except Exception as e:
-            print(f"Error in raw data loading: {e}")
-        return raw_data
     
     def _make_api_request(self, endpoint: str, params: Dict = None) -> Dict:
         """ساخت درخواست به API"""
         url = f"{self.api_base_url}/{endpoint}"
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.error(f"API error {response.status_code}: {response.text}")
+                return {}
         except Exception as e:
-            print(f"API request error to {endpoint}: {e}")
+            logger.error(f"API request error to {endpoint}: {e}")
             return {}
     
-    def get_news_data(self, limit: int = 10) -> Dict[str, Any]:
-        """دریافت داده‌های اخبار"""
-        news_data = {}
-        
-        # اخبار عمومی
-        general_news = self._make_api_request("news", {"limit": limit})
-        if general_news:
-            news_data["general"] = general_news
-        
-        return news_data
-    
-    def get_market_insights(self) -> Dict[str, Any]:
-        """دریافت بینش‌های بازار"""
-        insights = {}
-        
-        # ترس و طمع
-        fear_greed = self._make_api_request("insights/fear-and-greed")
-        if fear_greed:
-            insights["fear_greed"] = fear_greed
-        
-        return insights
-
-    def get_coins_list(self, limit: int = 150) -> List[Dict]:
+    def get_coins_list(self, limit: int = 50) -> List[Dict]:
         """دریافت لیست کوین‌ها - نسخه تعمیر شده"""
         try:
-            coins_data = self._make_api_request("coins", {"limit": limit})
+            params = {"limit": limit, "currency": "USD"}
+            coins_data = self._make_api_request("coins", params)
+            
             if coins_data and 'result' in coins_data:
                 return coins_data['result']
-            return []
+            else:
+                logger.warning("No data received from API")
+                return []
+                
         except Exception as e:
             logger.error(f"Error getting coins list: {e}")
             return []
 
+    def get_coin_details(self, coin_id: str) -> Dict:
+        """دریافت جزئیات کوین خاص"""
+        return self._make_api_request(f"coins/{coin_id}")
+
+    def get_coin_charts(self, coin_id: str, period: str = "1w") -> Dict:
+        """دریافت چارت کوین"""
+        params = {"period": period}
+        return self._make_api_request(f"coins/{coin_id}/charts", params)
+
 # ایجاد سرویس داده
 data_service = DataService()
 
-# WebSocket manager - این باید از run.py inject بشه
-lbank_ws = None
+# WebSocket manager - مقدار پیش‌فرض برای جلوگیری از خطا
+class DummyWebSocket:
+    def __init__(self):
+        self.connected = False
+        self.realtime_data = {}
+    
+    def get_realtime_data(self, symbol: str):
+        return self.realtime_data.get(symbol, {})
+
+lbank_ws = DummyWebSocket()
 
 def set_websocket_manager(ws_manager):
     """تنظیم WebSocket manager از run.py"""
@@ -113,60 +102,152 @@ def set_websocket_manager(ws_manager):
 @router.get("/")
 async def root():
     """صفحه اصلی"""
-    return {"message": "AI Trading Assistant API", "version": "3.0.0"}
+    return {
+        "message": "AI Trading Assistant API", 
+        "version": "3.0.0",
+        "endpoints": [
+            "/health",
+            "/coins/list",
+            "/coins/{coin_id}",
+            "/symbols/list",
+            "/market/overview"
+        ]
+    }
 
 @router.get("/health")
 async def health_check():
     """سلامت سرویس"""
     return {
         "status": "healthy",
-        "timestamp": int(datetime.now().timestamp()),
+        "timestamp": datetime.now().isoformat(),
         "services": {
             "api": "running",
-            "websocket": "connected" if lbank_ws and lbank_ws.connected else "disconnected",
-            "data_service": "ready"
+            "websocket": "connected" if lbank_ws and lbank_ws.connected else "disconnected"
         }
     }
 
-@router.get("/websocket/status")
-async def websocket_status():
-    """وضعیت WebSocket"""
-    if not lbank_ws:
-        raise HTTPException(status_code=503, detail="WebSocket not initialized")
-    
-    return {
-        "connected": lbank_ws.connected,
-        "subscribed_pairs": list(lbank_ws.realtime_data.keys()),
-        "data_count": len(lbank_ws.realtime_data)
-    }
+# ==================== روت‌های کوین‌ها ====================
 
-@router.get("/websocket/data/{symbol}")
-async def get_websocket_data(symbol: str):
-    """داده‌های لحظه‌ای WebSocket"""
-    if not lbank_ws:
-        raise HTTPException(status_code=503, detail="WebSocket not initialized")
-    
-    data = lbank_ws.get_realtime_data(symbol)
-    if not data:
-        raise HTTPException(status_code=404, detail="Symbol not found in WebSocket data")
-    return data
-
-# ==================== روت‌های اخبار ====================
-
-@router.get("/news/latest")
-async def get_latest_news(
-    limit: int = Query(20, ge=1, le=100)
+@router.get("/coins/list")
+async def get_coins_list(
+    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1)
 ):
-    """آخرین اخبار"""
+    """دریافت لیست کوین‌ها"""
     try:
-        news_data = data_service.get_news_data(limit)
+        coins = data_service.get_coins_list(limit=limit)
+        
         return {
-            "news": news_data,
-            "count": len(news_data.get('general', [])),
-            "timestamp": int(datetime.now().timestamp())
+            "coins": coins,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": len(coins)
+            },
+            "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching news: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching coins: {str(e)}")
+
+@router.get("/coins/{coin_id}")
+async def get_coin_details(coin_id: str):
+    """دریافت جزئیات کوین خاص"""
+    try:
+        coin_data = data_service.get_coin_details(coin_id)
+        if not coin_data:
+            raise HTTPException(status_code=404, detail="Coin not found")
+        return coin_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/coins/{coin_id}/charts")
+async def get_coin_charts(
+    coin_id: str,
+    period: str = Query("1w", regex="^(24h|1w|1m|3m|6m|1y|all)$")
+):
+    """دریافت چارت کوین"""
+    try:
+        chart_data = data_service.get_coin_charts(coin_id, period)
+        if not chart_data:
+            raise HTTPException(status_code=404, detail="Chart data not found")
+        return chart_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== روت‌های بازار ====================
+
+@router.get("/market/overview")
+async def market_overview():
+    """نمای کلی بازار"""
+    try:
+        # دریافت ۱۰ کوین برتر
+        top_coins = data_service.get_coins_list(limit=10)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "market_summary": {
+                "total_coins": len(top_coins),
+                "top_performers": []
+            }
+        }
+        
+        if top_coins:
+            for coin in top_coins[:5]:  # ۵ کوین برتر
+                response["market_summary"]["top_performers"].append({
+                    "name": coin.get("name"),
+                    "symbol": coin.get("symbol"),
+                    "price": coin.get("price"),
+                    "change_24h": coin.get("priceChange1d", 0)
+                })
+        
+        return response
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/symbols/list")
+async def list_symbols():
+    """لیست کامل نمادها"""
+    try:
+        coins = data_service.get_coins_list(limit=100)
+        symbols = []
+        
+        for coin in coins:
+            if 'symbol' in coin:
+                symbols.append({
+                    "symbol": coin["symbol"],
+                    "name": coin.get("name", ""),
+                    "price": coin.get("price", 0)
+                })
+        
+        # اگر داده‌ای نبود، لیست پیش‌فرض
+        if not symbols:
+            symbols = [
+                {"symbol": "BTC", "name": "Bitcoin", "price": 0},
+                {"symbol": "ETH", "name": "Ethereum", "price": 0},
+                {"symbol": "SOL", "name": "Solana", "price": 0}
+            ]
+        
+        return {
+            "symbols": symbols[:50],  # حداکثر ۵۰ نماد
+            "total_symbols": len(symbols),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in list_symbols: {e}")
+        return {
+            "symbols": [
+                {"symbol": "BTC", "name": "Bitcoin", "price": 0},
+                {"symbol": "ETH", "name": "Ethereum", "price": 0}
+            ],
+            "total_symbols": 2,
+            "error": "Using fallback data"
+        }
 
 # ==================== روت‌های هشدار ====================
 
@@ -183,8 +264,7 @@ async def create_alert(request: AlertRequest):
             "target_price": request.target_price,
             "alert_type": request.alert_type,
             "status": "ACTIVE",
-            "created_at": int(datetime.now().timestamp()),
-            "triggered": False
+            "created_at": datetime.now().isoformat()
         }
         
         alerts_db[alert_id] = alert_data
@@ -199,157 +279,9 @@ async def create_alert(request: AlertRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/alerts/list")
-async def list_alerts(symbol: Optional[str] = None):
+async def list_alerts():
     """لیست هشدارها"""
-    alerts = list(alerts_db.values())
-    
-    if symbol:
-        alerts = [alert for alert in alerts if alert["symbol"] == symbol.upper()]
-    
     return {
-        "alerts": alerts,
-        "total_count": len(alerts),
-        "active_count": len([a for a in alerts if a["status"] == "ACTIVE"])
+        "alerts": list(alerts_db.values()),
+        "total_count": len(alerts_db)
     }
-
-@router.post("/alerts/{alert_id}/delete")
-async def delete_alert(alert_id: str):
-    """حذف هشدار"""
-    if alert_id in alerts_db:
-        deleted_alert = alerts_db.pop(alert_id)
-        return {
-            "status": "SUCCESS",
-            "message": f"Alert {alert_id} deleted",
-            "deleted_alert": deleted_alert
-        }
-    else:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-# ==================== روت‌های داده‌های خام ====================
-
-@router.get("/data/raw/{data_type}")
-async def get_raw_data(
-    data_type: str = Path(..., regex="^(coins|charts|news|market|insights)$"),
-    symbol: str = None,
-    limit: int = Query(100, ge=1, le=1000)
-):
-    """داده‌های خام از ریپو"""
-    try:
-        raw_data = data_service._load_raw_data()
-        
-        filtered_data = {}
-        for filename, data in raw_data.items():
-            if data_type in filename.lower():
-                if symbol and symbol.lower() not in filename.lower():
-                    continue
-                filtered_data[filename] = data
-        
-        return {
-            "data_type": data_type,
-            "symbol": symbol,
-            "files_count": len(filtered_data),
-            "data": filtered_data
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/data/sources")
-async def list_data_sources():
-    """لیست منابع داده"""
-    return {
-        "repo_sources": [
-            "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data/A",
-            "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data/B",
-            "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data/C", 
-            "https://github.com/hanzo7656-prog/my-dataset/tree/main/raw_data/D"
-        ],
-        "api_sources": [
-            "CoinStats REST API",
-            "LBank WebSocket"
-        ]
-    }
-
-# ==================== روت‌های مدیریتی ====================
-
-@router.get("/system/performance")
-async def system_performance():
-    """کارایی سیستم"""
-    return {
-        "timestamp": int(datetime.now().timestamp()),
-        "websocket_status": {
-            "connected": lbank_ws.connected if lbank_ws else False,
-            "active_pairs": len(lbank_ws.realtime_data) if lbank_ws else 0
-        },
-        "api_status": "healthy",
-        "memory_usage": "normal"
-    }
-
-@router.get("/market/overview")
-async def market_overview():
-    """نمای کلی بازار"""
-    try:
-        # داده‌های واقعی از CoinStats
-        coins_data = data_service._make_api_request("coins", {"limit": 10})
-        market_insights = data_service.get_market_insights()
-        
-        response = {
-            "timestamp": int(datetime.now().timestamp()),
-            "market_insights": market_insights
-        }
-        
-        if coins_data and 'result' in coins_data:
-            response["top_coins"] = coins_data['result'][:5]
-        
-        if lbank_ws:
-            response["websocket_data"] = {
-                "btc_price": lbank_ws.get_realtime_data('btc_usdt').get('price', 0),
-                "eth_price": lbank_ws.get_realtime_data('eth_usdt').get('price', 0)
-            }
-        
-        return response
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/symbols/list")
-async def list_symbols():
-    """لیست کامل نمادها - نسخه تعمیر شده"""
-    try:
-        # دریافت لیست کامل کوین‌ها
-        coins_data = data_service.get_coins_list(limit=150)
-        all_symbols = []
-        
-        if coins_data:
-            for coin in coins_data:
-                if 'symbol' in coin:
-                    all_symbols.append(coin['symbol'])
-        
-        # اگر از API چیزی نگرفتیم، لیست پیش‌فرض
-        if not all_symbols:
-            all_symbols = [
-                "BTC", "ETH", "SOL", "BNB", "ADA", "XRP", "DOT", "LTC", "LINK", "MATIC",
-                "AVAX", "DOGE", "ATOM", "XLM", "ALGO", "NEAR", "FTM", "SAND", "MANA", "UNI"
-            ]
-        
-        # نمادهای WebSocket
-        websocket_symbols = []
-        if lbank_ws and hasattr(lbank_ws, 'realtime_data'):
-            websocket_symbols = list(lbank_ws.realtime_data.keys())
-        
-        return {
-            "symbols": all_symbols[:50],  # حداکثر ۵۰ نماد
-            "websocket_symbols": websocket_symbols,
-            "total_symbols": len(all_symbols),
-            "active_websocket_pairs": len(websocket_symbols),
-            "data_source": "coinstats_api"
-        }
-        
-    except Exception as e:
-        logger.error(f"❌ خطا در دریافت لیست نمادها: {e}")
-        return {
-            "symbols": ["BTC", "ETH", "SOL", "BNB", "ADA", "XRP", "DOT", "LTC"],
-            "websocket_symbols": [],
-            "total_symbols": 8,
-            "active_websocket_pairs": 0,
-            "error": str(e)
-        }
