@@ -1,4 +1,4 @@
-# coinstats_complete_endpoints.py
+# coinstats_complete_endpoints.py - نسخه کامل با 14 اندپوینت
 import requests
 import json
 import time
@@ -39,22 +39,13 @@ class CoinStatsAPI:
             print(f"📥 وضعیت: {response.status_code}")
             print(f"⏱ زمان پاسخ: {response.elapsed.total_seconds():.2f} ثانیه")
             
-            # نمایش هدرهای مهم
-            important_headers = ['X-RateLimit-Remaining', 'X-RateLimit-Limit', 'Content-Type']
-            for header in important_headers:
-                if header in response.headers:
-                    print(f"📊 {header}: {response.headers[header]}")
-            
             if response.status_code == 200:
                 try:
                     data = response.json()
                     if 'result' in data and isinstance(data['result'], list):
                         print(f"✅ داده‌ها: {len(data['result'])} آیتم دریافت شد")
-                        if data['result']:
-                            sample = data['result'][0]
-                            print(f"📝 نمونه: {sample.get('name', 'N/A')} - ${sample.get('price', 0):.2f}")
                     else:
-                        print(f"✅ پاسخ: {json.dumps(data, ensure_ascii=False)[:200]}...")
+                        print(f"✅ پاسخ دریافت شد")
                 except:
                     print(f"📝 پاسخ متنی: {response.text[:200]}...")
             else:
@@ -73,7 +64,7 @@ class CoinStatsAPI:
                 if response.status_code == 200:
                     return response.json()
                 elif response.status_code == 429:  # Rate limit
-                    wait_time = 2 ** attempt  # Exponential backoff
+                    wait_time = 2 ** attempt
                     self.logger.warning(f"⏳ Rate limit! صبر {wait_time} ثانیه...")
                     time.sleep(wait_time)
                     continue
@@ -86,16 +77,13 @@ class CoinStatsAPI:
                 if attempt < max_retries:
                     time.sleep(1)
                     continue
-            except requests.exceptions.ConnectionError:
-                self.logger.error(f"🌐 خطای اتصال در {endpoint}")
-                return None
             except Exception as e:
                 self.logger.error(f"💥 خطای ناشناخته در {endpoint}: {e}")
                 return None
         
         return None
 
-    # ========================= اندپوینت 1: دریافت لیست کوین‌ها =========================
+    # ========================= اندپوینت‌های اصلی (6 تای اول) =========================
     
     def get_coins_list(self, 
                       page: int = 1,
@@ -112,21 +100,7 @@ class CoinStatsAPI:
                       **filters) -> Optional[Dict]:
         """
         دریافت لیست کامل کوین‌ها با تمام فیلترهای موجود
-        
-        Parameters based on PDF:
-        - page: شماره صفحه (پیش‌فرض: 1)
-        - limit: تعداد در هر صفحه (پیش‌فرض: 20)
-        - coin_ids: فیلتر با ID کوین‌ها (مثلاً bitcoin,ethereum)
-        - currency: ارز نمایش قیمت (پیش‌فرض: USD)
-        - name: جستجو بر اساس نام
-        - symbol: فیلتر بر اساس نماد (مثلاً BTC)
-        - blockchains: فیلتر بر اساس بلاکچین
-        - include_risk_score: شامل شدن امتیاز ریسک
-        - categories: فیلتر بر اساس دسته‌بندی
-        - sort_by: فیلد مرتب‌سازی
-        - sort_dir: جهت مرتب‌سازی (asc/desc)
         """
-        
         params = {
             "page": page,
             "limit": limit,
@@ -149,7 +123,7 @@ class CoinStatsAPI:
         if categories:
             params["categories"] = categories
             
-        # اضافه کردن فیلترهای پیشرفته از PDF
+        # اضافه کردن فیلترهای پیشرفته
         filter_mappings = {
             'market_cap_greater_than': 'marketCap~greaterThan',
             'market_cap_less_than': 'marketCap~lessThan',
@@ -169,69 +143,52 @@ class CoinStatsAPI:
         
         return self.make_request("coins", params)
 
-    # ========================= اندپوینت 2: دریافت چارت چندکوینه =========================
-    
     def get_coins_charts(self, 
                         coin_ids: str, 
-                        period: str = "1w") -> Optional[Dict]:  # تغییر از "all" به "1w"
+                        period: str = "1w") -> Optional[Dict]:
         """
         دریافت چارت برای چند کوین
-    
-        Parameters:
-        - coin_ids: لیست ID کوین‌ها (مثلاً bitcoin,ethereum,solana)
-        - period: بازه زمانی (24h, 1w, 1m, 3m, 6m, 1y, all)
         """
-    
-        # لیست تایم‌فریم‌های مجاز
         valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
         if period not in valid_periods:
             self.logger.warning("⚠️ تایم‌فریم نامعتبر، استفاده از 1w")
             period = "1w"
-    # ========================= اندپوینت 3: دریافت جزئیات کوین خاص =========================
-    
+            
+        params = {
+            "coinIds": coin_ids,
+            "period": period
+        }
+        
+        return self.make_request("coins/charts", params)
+
     def get_coin_details(self, 
                         coin_id: str, 
                         currency: str = "USD") -> Optional[Dict]:
         """
         دریافت جزئیات کامل یک کوین خاص
-        
-        Parameters:
-        - coin_id: شناسه کوین (مثلاً bitcoin, ethereum)
-        - currency: ارز نمایش قیمت
         """
-        
         params = {"currency": currency}
         return self.make_request(f"coins/{coin_id}", params)
 
-    # ========================= اندپوینت 4: دریافت چارت کوین خاص =========================
-    
     def get_coin_charts(self, 
                        coin_id: str, 
-                       period: str = "1w") -> Optional[Dict]:  # تغییر از "all" به "1w"
+                       period: str = "1w") -> Optional[Dict]:
         """
         دریافت چارت تاریخی برای یک کوین خاص
-    
-        Parameters:
-        - coin_id: شناسه کوین
-        - period: بازه زمانی (24h, 1w, 1m, 3m, 6m, 1y, all)
         """
-    
         valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
         if period not in valid_periods:
             period = "1w"
-    # ========================= اندپوینت 5: دریافت قیمت متوسط =========================
-    
+            
+        params = {"period": period}
+        return self.make_request(f"coins/{coin_id}/charts", params)
+
     def get_coin_price_avg(self, 
                           coin_id: str, 
                           timestamp: str) -> Optional[Dict]:
         """
         دریافت قیمت متوسط کوین در زمان مشخص
-        
-        Parameters:
-        - coin_id: شناسه کوین
-        - timestamp: timestamp زمانی
         """
-        
         params = {
             "coinId": coin_id,
             "timestamp": timestamp
@@ -239,8 +196,6 @@ class CoinStatsAPI:
         
         return self.make_request("coins/price/avg", params)
 
-    # ========================= اندپوینت 6: دریافت قیمت مبادله =========================
-    
     def get_exchange_price(self, 
                           exchange: str, 
                           from_coin: str, 
@@ -248,14 +203,7 @@ class CoinStatsAPI:
                           timestamp: str) -> Optional[Dict]:
         """
         دریافت قیمت مبادله در صرافی خاص
-        
-        Parameters:
-        - exchange: نام صرافی (مثلاً Binance)
-        - from_coin: ارز مبدأ (مثلاً BTC)
-        - to_coin: ارز مقصد (مثلاً ETH)
-        - timestamp: timestamp زمانی
         """
-        
         params = {
             "exchange": exchange,
             "from": from_coin,
@@ -265,49 +213,187 @@ class CoinStatsAPI:
         
         return self.make_request("coins/price/exchange", params)
 
+    # ========================= اندپوینت‌های جدید (8 تای جدید) =========================
+
+    def get_tickers_exchanges(self) -> Optional[Dict]:
+        """
+        دریافت لیست صرافی‌ها
+        از مستندات: /tickers/exchanges
+        """
+        return self.make_request("tickers/exchanges")
+
+    def get_tickers_markets(self) -> Optional[Dict]:
+        """
+        دریافت لیست مارکت‌ها
+        از مستندات: /tickers/markets
+        """
+        return self.make_request("tickers/markets")
+
+    def get_fiats(self) -> Optional[Dict]:
+        """
+        دریافت لیست ارزهای فیات
+        از مستندات: /fiats
+        """
+        return self.make_request("fiats")
+
+    def get_markets(self) -> Optional[Dict]:
+        """
+        دریافت لیست مارکت‌ها (نسخه دیگر)
+        از مستندات: /markets
+        """
+        return self.make_request("markets")
+
+    def get_currencies(self) -> Optional[Dict]:
+        """
+        دریافت لیست ارزها
+        از مستندات: /currencies
+        """
+        return self.make_request("currencies")
+
+    def get_news_sources(self) -> Optional[Dict]:
+        """
+        دریافت منابع خبری
+        از مستندات: /news/sources
+        """
+        return self.make_request("news/sources")
+
+    def get_news(self, 
+                limit: int = 20,
+                type: str = None) -> Optional[Dict]:
+        """
+        دریافت اخبار
+        از مستندات: /news
+        انواع: handpicked, trending, latest, bullish, bearish
+        """
+        params = {"limit": limit}
+        if type:
+            params["type"] = type
+        
+        return self.make_request("news", params)
+
+    def get_news_detail(self, news_id: str) -> Optional[Dict]:
+        """
+        دریافت جزئیات خبر خاص
+        از مستندات: /news/{newsId}
+        """
+        return self.make_request(f"news/{news_id}")
+
+    def get_news_by_type(self, news_type: str, limit: int = 20) -> Optional[Dict]:
+        """
+        دریافت اخبار بر اساس نوع
+        از مستندات: /news/type/{type}
+        انواع: handpicked, trending, latest, bullish, bearish
+        """
+        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        if news_type not in valid_types:
+            self.logger.warning(f"⚠️ نوع خبر نامعتبر، استفاده از latest")
+            news_type = "latest"
+            
+        return self.make_request(f"news/type/{news_type}", {"limit": limit})
+
+    def get_btc_dominance(self, type: str = "all") -> Optional[Dict]:
+        """
+        دریافت دامیننس بیت‌کوین
+        از مستندات: /insights/btc-dominance
+        انواع: all, 24h, etc.
+        """
+        params = {"type": type}
+        return self.make_request("insights/btc-dominance", params)
+
+    def get_fear_greed(self) -> Optional[Dict]:
+        """
+        دریافت شاخص ترس و طمع
+        از مستندات: /insights/fear-and-greed
+        """
+        return self.make_request("insights/fear-and-greed")
+
+    def get_fear_greed_chart(self) -> Optional[Dict]:
+        """
+        دریافت چارت ترس و طمع
+        از مستندات: /insights/fear-and-greed/chart
+        """
+        return self.make_request("insights/fear-and-greed/chart")
+
+    def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Optional[Dict]:
+        """
+        دریافت چارت رنگین‌کمان
+        از مستندات: /insights/rainbow-chart/{coinId}
+        """
+        return self.make_request(f"insights/rainbow-chart/{coin_id}")
+
     # ========================= تست تمام اندپوینت‌ها =========================
     
     def test_all_endpoints(self):
-        """تست کامل تمام 6 اندپوینت"""
+        """تست کامل تمام 14 اندپوینت"""
         print("\n" + "🎯" * 30)
-        print("🚀 شروع تست کامل 6 اندپوینت اول")
+        print("🚀 شروع تست کامل 14 اندپوینت")
         print("🎯" * 30)
         
         test_results = {}
         
-        # تست 1: لیست کوین‌ها
+        # تست اندپوینت‌های اصلی
         print("\n1️⃣ تست دریافت لیست کوین‌ها")
         test_results['coins_list'] = self.get_coins_list(limit=5)
         
-        # تست 2: چارت چندکوینه
         print("\n2️⃣ تست چارت چندکوینه")
-        test_results['multi_chart'] = self.get_coins_charts("bitcoin,ethereum", "1d")
+        test_results['multi_chart'] = self.get_coins_charts("bitcoin,ethereum", "1w")
         
-        # تست 3: جزئیات کوین خاص
         print("\n3️⃣ تست جزئیات بیت‌کوین")
         test_results['bitcoin_details'] = self.get_coin_details("bitcoin")
         
-        # تست 4: چارت کوین خاص
         print("\n4️⃣ تست چارت بیت‌کوین")
-        test_results['bitcoin_chart'] = self.get_coin_charts("bitcoin", "7d")
+        test_results['bitcoin_chart'] = self.get_coin_charts("bitcoin", "1w")
         
-        # تست 5: قیمت متوسط
         print("\n5️⃣ تست قیمت متوسط")
         test_results['price_avg'] = self.get_coin_price_avg("bitcoin", "1636315200")
         
-        # تست 6: قیمت مبادله
         print("\n6️⃣ تست قیمت مبادله")
         test_results['exchange_price'] = self.get_exchange_price("Binance", "BTC", "ETH", "1636315200")
         
+        # تست اندپوینت‌های جدید
+        print("\n7️⃣ تست لیست صرافی‌ها")
+        test_results['exchanges'] = self.get_tickers_exchanges()
+        
+        print("\n8️⃣ تست لیست مارکت‌ها")
+        test_results['markets'] = self.get_tickers_markets()
+        
+        print("\n9️⃣ تست ارزهای فیات")
+        test_results['fiats'] = self.get_fiats()
+        
+        print("\n🔟 تست مارکت‌ها (نسخه دیگر)")
+        test_results['markets_v2'] = self.get_markets()
+        
+        print("\n1️⃣1️⃣ تست ارزها")
+        test_results['currencies'] = self.get_currencies()
+        
+        print("\n1️⃣2️⃣ تست منابع خبری")
+        test_results['news_sources'] = self.get_news_sources()
+        
+        print("\n1️⃣3️⃣ تست اخبار")
+        test_results['news'] = self.get_news(limit=5)
+        
+        print("\n1️⃣4️⃣ تست دامیننس بیت‌کوین")
+        test_results['btc_dominance'] = self.get_btc_dominance()
+        
+        print("\n1️⃣5️⃣ تست ترس و طمع")
+        test_results['fear_greed'] = self.get_fear_greed()
+        
+        print("\n1️⃣6️⃣ تست چارت رنگین‌کمان")
+        test_results['rainbow_chart'] = self.get_rainbow_chart("bitcoin")
+        
         # خلاصه نتایج
         print("\n" + "📊" * 30)
-        print("نتایج تست:")
+        print("نتایج تست 14 اندپوینت:")
         print("📊" * 30)
         
+        successful = 0
         for endpoint, result in test_results.items():
             status = "✅ موفق" if result else "❌ شکست"
             print(f"{endpoint}: {status}")
-            
+            if result:
+                successful += 1
+        
+        print(f"\n🎉 موفق: {successful}/14 اندپوینت")
         return test_results
 
     # ========================= مثال‌های کاربردی =========================
@@ -329,7 +415,7 @@ class CoinStatsAPI:
     def get_coin_historical_data(self, coin_id: str, days: int = 30) -> Dict:
         """دریافت داده‌های تاریخی کوین"""
         period_map = {
-            1: "1d", 7: "7d", 30: "1m", 90: "3m", 365: "1y"
+            1: "24h", 7: "1w", 30: "1m", 90: "3m", 365: "1y"
         }
         period = period_map.get(days, "all")
         return self.get_coin_charts(coin_id, period)
@@ -337,6 +423,13 @@ class CoinStatsAPI:
     def get_coins_by_category(self, category: str, limit: int = 20) -> List[Dict]:
         """دریافت کوین‌ها بر اساس دسته‌بندی"""
         data = self.get_coins_list(categories=category, limit=limit)
+        if data and 'result' in data:
+            return data['result']
+        return []
+    
+    def get_latest_news(self, limit: int = 10, news_type: str = "latest") -> List[Dict]:
+        """دریافت آخرین اخبار"""
+        data = self.get_news(limit=limit, type=news_type)
         if data and 'result' in data:
             return data['result']
         return []
@@ -366,7 +459,3 @@ if __name__ == "__main__":
                 print(f"\n🎉 نمونه داده: {coins[0].get('name')} - ${coins[0].get('price', 0):.2f}")
     else:
         print("❌ خطا در اتصال به API")
-        print("💡 بررسی کنید:")
-        print("   - کلید API معتبر است")
-        print("   - اتصال اینترنت برقرار است")
-        print("   - سرور API در دسترس است")
