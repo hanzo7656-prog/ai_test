@@ -1,4 +1,4 @@
-# complete_routes.py - نسخه کاملاً اصلاح شده
+# complete_routes.py - نسخه کامل با اندپوینت‌های یکپارچه
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ from datetime import datetime
 import requests
 import logging
 
-# تنظیمات API - مستقیم از config کپی شده
+# تنظیمات API
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
     'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
@@ -28,19 +28,22 @@ class AlertRequest(BaseModel):
     target_price: float
     alert_type: str = "price"
 
-# دیتابیس ساده برای هشدارها
+class NewsFilter(BaseModel):
+    type: Optional[str] = None
+    limit: Optional[int] = 20
+
+# دیتابیس ساده
 alerts_db = {}
 
-# سرویس مستقل برای جلوگیری از circular import
-class DataService:
+# سرویس داده‌های خارجی
+class ExternalDataService:
     def __init__(self):
         self.api_base_url = API_CONFIG['base_url']
         self.api_key = API_CONFIG['api_key']
         self.headers = {"X-API-KEY": self.api_key}
-        self.raw_data_path = "./raw_data"
     
     def _make_api_request(self, endpoint: str, params: Dict = None) -> Dict:
-        """ساخت درخواست به API"""
+        """ساخت درخواست به API خارجی"""
         url = f"{self.api_base_url}/{endpoint}"
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=10)
@@ -52,36 +55,136 @@ class DataService:
         except Exception as e:
             logger.error(f"API request error to {endpoint}: {e}")
             return {}
-    
-    def get_coins_list(self, limit: int = 50) -> List[Dict]:
-        """دریافت لیست کوین‌ها - نسخه تعمیر شده"""
-        try:
-            params = {"limit": limit, "currency": "USD"}
-            coins_data = self._make_api_request("coins", params)
-            
-            if coins_data and 'result' in coins_data:
-                return coins_data['result']
-            else:
-                logger.warning("No data received from API")
-                return []
-                
-        except Exception as e:
-            logger.error(f"Error getting coins list: {e}")
-            return []
 
-    def get_coin_details(self, coin_id: str) -> Dict:
+    # ==================== اندپوینت‌های کوین‌ها ====================
+    
+    def get_coins_list(self, 
+                      limit: int = 20,
+                      page: int = 1,
+                      currency: str = "USD",
+                      sort_by: str = "rank",
+                      sort_dir: str = "asc") -> Dict:
+        """دریافت لیست کوین‌ها"""
+        params = {
+            "limit": limit,
+            "page": page,
+            "currency": currency,
+            "sortBy": sort_by,
+            "sortDir": sort_dir
+        }
+        return self._make_api_request("coins", params)
+
+    def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
         """دریافت جزئیات کوین خاص"""
-        return self._make_api_request(f"coins/{coin_id}")
+        params = {"currency": currency}
+        return self._make_api_request(f"coins/{coin_id}", params)
 
     def get_coin_charts(self, coin_id: str, period: str = "1w") -> Dict:
         """دریافت چارت کوین"""
+        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
+        if period not in valid_periods:
+            period = "1w"
         params = {"period": period}
         return self._make_api_request(f"coins/{coin_id}/charts", params)
 
-# ایجاد سرویس داده
-data_service = DataService()
+    def get_coins_charts(self, coin_ids: str, period: str = "1w") -> Dict:
+        """دریافت چارت چندکوینه"""
+        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
+        if period not in valid_periods:
+            period = "1w"
+        params = {
+            "coinIds": coin_ids,
+            "period": period
+        }
+        return self._make_api_request("coins/charts", params)
 
-# WebSocket manager - مقدار پیش‌فرض برای جلوگیری از خطا
+    def get_coin_price_avg(self, coin_id: str, timestamp: str) -> Dict:
+        """دریافت قیمت متوسط"""
+        params = {
+            "coinId": coin_id,
+            "timestamp": timestamp
+        }
+        return self._make_api_request("coins/price/avg", params)
+
+    def get_exchange_price(self, exchange: str, from_coin: str, to_coin: str, timestamp: str) -> Dict:
+        """دریافت قیمت مبادله"""
+        params = {
+            "exchange": exchange,
+            "from": from_coin,
+            "to": to_coin,
+            "timestamp": timestamp
+        }
+        return self._make_api_request("coins/price/exchange", params)
+
+    # ==================== اندپوینت‌های بازار و صرافی ====================
+    
+    def get_tickers_exchanges(self) -> Dict:
+        """دریافت لیست صرافی‌ها"""
+        return self._make_api_request("tickers/exchanges")
+
+    def get_tickers_markets(self) -> Dict:
+        """دریافت لیست مارکت‌ها"""
+        return self._make_api_request("tickers/markets")
+
+    def get_markets(self) -> Dict:
+        """دریافت مارکت‌ها (نسخه دیگر)"""
+        return self._make_api_request("markets")
+
+    def get_fiats(self) -> Dict:
+        """دریافت ارزهای فیات"""
+        return self._make_api_request("fiats")
+
+    def get_currencies(self) -> Dict:
+        """دریافت ارزها"""
+        return self._make_api_request("currencies")
+
+    # ==================== اندپوینت‌های اخبار ====================
+    
+    def get_news_sources(self) -> Dict:
+        """دریافت منابع خبری"""
+        return self._make_api_request("news/sources")
+
+    def get_news(self, limit: int = 20, news_type: str = None) -> Dict:
+        """دریافت اخبار"""
+        params = {"limit": limit}
+        if news_type:
+            params["type"] = news_type
+        return self._make_api_request("news", params)
+
+    def get_news_detail(self, news_id: str) -> Dict:
+        """دریافت جزئیات خبر"""
+        return self._make_api_request(f"news/{news_id}")
+
+    def get_news_by_type(self, news_type: str, limit: int = 20) -> Dict:
+        """دریافت اخبار بر اساس نوع"""
+        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        if news_type not in valid_types:
+            news_type = "latest"
+        return self._make_api_request(f"news/type/{news_type}", {"limit": limit})
+
+    # ==================== اندپوینت‌های بینش بازار ====================
+    
+    def get_btc_dominance(self, period_type: str = "all") -> Dict:
+        """دریافت دامیننس بیت‌کوین"""
+        params = {"type": period_type}
+        return self._make_api_request("insights/btc-dominance", params)
+
+    def get_fear_greed(self) -> Dict:
+        """دریافت شاخص ترس و طمع"""
+        return self._make_api_request("insights/fear-and-greed")
+
+    def get_fear_greed_chart(self) -> Dict:
+        """دریافت چارت ترس و طمع"""
+        return self._make_api_request("insights/fear-and-greed/chart")
+
+    def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Dict:
+        """دریافت چارت رنگین‌کمان"""
+        return self._make_api_request(f"insights/rainbow-chart/{coin_id}")
+
+# ایجاد سرویس
+external_service = ExternalDataService()
+
+# WebSocket manager
 class DummyWebSocket:
     def __init__(self):
         self.connected = False
@@ -93,7 +196,7 @@ class DummyWebSocket:
 lbank_ws = DummyWebSocket()
 
 def set_websocket_manager(ws_manager):
-    """تنظیم WebSocket manager از run.py"""
+    """تنظیم WebSocket manager"""
     global lbank_ws
     lbank_ws = ws_manager
 
@@ -101,17 +204,45 @@ def set_websocket_manager(ws_manager):
 
 @router.get("/")
 async def root():
-    """صفحه اصلی"""
+    """صفحه اصلی با لیست تمام اندپوینت‌ها"""
     return {
-        "message": "AI Trading Assistant API", 
-        "version": "3.0.0",
-        "endpoints": [
-            "/health",
-            "/coins/list",
-            "/coins/{coin_id}",
-            "/symbols/list",
-            "/market/overview"
-        ]
+        "message": "AI Trading Assistant API - Complete Version", 
+        "version": "4.0.0",
+        "endpoints": {
+            "health": "/health",
+            "coins": {
+                "list": "/coins/list",
+                "details": "/coins/{coin_id}",
+                "charts": "/coins/{coin_id}/charts",
+                "multi_charts": "/coins/charts/multi",
+                "price_avg": "/coins/price/avg",
+                "exchange_price": "/coins/price/exchange"
+            },
+            "market": {
+                "overview": "/market/overview",
+                "exchanges": "/market/exchanges",
+                "markets": "/market/markets",
+                "fiats": "/market/fiats",
+                "currencies": "/market/currencies"
+            },
+            "news": {
+                "sources": "/news/sources",
+                "latest": "/news/latest",
+                "by_type": "/news/type/{type}",
+                "detail": "/news/{news_id}"
+            },
+            "insights": {
+                "btc_dominance": "/insights/btc-dominance",
+                "fear_greed": "/insights/fear-greed",
+                "fear_greed_chart": "/insights/fear-greed/chart",
+                "rainbow_chart": "/insights/rainbow-chart/{coin_id}"
+            },
+            "alerts": {
+                "create": "/alerts/create",
+                "list": "/alerts/list",
+                "delete": "/alerts/{alert_id}/delete"
+            }
+        }
     }
 
 @router.get("/health")
@@ -121,28 +252,40 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "services": {
-            "api": "running",
-            "websocket": "connected" if lbank_ws and lbank_ws.connected else "disconnected"
+            "external_api": "connected",
+            "websocket": "connected" if lbank_ws.connected else "disconnected"
         }
     }
 
-# ==================== روت‌های کوین‌ها ====================
+# ==================== روت‌های کوین‌ها (یکپارچه) ====================
 
 @router.get("/coins/list")
 async def get_coins_list(
     limit: int = Query(20, ge=1, le=100),
-    page: int = Query(1, ge=1)
+    page: int = Query(1, ge=1),
+    currency: str = Query("USD"),
+    sort_by: str = Query("rank", regex="^(rank|marketCap|price|volume|name|symbol)$"),
+    sort_dir: str = Query("asc", regex="^(asc|desc)$")
 ):
     """دریافت لیست کوین‌ها"""
     try:
-        coins = data_service.get_coins_list(limit=limit)
+        data = external_service.get_coins_list(
+            limit=limit, 
+            page=page, 
+            currency=currency,
+            sort_by=sort_by,
+            sort_dir=sort_dir
+        )
         
+        if not data:
+            raise HTTPException(status_code=404, detail="No data received")
+            
         return {
-            "coins": coins,
+            "data": data,
             "pagination": {
                 "page": page,
                 "limit": limit,
-                "total": len(coins)
+                "total": len(data.get('result', []))
             },
             "timestamp": datetime.now().isoformat()
         }
@@ -150,13 +293,16 @@ async def get_coins_list(
         raise HTTPException(status_code=500, detail=f"Error fetching coins: {str(e)}")
 
 @router.get("/coins/{coin_id}")
-async def get_coin_details(coin_id: str):
+async def get_coin_details(
+    coin_id: str,
+    currency: str = Query("USD")
+):
     """دریافت جزئیات کوین خاص"""
     try:
-        coin_data = data_service.get_coin_details(coin_id)
-        if not coin_data:
+        data = external_service.get_coin_details(coin_id, currency)
+        if not data:
             raise HTTPException(status_code=404, detail="Coin not found")
-        return coin_data
+        return data
     except HTTPException:
         raise
     except Exception as e:
@@ -169,85 +315,238 @@ async def get_coin_charts(
 ):
     """دریافت چارت کوین"""
     try:
-        chart_data = data_service.get_coin_charts(coin_id, period)
-        if not chart_data:
+        data = external_service.get_coin_charts(coin_id, period)
+        if not data:
             raise HTTPException(status_code=404, detail="Chart data not found")
-        return chart_data
+        return data
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==================== روت‌های بازار ====================
+@router.get("/coins/charts/multi")
+async def get_multi_coin_charts(
+    coin_ids: str = Query(..., description="لیست کوین‌ها (مثلاً bitcoin,ethereum,solana)"),
+    period: str = Query("1w", regex="^(24h|1w|1m|3m|6m|1y|all)$")
+):
+    """دریافت چارت چندکوینه"""
+    try:
+        data = external_service.get_coins_charts(coin_ids, period)
+        if not data:
+            raise HTTPException(status_code=404, detail="Chart data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/coins/price/avg")
+async def get_coin_price_avg(
+    coin_id: str = Query(..., description="شناسه کوین"),
+    timestamp: str = Query(..., description="تایم‌استمپ")
+):
+    """دریافت قیمت متوسط"""
+    try:
+        data = external_service.get_coin_price_avg(coin_id, timestamp)
+        if not data:
+            raise HTTPException(status_code=404, detail="Price data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/coins/price/exchange")
+async def get_exchange_price(
+    exchange: str = Query(..., description="نام صرافی"),
+    from_coin: str = Query(..., description="ارز مبدأ"),
+    to_coin: str = Query(..., description="ارز مقصد"),
+    timestamp: str = Query(..., description="تایم‌استمپ")
+):
+    """دریافت قیمت مبادله"""
+    try:
+        data = external_service.get_exchange_price(exchange, from_coin, to_coin, timestamp)
+        if not data:
+            raise HTTPException(status_code=404, detail="Exchange price not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== روت‌های بازار و صرافی (یکپارچه) ====================
 
 @router.get("/market/overview")
 async def market_overview():
     """نمای کلی بازار"""
     try:
-        # دریافت ۱۰ کوین برتر
-        top_coins = data_service.get_coins_list(limit=10)
+        # دریافت داده‌های مختلف بازار
+        top_coins = external_service.get_coins_list(limit=10)
+        btc_dominance = external_service.get_btc_dominance()
+        fear_greed = external_service.get_fear_greed()
         
         response = {
             "timestamp": datetime.now().isoformat(),
-            "market_summary": {
-                "total_coins": len(top_coins),
-                "top_performers": []
+            "market_data": {
+                "top_coins": top_coins.get('result', [])[:5] if top_coins else [],
+                "total_coins": len(top_coins.get('result', [])) if top_coins else 0
             }
         }
         
-        if top_coins:
-            for coin in top_coins[:5]:  # ۵ کوین برتر
-                response["market_summary"]["top_performers"].append({
-                    "name": coin.get("name"),
-                    "symbol": coin.get("symbol"),
-                    "price": coin.get("price"),
-                    "change_24h": coin.get("priceChange1d", 0)
-                })
-        
+        if btc_dominance:
+            response["btc_dominance"] = btc_dominance
+        if fear_greed:
+            response["fear_greed"] = fear_greed
+            
         return response
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/symbols/list")
-async def list_symbols():
-    """لیست کامل نمادها"""
+@router.get("/market/exchanges")
+async def get_exchanges():
+    """دریافت لیست صرافی‌ها"""
     try:
-        coins = data_service.get_coins_list(limit=100)
-        symbols = []
-        
-        for coin in coins:
-            if 'symbol' in coin:
-                symbols.append({
-                    "symbol": coin["symbol"],
-                    "name": coin.get("name", ""),
-                    "price": coin.get("price", 0)
-                })
-        
-        # اگر داده‌ای نبود، لیست پیش‌فرض
-        if not symbols:
-            symbols = [
-                {"symbol": "BTC", "name": "Bitcoin", "price": 0},
-                {"symbol": "ETH", "name": "Ethereum", "price": 0},
-                {"symbol": "SOL", "name": "Solana", "price": 0}
-            ]
-        
-        return {
-            "symbols": symbols[:50],  # حداکثر ۵۰ نماد
-            "total_symbols": len(symbols),
-            "timestamp": datetime.now().isoformat()
-        }
-        
+        data = external_service.get_tickers_exchanges()
+        if not data:
+            raise HTTPException(status_code=404, detail="Exchanges data not found")
+        return data
     except Exception as e:
-        logger.error(f"Error in list_symbols: {e}")
-        return {
-            "symbols": [
-                {"symbol": "BTC", "name": "Bitcoin", "price": 0},
-                {"symbol": "ETH", "name": "Ethereum", "price": 0}
-            ],
-            "total_symbols": 2,
-            "error": "Using fallback data"
-        }
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/market/markets")
+async def get_markets():
+    """دریافت لیست مارکت‌ها"""
+    try:
+        data = external_service.get_tickers_markets()
+        if not data:
+            # تلاش با اندپوینت جایگزین
+            data = external_service.get_markets()
+        if not data:
+            raise HTTPException(status_code=404, detail="Markets data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/market/fiats")
+async def get_fiats():
+    """دریافت ارزهای فیات"""
+    try:
+        data = external_service.get_fiats()
+        if not data:
+            raise HTTPException(status_code=404, detail="Fiats data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/market/currencies")
+async def get_currencies():
+    """دریافت لیست ارزها"""
+    try:
+        data = external_service.get_currencies()
+        if not data:
+            raise HTTPException(status_code=404, detail="Currencies data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== روت‌های اخبار (یکپارچه) ====================
+
+@router.get("/news/sources")
+async def get_news_sources():
+    """دریافت منابع خبری"""
+    try:
+        data = external_service.get_news_sources()
+        if not data:
+            raise HTTPException(status_code=404, detail="News sources not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/news/latest")
+async def get_latest_news(
+    limit: int = Query(20, ge=1, le=100),
+    news_type: str = Query(None, regex="^(handpicked|trending|latest|bullish|bearish)$")
+):
+    """دریافت آخرین اخبار"""
+    try:
+        if news_type:
+            data = external_service.get_news_by_type(news_type, limit)
+        else:
+            data = external_service.get_news(limit=limit)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail="News not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/news/type/{news_type}")
+async def get_news_by_type(
+    news_type: str = Path(..., regex="^(handpicked|trending|latest|bullish|bearish)$"),
+    limit: int = Query(20, ge=1, le=100)
+):
+    """دریافت اخبار بر اساس نوع"""
+    try:
+        data = external_service.get_news_by_type(news_type, limit)
+        if not data:
+            raise HTTPException(status_code=404, detail="News not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/news/{news_id}")
+async def get_news_detail(news_id: str):
+    """دریافت جزئیات خبر"""
+    try:
+        data = external_service.get_news_detail(news_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="News not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== روت‌های بینش بازار (یکپارچه) ====================
+
+@router.get("/insights/btc-dominance")
+async def get_btc_dominance(
+    period_type: str = Query("all", regex="^(all|24h|1w|1m|3m|1y)$")
+):
+    """دریافت دامیننس بیت‌کوین"""
+    try:
+        data = external_service.get_btc_dominance(period_type)
+        if not data:
+            raise HTTPException(status_code=404, detail="BTC dominance data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/insights/fear-greed")
+async def get_fear_greed():
+    """دریافت شاخص ترس و طمع"""
+    try:
+        data = external_service.get_fear_greed()
+        if not data:
+            raise HTTPException(status_code=404, detail="Fear & greed data not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/insights/fear-greed/chart")
+async def get_fear_greed_chart():
+    """دریافت چارت ترس و طمع"""
+    try:
+        data = external_service.get_fear_greed_chart()
+        if not data:
+            raise HTTPException(status_code=404, detail="Fear & greed chart not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/insights/rainbow-chart/{coin_id}")
+async def get_rainbow_chart(coin_id: str):
+    """دریافت چارت رنگین‌کمان"""
+    try:
+        data = external_service.get_rainbow_chart(coin_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Rainbow chart not found")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== روت‌های هشدار ====================
 
@@ -283,5 +582,32 @@ async def list_alerts():
     """لیست هشدارها"""
     return {
         "alerts": list(alerts_db.values()),
-        "total_count": len(alerts_db)
+        "total_count": len(alerts_db),
+        "timestamp": datetime.now().isoformat()
+    }
+
+@router.delete("/alerts/{alert_id}")
+async def delete_alert(alert_id: str):
+    """حذف هشدار"""
+    if alert_id in alerts_db:
+        deleted_alert = alerts_db.pop(alert_id)
+        return {
+            "status": "SUCCESS",
+            "message": f"Alert {alert_id} deleted",
+            "deleted_alert": deleted_alert
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+# ==================== روت مدیریتی ====================
+
+@router.get("/system/status")
+async def system_status():
+    """وضعیت سیستم"""
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "external_api": "connected",
+        "websocket": "connected" if lbank_ws.connected else "disconnected",
+        "active_alerts": len(alerts_db),
+        "version": "4.0.0"
     }
