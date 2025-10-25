@@ -173,26 +173,20 @@ class CoinStatsAPI:
     
     def get_coins_charts(self, 
                         coin_ids: str, 
-                        period: str = "all") -> Optional[Dict]:
+                        period: str = "1w") -> Optional[Dict]:  # تغییر از "all" به "1w"
         """
         دریافت چارت برای چند کوین
-        
+    
         Parameters:
         - coin_ids: لیست ID کوین‌ها (مثلاً bitcoin,ethereum,solana)
-        - period: بازه زمانی (1h, 4h, 8h, 1d, 7d, 1m, 3m, 1y, all)
+        - period: بازه زمانی (24h, 1w, 1m, 3m, 6m, 1y, all)
         """
-        
-        if period not in ["1h", "4h", "8h", "1d", "7d", "1m", "3m", "1y", "all"]:
-            self.logger.warning("⚠️ تایم‌فریم نامعتبر، استفاده از all")
-            period = "all"
-            
-        params = {
-            "coinIds": coin_ids,
-            "period": period
-        }
-        
-        return self.make_request("coins/charts", params)
-
+    
+        # لیست تایم‌فریم‌های مجاز
+        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
+        if period not in valid_periods:
+            self.logger.warning("⚠️ تایم‌فریم نامعتبر، استفاده از 1w")
+            period = "1w"
     # ========================= اندپوینت 3: دریافت جزئیات کوین خاص =========================
     
     def get_coin_details(self, 
@@ -213,21 +207,18 @@ class CoinStatsAPI:
     
     def get_coin_charts(self, 
                        coin_id: str, 
-                       period: str = "all") -> Optional[Dict]:
+                       period: str = "1w") -> Optional[Dict]:  # تغییر از "all" به "1w"
         """
         دریافت چارت تاریخی برای یک کوین خاص
-        
+    
         Parameters:
         - coin_id: شناسه کوین
-        - period: بازه زمانی
+        - period: بازه زمانی (24h, 1w, 1m, 3m, 6m, 1y, all)
         """
-        
-        if period not in ["1h", "4h", "8h", "1d", "7d", "1m", "3m", "1y", "all"]:
-            period = "all"
-            
-        params = {"period": period}
-        return self.make_request(f"coins/{coin_id}/charts", params)
-
+    
+        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
+        if period not in valid_periods:
+            period = "1w"
     # ========================= اندپوینت 5: دریافت قیمت متوسط =========================
     
     def get_coin_price_avg(self, 
