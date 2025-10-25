@@ -1,16 +1,15 @@
-# raw_coinstats_manager.py
+# coinstats_manager_fixed.py
 import requests
 import json
-import os
 import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from config import API_CONFIG, RAW_DATA_CONFIG, ENDPOINTS_CONFIG
+from config import API_CONFIG, RAW_DATA_CONFIG, MAJOR_COINS, SUPPORTED_TIMEFRAMES
 
-class RawCoinStatsManager:
+class CoinStatsManager:
     def __init__(self):
         self.base_url = API_CONFIG['base_url']
-        self.api_key = API_CONFIG['api_key']
+        self.api_key = API_CONFIG['api_key']  # ✅ مستقیم از کانفیگ
         self.headers = {"X-API-KEY": self.api_key}
         self.timeout = API_CONFIG['timeout']
         self.session = requests.Session()
@@ -19,6 +18,8 @@ class RawCoinStatsManager:
         # تنظیمات داده خام
         self.save_raw = RAW_DATA_CONFIG['save_raw_responses']
         self.raw_folder = RAW_DATA_CONFIG['raw_data_folder']
+        
+        print(f"🔑 کلید API: {self.api_key[:20]}...")  # دیباگ
         
         # ایجاد پوشه داده خام
         if self.save_raw and not os.path.exists(self.raw_folder):
@@ -71,7 +72,7 @@ class RawCoinStatsManager:
             print(f"💥 خطا در درخواست: {e}")
             return None
 
-    # ========================= اندپوینت‌های اصلی (6 تای اول) =========================
+    # ========================= 12 اندپوینت =========================
     
     def get_coins_list_raw(self, **filters) -> Optional[Dict]:
         """1. دریافت لیست کوین‌ها - داده خام"""
@@ -106,8 +107,6 @@ class RawCoinStatsManager:
             "timestamp": timestamp
         }
         return self._make_raw_request("coins/price/exchange", params)
-
-    # ========================= اندپوینت‌های جدید (6 تای دوم) =========================
     
     def get_tickers_exchanges_raw(self) -> Optional[Dict]:
         """7. دریافت لیست صرافی‌ها - داده خام"""
@@ -133,77 +132,17 @@ class RawCoinStatsManager:
         """12. دریافت منابع خبری - داده خام"""
         return self._make_raw_request("news/sources")
 
-    # ========================= متدهای کمکی =========================
-    
-    def get_all_raw_data(self) -> Dict[str, Any]:
-        """دریافت تمام داده‌های خام از 12 اندپوینت"""
-        print("🚀 شروع دریافت تمام داده‌های خام از 12 اندپوینت...")
-        
-        all_data = {
-            'timestamp': datetime.now().isoformat(),
-            'data_source': 'coinstats_raw_api',
-            'endpoints_called': []
-        }
-        
-        # تست اندپوینت‌های اصلی
-        endpoints_to_test = [
-            ('coins_list', lambda: self.get_coins_list_raw(limit=5)),
-            ('coins_charts', lambda: self.get_coins_charts_raw("bitcoin,ethereum", "1d")),
-            ('bitcoin_details', lambda: self.get_coin_details_raw("bitcoin")),
-            ('bitcoin_charts', lambda: self.get_coin_charts_raw("bitcoin", "7d")),
-            ('price_avg', lambda: self.get_coin_price_avg_raw("bitcoin", "1636315200")),
-            ('exchange_price', lambda: self.get_exchange_price_raw("Binance", "BTC", "ETH", "1636315200")),
-            ('tickers_exchanges', self.get_tickers_exchanges_raw),
-            ('tickers_markets', self.get_tickers_markets_raw),
-            ('fiats', self.get_fiats_raw),
-            ('markets', self.get_markets_raw),
-            ('currencies', self.get_currencies_raw),
-            ('news_sources', self.get_news_sources_raw),
-        ]
-        
-        for name, endpoint_func in endpoints_to_test:
-            print(f"\n🔍 تست {name}...")
-            data = endpoint_func()
-            all_data[name] = data
-            all_data['endpoints_called'].append(name)
-            
-            if data:
-                print(f"✅ {name}: موفق")
-            else:
-                print(f"❌ {name}: شکست")
-        
-        print(f"\n📊 جمع‌بندی: {len([x for x in all_data['endpoints_called'] if all_data[x]])}/12 اندپوینت موفق")
-        return all_data
-    
-    def test_connection(self):
-        """تست اتصال سریع"""
-        print("🧪 تست اتصال API...")
-        test_data = self.get_coins_list_raw(limit=1)
-        
-        if test_data and 'result' in test_data and test_data['result']:
-            coin = test_data['result'][0]
-            return f"✅ متصل! نمونه: {coin.get('name')} - ${coin.get('price', 0):.2f}"
-        else:
-            return "❌ خطا در اتصال به API"
-
 # ========================= تست =========================
 
 if __name__ == "__main__":
-    manager = RawCoinStatsManager()
-    
-    print("🔑 کلید API:", manager.api_key[:20] + "..." if manager.api_key else "None")
+    manager = CoinStatsManager()
     
     # تست اتصال
-    connection_result = manager.test_connection()
-    print(connection_result)
+    print("🧪 تست اتصال...")
+    test_data = manager.get_coins_list_raw(limit=1)
     
-    if "✅" in connection_result:
-        # دریافت تمام داده‌های خام
-        print("\n" + "🎯" * 40)
-        all_raw_data = manager.get_all_raw_data()
-        
-        # نمایش خلاصه
-        print("\n📋 خلاصه داده‌های خام:")
-        for endpoint in all_raw_data['endpoints_called']:
-            status = "✅ دارد" if all_raw_data.get(endpoint) else "❌ ندارد"
-            print(f"  {endpoint}: {status}")
+    if test_data and 'result' in test_data and test_data['result']:
+        coin = test_data['result'][0]
+        print(f"✅ متصل! نمونه: {coin.get('name')} - ${coin.get('price', 0):.2f}")
+    else:
+        print("❌ خطا در اتصال به API")
