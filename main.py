@@ -6,6 +6,9 @@ import uvicorn
 import os
 from datetime import datetime
 import asyncio
+# در main.py سرور مطمئن شوید این خطوط وجود دارند:
+from ai_analysis_routes import router as ai_router
+app.include_router(ai_router, prefix="/api/v1")
 
 app = FastAPI(title="AI Trading Dashboard")
 
