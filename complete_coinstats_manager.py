@@ -1,461 +1,302 @@
-# coinstats_complete_endpoints.py - نسخه کامل با 14 اندپوینت
+# complete_coinstats_manager.py - با سیستم کش محلی
 import requests
 import json
+import os
 import time
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
 import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+import glob
+from pathlib import Path
 
-class CoinStatsAPI:
+logger = logging.getLogger(__name__)
+
+class CompleteCoinStatsManager:
     def __init__(self, api_key: str = None):
         self.base_url = "https://openapiv1.coinstats.app"
         self.api_key = api_key or "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
         self.headers = {"X-API-KEY": self.api_key}
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
         
-        # تنظیمات لاگینگ
-        self.setup_logging()
-    
-    def setup_logging(self):
-        """تنظیمات لاگینگ"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        self.logger = logging.getLogger(__name__)
-    
-    def debug_request(self, endpoint: str, params: Dict = None, response = None):
-        """لاگ کامل درخواست و پاسخ"""
-        print("\n" + "="*60)
-        print(f"🔍 دیباگ اندپوینت: {endpoint}")
-        print("="*60)
-        print(f"📤 درخواست: GET {self.base_url}/{endpoint}")
+        # تنظیمات کش
+        self.cache_dir = "./coinstats_cache"
+        self.cache_duration = 300  # 5 دقیقه
+        
+        # ایجاد پوشه کش
+        os.makedirs(self.cache_dir, exist_ok=True)
+        
+        # WebSocket compatibility
+        self.ws_connected = False
+        self.realtime_data = {}
+        
+        logger.info("✅ CoinStats Manager Initialized with Local Cache")
+
+    def _get_cache_path(self, endpoint: str, params: Dict = None) -> str:
+        """ایجاد مسیر فایل کش"""
+        cache_key = endpoint.replace('/', '_')
         if params:
-            print(f"📋 پارامترها: {params}")
+            param_str = '_'.join(f"{k}_{v}" for k, v in sorted(params.items()))
+            cache_key += f"_{param_str}"
+        return os.path.join(self.cache_dir, f"{cache_key}.json")
+
+    def _is_cache_valid(self, cache_path: str) -> bool:
+        """بررسی اعتبار کش"""
+        if not os.path.exists(cache_path):
+            return False
+            
+        file_time = os.path.getmtime(cache_path)
+        return (time.time() - file_time) < self.cache_duration
+
+    def _save_to_cache(self, cache_path: str, data: Dict):
+        """ذخیره در کش"""
+        try:
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'data': data,
+                    'cached_at': datetime.now().isoformat(),
+                    'expires_at': (datetime.now() + timedelta(seconds=self.cache_duration)).isoformat()
+                }, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"❌ Cache save error: {e}")
+
+    def _load_from_cache(self, cache_path: str) -> Optional[Dict]:
+        """بارگذاری از کش"""
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+                return cached_data.get('data')
+        except Exception as e:
+            logger.error(f"❌ Cache load error: {e}")
+            return None
+
+    def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Dict:
+        """ساخت درخواست به API با کش"""
+        cache_path = self._get_cache_path(endpoint, params)
         
-        if response:
-            print(f"📥 وضعیت: {response.status_code}")
-            print(f"⏱ زمان پاسخ: {response.elapsed.total_seconds():.2f} ثانیه")
+        # بررسی کش
+        if use_cache and self._is_cache_valid(cache_path):
+            logger.info(f"📁 Using cache for: {endpoint}")
+            cached_data = self._load_from_cache(cache_path)
+            if cached_data:
+                return cached_data
+
+        # درخواست به API
+        url = f"{self.base_url}/{endpoint}"
+        try:
+            logger.info(f"🌐 API Request: {endpoint}")
+            response = requests.get(url, headers=self.headers, params=params, timeout=15)
             
             if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if 'result' in data and isinstance(data['result'], list):
-                        print(f"✅ داده‌ها: {len(data['result'])} آیتم دریافت شد")
-                    else:
-                        print(f"✅ پاسخ دریافت شد")
-                except:
-                    print(f"📝 پاسخ متنی: {response.text[:200]}...")
+                data = response.json()
+                # ذخیره در کش
+                if use_cache:
+                    self._save_to_cache(cache_path, data)
+                return data
             else:
-                print(f"❌ خطا: {response.text}")
-        print("="*60)
-
-    def make_request(self, endpoint: str, params: Dict = None, max_retries: int = 2) -> Optional[Dict]:
-        """ساخت درخواست به API با دیباگ و retry"""
-        url = f"{self.base_url}/{endpoint}"
-        
-        for attempt in range(max_retries + 1):
-            try:
-                response = self.session.get(url, params=params, timeout=15)
-                self.debug_request(endpoint, params, response)
+                logger.error(f"❌ API Error {response.status_code}: {response.text}")
+                # اگر API خطا داد، از کش استفاده کن (اگر موجود باشه)
+                if use_cache and os.path.exists(cache_path):
+                    logger.info("🔄 Using expired cache due to API error")
+                    return self._load_from_cache(cache_path) or {}
+                return {}
                 
-                if response.status_code == 200:
-                    return response.json()
-                elif response.status_code == 429:  # Rate limit
-                    wait_time = 2 ** attempt
-                    self.logger.warning(f"⏳ Rate limit! صبر {wait_time} ثانیه...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    self.logger.error(f"❌ خطای {response.status_code} در {endpoint}")
-                    return None
-                    
-            except requests.exceptions.Timeout:
-                self.logger.error(f"⏰ Timeout در {endpoint} (تلاش {attempt + 1})")
-                if attempt < max_retries:
-                    time.sleep(1)
-                    continue
-            except Exception as e:
-                self.logger.error(f"💥 خطای ناشناخته در {endpoint}: {e}")
-                return None
-        
-        return None
+        except Exception as e:
+            logger.error(f"❌ API Request error: {e}")
+            # استفاده از کش در صورت خطا
+            if use_cache and os.path.exists(cache_path):
+                logger.info("🔄 Using cache due to connection error")
+                return self._load_from_cache(cache_path) or {}
+            return {}
 
-    # ========================= اندپوینت‌های اصلی (6 تای اول) =========================
-    
-    def get_coins_list(self, 
-                      page: int = 1,
-                      limit: int = 20,
-                      coin_ids: str = None,
-                      currency: str = "USD",
-                      name: str = None,
-                      symbol: str = None,
-                      blockchains: str = None,
-                      include_risk_score: bool = False,
-                      categories: str = None,
-                      sort_by: str = "rank",
-                      sort_dir: str = "asc",
-                      **filters) -> Optional[Dict]:
-        """
-        دریافت لیست کامل کوین‌ها با تمام فیلترهای موجود
-        """
+    def clear_cache(self, endpoint: str = None):
+        """پاک کردن کش"""
+        try:
+            if endpoint:
+                # پاک کردن کش خاص
+                pattern = self._get_cache_path(endpoint, {}).replace('.json', '*.json')
+                for file_path in glob.glob(pattern):
+                    os.remove(file_path)
+                    logger.info(f"🗑️ Cleared cache: {os.path.basename(file_path)}")
+            else:
+                # پاک کردن تمام کش
+                for file_path in glob.glob(os.path.join(self.cache_dir, "*.json")):
+                    os.remove(file_path)
+                logger.info("🗑️ Cleared all cache")
+        except Exception as e:
+            logger.error(f"❌ Cache clear error: {e}")
+
+    def get_cache_info(self) -> Dict[str, Any]:
+        """اطلاعات کش"""
+        cache_files = list(Path(self.cache_dir).glob("*.json"))
+        total_size = sum(f.stat().st_size for f in cache_files)
+        
+        return {
+            'total_files': len(cache_files),
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'cache_dir': self.cache_dir,
+            'cache_duration_seconds': self.cache_duration
+        }
+
+    # ==================== اندپوینت‌های اصلی ====================
+
+    def get_coins_list(self, limit: int = 20, page: int = 1, currency: str = "USD",
+                      sort_by: str = "rank", sort_dir: str = "asc") -> Dict:
+        """دریافت لیست کوین‌ها"""
         params = {
-            "page": page,
             "limit": limit,
+            "page": page,
             "currency": currency,
             "sortBy": sort_by,
-            "sortDir": sort_dir,
+            "sortDir": sort_dir
         }
-        
-        # اضافه کردن پارامترهای اختیاری
-        if coin_ids:
-            params["coinIds"] = coin_ids
-        if name:
-            params["name"] = name
-        if symbol:
-            params["symbol"] = symbol
-        if blockchains:
-            params["blockchains"] = blockchains
-        if include_risk_score:
-            params["includeRiskScore"] = "true"
-        if categories:
-            params["categories"] = categories
-            
-        # اضافه کردن فیلترهای پیشرفته
-        filter_mappings = {
-            'market_cap_greater_than': 'marketCap~greaterThan',
-            'market_cap_less_than': 'marketCap~lessThan',
-            'volume_greater_than': 'volume~greaterThan', 
-            'price_change_1h_greater_than': 'priceChange1h~greaterThan',
-            'price_change_1d_greater_than': 'priceChange1d~greaterThan',
-            'price_change_7d_greater_than': 'priceChange7d~greaterThan',
-            'rank_greater_than': 'rank~greaterThan',
-            'rank_less_than': 'rank~lessThan',
-            'price_greater_than': 'price~greaterThan',
-            'price_less_than': 'price~lessThan'
-        }
-        
-        for filter_key, api_key in filter_mappings.items():
-            if filter_key in filters and filters[filter_key] is not None:
-                params[api_key] = str(filters[filter_key])
-        
-        return self.make_request("coins", params)
+        return self._make_api_request("coins", params)
 
-    def get_coins_charts(self, 
-                        coin_ids: str, 
-                        period: str = "1w") -> Optional[Dict]:
-        """
-        دریافت چارت برای چند کوین
-        """
+    def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
+        """دریافت جزئیات کوین"""
+        params = {"currency": currency}
+        return self._make_api_request(f"coins/{coin_id}", params)
+
+    def get_coin_charts(self, coin_id: str, period: str = "1w") -> Dict:
+        """دریافت چارت کوین"""
         valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
         if period not in valid_periods:
-            self.logger.warning("⚠️ تایم‌فریم نامعتبر، استفاده از 1w")
             period = "1w"
-            
+        params = {"period": period}
+        return self._make_api_request(f"coins/{coin_id}/charts", params)
+
+    def get_coins_charts(self, coin_ids: str, period: str = "1w") -> Dict:
+        """دریافت چارت چندکوینه"""
+        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
+        if period not in valid_periods:
+            period = "1w"
         params = {
             "coinIds": coin_ids,
             "period": period
         }
-        
-        return self.make_request("coins/charts", params)
+        return self._make_api_request("coins/charts", params)
 
-    def get_coin_details(self, 
-                        coin_id: str, 
-                        currency: str = "USD") -> Optional[Dict]:
-        """
-        دریافت جزئیات کامل یک کوین خاص
-        """
-        params = {"currency": currency}
-        return self.make_request(f"coins/{coin_id}", params)
-
-    def get_coin_charts(self, 
-                       coin_id: str, 
-                       period: str = "1w") -> Optional[Dict]:
-        """
-        دریافت چارت تاریخی برای یک کوین خاص
-        """
-        valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
-        if period not in valid_periods:
-            period = "1w"
-            
-        params = {"period": period}
-        return self.make_request(f"coins/{coin_id}/charts", params)
-
-    def get_coin_price_avg(self, 
-                          coin_id: str, 
-                          timestamp: str) -> Optional[Dict]:
-        """
-        دریافت قیمت متوسط کوین در زمان مشخص
-        """
+    def get_coin_price_avg(self, coin_id: str, timestamp: str) -> Dict:
+        """دریافت قیمت متوسط"""
         params = {
             "coinId": coin_id,
             "timestamp": timestamp
         }
-        
-        return self.make_request("coins/price/avg", params)
+        return self._make_api_request("coins/price/avg", params)
 
-    def get_exchange_price(self, 
-                          exchange: str, 
-                          from_coin: str, 
-                          to_coin: str, 
-                          timestamp: str) -> Optional[Dict]:
-        """
-        دریافت قیمت مبادله در صرافی خاص
-        """
+    def get_exchange_price(self, exchange: str, from_coin: str, to_coin: str, timestamp: str) -> Dict:
+        """دریافت قیمت مبادله"""
         params = {
             "exchange": exchange,
             "from": from_coin,
             "to": to_coin,
             "timestamp": timestamp
         }
-        
-        return self.make_request("coins/price/exchange", params)
+        return self._make_api_request("coins/price/exchange", params)
 
-    # ========================= اندپوینت‌های جدید (8 تای جدید) =========================
+    # ==================== اندپوینت‌های جدید ====================
 
-    def get_tickers_exchanges(self) -> Optional[Dict]:
-        """
-        دریافت لیست صرافی‌ها
-        از مستندات: /tickers/exchanges
-        """
-        return self.make_request("tickers/exchanges")
+    def get_tickers_exchanges(self) -> Dict:
+        """دریافت لیست صرافی‌ها"""
+        return self._make_api_request("tickers/exchanges")
 
-    def get_tickers_markets(self) -> Optional[Dict]:
-        """
-        دریافت لیست مارکت‌ها
-        از مستندات: /tickers/markets
-        """
-        return self.make_request("tickers/markets")
+    def get_tickers_markets(self) -> Dict:
+        """دریافت لیست مارکت‌ها"""
+        return self._make_api_request("tickers/markets")
 
-    def get_fiats(self) -> Optional[Dict]:
-        """
-        دریافت لیست ارزهای فیات
-        از مستندات: /fiats
-        """
-        return self.make_request("fiats")
+    def get_markets(self) -> Dict:
+        """دریافت مارکت‌ها"""
+        return self._make_api_request("markets")
 
-    def get_markets(self) -> Optional[Dict]:
-        """
-        دریافت لیست مارکت‌ها (نسخه دیگر)
-        از مستندات: /markets
-        """
-        return self.make_request("markets")
+    def get_fiats(self) -> Dict:
+        """دریافت ارزهای فیات"""
+        return self._make_api_request("fiats")
 
-    def get_currencies(self) -> Optional[Dict]:
-        """
-        دریافت لیست ارزها
-        از مستندات: /currencies
-        """
-        return self.make_request("currencies")
+    def get_currencies(self) -> Dict:
+        """دریافت ارزها"""
+        return self._make_api_request("currencies")
 
-    def get_news_sources(self) -> Optional[Dict]:
-        """
-        دریافت منابع خبری
-        از مستندات: /news/sources
-        """
-        return self.make_request("news/sources")
+    # ==================== اندپوینت‌های اخبار ====================
 
-    def get_news(self, 
-                limit: int = 20,
-                type: str = None) -> Optional[Dict]:
-        """
-        دریافت اخبار
-        از مستندات: /news
-        انواع: handpicked, trending, latest, bullish, bearish
-        """
+    def get_news_sources(self) -> Dict:
+        """دریافت منابع خبری"""
+        return self._make_api_request("news/sources")
+
+    def get_news(self, limit: int = 50) -> Dict:
+        """دریافت اخبار عمومی"""
         params = {"limit": limit}
-        if type:
-            params["type"] = type
-        
-        return self.make_request("news", params)
+        return self._make_api_request("news", params)
 
-    def get_news_detail(self, news_id: str) -> Optional[Dict]:
-        """
-        دریافت جزئیات خبر خاص
-        از مستندات: /news/{newsId}
-        """
-        return self.make_request(f"news/{news_id}")
-
-    def get_news_by_type(self, news_type: str, limit: int = 20) -> Optional[Dict]:
-        """
-        دریافت اخبار بر اساس نوع
-        از مستندات: /news/type/{type}
-        انواع: handpicked, trending, latest, bullish, bearish
-        """
+    def get_news_by_type(self, news_type: str, limit: int = 50) -> Dict:
+        """دریافت اخبار بر اساس نوع"""
         valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
         if news_type not in valid_types:
-            self.logger.warning(f"⚠️ نوع خبر نامعتبر، استفاده از latest")
             news_type = "latest"
-            
-        return self.make_request(f"news/type/{news_type}", {"limit": limit})
+        return self._make_api_request(f"news/type/{news_type}", {"limit": limit})
 
-    def get_btc_dominance(self, type: str = "all") -> Optional[Dict]:
-        """
-        دریافت دامیننس بیت‌کوین
-        از مستندات: /insights/btc-dominance
-        انواع: all, 24h, etc.
-        """
-        params = {"type": type}
-        return self.make_request("insights/btc-dominance", params)
+    def get_news_detail(self, news_id: str) -> Dict:
+        """دریافت جزئیات خبر"""
+        return self._make_api_request(f"news/{news_id}")
 
-    def get_fear_greed(self) -> Optional[Dict]:
-        """
-        دریافت شاخص ترس و طمع
-        از مستندات: /insights/fear-and-greed
-        """
-        return self.make_request("insights/fear-and-greed")
+    # ==================== اندپوینت‌های بینش بازار ====================
 
-    def get_fear_greed_chart(self) -> Optional[Dict]:
-        """
-        دریافت چارت ترس و طمع
-        از مستندات: /insights/fear-and-greed/chart
-        """
-        return self.make_request("insights/fear-and-greed/chart")
+    def get_btc_dominance(self, period_type: str = "all") -> Dict:
+        """دریافت دامیننس بیت‌کوین"""
+        valid_periods = ["all", "24h", "1w", "1m", "3m", "1y"]
+        if period_type not in valid_periods:
+            period_type = "all"
+        params = {"type": period_type}
+        return self._make_api_request("insights/btc-dominance", params)
 
-    def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Optional[Dict]:
-        """
-        دریافت چارت رنگین‌کمان
-        از مستندات: /insights/rainbow-chart/{coinId}
-        """
-        return self.make_request(f"insights/rainbow-chart/{coin_id}")
+    def get_fear_greed(self) -> Dict:
+        """دریافت شاخص ترس و طمع"""
+        return self._make_api_request("insights/fear-and-greed")
 
-    # ========================= تست تمام اندپوینت‌ها =========================
-    
-    def test_all_endpoints(self):
-        """تست کامل تمام 14 اندپوینت"""
-        print("\n" + "🎯" * 30)
-        print("🚀 شروع تست کامل 14 اندپوینت")
-        print("🎯" * 30)
-        
-        test_results = {}
-        
-        # تست اندپوینت‌های اصلی
-        print("\n1️⃣ تست دریافت لیست کوین‌ها")
-        test_results['coins_list'] = self.get_coins_list(limit=5)
-        
-        print("\n2️⃣ تست چارت چندکوینه")
-        test_results['multi_chart'] = self.get_coins_charts("bitcoin,ethereum", "1w")
-        
-        print("\n3️⃣ تست جزئیات بیت‌کوین")
-        test_results['bitcoin_details'] = self.get_coin_details("bitcoin")
-        
-        print("\n4️⃣ تست چارت بیت‌کوین")
-        test_results['bitcoin_chart'] = self.get_coin_charts("bitcoin", "1w")
-        
-        print("\n5️⃣ تست قیمت متوسط")
-        test_results['price_avg'] = self.get_coin_price_avg("bitcoin", "1636315200")
-        
-        print("\n6️⃣ تست قیمت مبادله")
-        test_results['exchange_price'] = self.get_exchange_price("Binance", "BTC", "ETH", "1636315200")
-        
-        # تست اندپوینت‌های جدید
-        print("\n7️⃣ تست لیست صرافی‌ها")
-        test_results['exchanges'] = self.get_tickers_exchanges()
-        
-        print("\n8️⃣ تست لیست مارکت‌ها")
-        test_results['markets'] = self.get_tickers_markets()
-        
-        print("\n9️⃣ تست ارزهای فیات")
-        test_results['fiats'] = self.get_fiats()
-        
-        print("\n🔟 تست مارکت‌ها (نسخه دیگر)")
-        test_results['markets_v2'] = self.get_markets()
-        
-        print("\n1️⃣1️⃣ تست ارزها")
-        test_results['currencies'] = self.get_currencies()
-        
-        print("\n1️⃣2️⃣ تست منابع خبری")
-        test_results['news_sources'] = self.get_news_sources()
-        
-        print("\n1️⃣3️⃣ تست اخبار")
-        test_results['news'] = self.get_news(limit=5)
-        
-        print("\n1️⃣4️⃣ تست دامیننس بیت‌کوین")
-        test_results['btc_dominance'] = self.get_btc_dominance()
-        
-        print("\n1️⃣5️⃣ تست ترس و طمع")
-        test_results['fear_greed'] = self.get_fear_greed()
-        
-        print("\n1️⃣6️⃣ تست چارت رنگین‌کمان")
-        test_results['rainbow_chart'] = self.get_rainbow_chart("bitcoin")
-        
-        # خلاصه نتایج
-        print("\n" + "📊" * 30)
-        print("نتایج تست 14 اندپوینت:")
-        print("📊" * 30)
-        
-        successful = 0
-        for endpoint, result in test_results.items():
-            status = "✅ موفق" if result else "❌ شکست"
-            print(f"{endpoint}: {status}")
-            if result:
-                successful += 1
-        
-        print(f"\n🎉 موفق: {successful}/14 اندپوینت")
-        return test_results
+    def get_fear_greed_chart(self) -> Dict:
+        """دریافت چارت ترس و طمع"""
+        return self._make_api_request("insights/fear-and-greed/chart")
 
-    # ========================= مثال‌های کاربردی =========================
-    
-    def get_top_coins(self, limit: int = 10) -> List[Dict]:
-        """دریافت کوین‌های برتر"""
-        data = self.get_coins_list(limit=limit, sort_by="marketCap", sort_dir="desc")
-        if data and 'result' in data:
-            return data['result']
-        return []
-    
-    def search_coins_by_name(self, name: str, limit: int = 20) -> List[Dict]:
-        """جستجوی کوین بر اساس نام"""
-        data = self.get_coins_list(name=name, limit=limit)
-        if data and 'result' in data:
-            return data['result']
-        return []
-    
-    def get_coin_historical_data(self, coin_id: str, days: int = 30) -> Dict:
-        """دریافت داده‌های تاریخی کوین"""
-        period_map = {
-            1: "24h", 7: "1w", 30: "1m", 90: "3m", 365: "1y"
-        }
-        period = period_map.get(days, "all")
-        return self.get_coin_charts(coin_id, period)
-    
-    def get_coins_by_category(self, category: str, limit: int = 20) -> List[Dict]:
-        """دریافت کوین‌ها بر اساس دسته‌بندی"""
-        data = self.get_coins_list(categories=category, limit=limit)
-        if data and 'result' in data:
-            return data['result']
-        return []
-    
-    def get_latest_news(self, limit: int = 10, news_type: str = "latest") -> List[Dict]:
-        """دریافت آخرین اخبار"""
-        data = self.get_news(limit=limit, type=news_type)
-        if data and 'result' in data:
-            return data['result']
-        return []
+    def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Dict:
+        """دریافت چارت رنگین‌کمان"""
+        return self._make_api_request(f"insights/rainbow-chart/{coin_id}")
 
-# ========================= اجرای تست =========================
+    # ==================== متدهای سازگاری ====================
 
-if __name__ == "__main__":
-    # ایجاد نمونه API
-    api = CoinStatsAPI()
-    
-    print("🔑 کلید API:", api.api_key[:20] + "..." if api.api_key else "None")
-    
-    # تست اتصال اولیه
-    print("\n🧪 تست اتصال اولیه...")
-    test_data = api.get_coins_list(limit=1)
-    
-    if test_data:
-        print("✅ اتصال API موفقیت‌آمیز بود!")
+    def get_realtime_price(self, symbol: str) -> Dict:
+        """متد سازگاری برای WebSocket (شبیه‌سازی)"""
+        # این متد برای سازگاری با کدهای قدیمی
+        coin_data = self.get_coin_details(symbol.lower())
+        if coin_data and 'result' in coin_data:
+            result = coin_data['result']
+            return {
+                'price': result.get('price', 0),
+                'volume': result.get('volume', 0),
+                'change': result.get('priceChange1d', 0),
+                'high_24h': result.get('high', 0),
+                'low_24h': result.get('low', 0),
+                'timestamp': datetime.now().isoformat()
+            }
+        return {}
+
+    def _load_raw_data(self) -> Dict[str, Any]:
+        """بارگذاری داده‌های خام از کش (سازگاری با AI)"""
+        # این متد داده‌های کش شده رو به AI می‌ده
+        cache_files = list(Path(self.cache_dir).glob("*.json"))
+        raw_data = {}
         
-        # تست کامل تمام اندپوینت‌ها
-        results = api.test_all_endpoints()
-        
-        # نمایش نمونه‌ای از داده‌ها
-        if results.get('coins_list'):
-            coins = results['coins_list'].get('result', [])
-            if coins:
-                print(f"\n🎉 نمونه داده: {coins[0].get('name')} - ${coins[0].get('price', 0):.2f}")
-    else:
-        print("❌ خطا در اتصال به API")
+        for file_path in cache_files:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    cache_content = json.load(f)
+                    filename = file_path.name
+                    raw_data[filename] = cache_content.get('data', {})
+            except Exception as e:
+                logger.error(f"Error loading cache file {file_path}: {e}")
+                
+        return raw_data
+
+    def get_all_coins(self, limit: int = 100) -> List[Dict]:
+        """دریافت تمام کوین‌ها (سازگاری با AI)"""
+        data = self.get_coins_list(limit=limit)
+        return data.get('result', [])
+
+# ایجاد نمونه گلوبال
+coin_stats_manager = CompleteCoinStatsManager()
