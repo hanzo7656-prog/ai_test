@@ -1,4 +1,4 @@
-# complete_routes.py - نسخه کامل و اصلاح شده
+# complete_routes.py - نسخه کامل با داده‌های خام
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
@@ -248,15 +248,8 @@ async def get_coins_list(
         if not data:
             raise HTTPException(status_code=404, detail="No data received")
             
-        return {
-            "data": data,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": len(data.get('result', []))
-            },
-            "timestamp": datetime.now().isoformat()
-        }
+        return data
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching coins: {str(e)}")
 
@@ -340,16 +333,15 @@ async def market_overview():
         btc_dominance = external_service.get_btc_dominance()
         fear_greed = external_service.get_fear_greed()
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "market_data": {
-                "top_coins": top_coins.get('result', [])[:5] if top_coins else [],
-                "total_coins": len(top_coins.get('result', [])) if top_coins else 0
-            }
-        }
+        response = {}
+        
+        if top_coins:
+            response["top_coins"] = top_coins.get('result', [])[:5]
+            response["total_coins"] = len(top_coins.get('result', []))
         
         if btc_dominance:
             response["btc_dominance"] = btc_dominance
+        
         if fear_greed:
             response["fear_greed"] = fear_greed
             
@@ -558,8 +550,7 @@ async def create_alert(request: AlertRequest):
 async def list_alerts():
     return {
         "alerts": list(alerts_db.values()),
-        "total_count": len(alerts_db),
-        "timestamp": datetime.now().isoformat()
+        "total_count": len(alerts_db)
     }
 
 @router.delete("/alerts/{alert_id}")
@@ -577,7 +568,6 @@ async def delete_alert(alert_id: str):
 @router.get("/system/status")
 async def system_status():
     return {
-        "timestamp": datetime.now().isoformat(),
         "external_api": "connected",
         "websocket": "connected" if lbank_ws.connected else "disconnected",
         "active_alerts": len(alerts_db),
