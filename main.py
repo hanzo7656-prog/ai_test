@@ -24,11 +24,17 @@ from technical_engine_complete import CompleteTechnicalEngine
 from ultra_efficient_trading_transformer import TradingSignalPredictor
 from system_monitor import ResourceMonitor, get_project_size, get_library_sizes, get_cache_size, get_log_size
 
+# ✅ اضافه کردن روت AI
+from ai_analysis_routes import router as ai_router
+
 # ایجاد مدیر داده و موتور فنی
 data_manager = CompleteCoinStatsManager()
 technical_engine = CompleteTechnicalEngine()
 signal_predictor = TradingSignalPredictor()
 monitor = ResourceMonitor()
+
+# ✅ ثبت روت AI در برنامه اصلی
+app.include_router(ai_router, prefix="/api/v1")
 
 # منتظر اتصال WebSocket
 async def wait_for_websocket():
@@ -269,11 +275,36 @@ async def system_resources_real():
                 "disk": {"used_gb": 0, "total_gb": 0, "percent": 0}
             }
         }
-        
+
+# ✅ اضافه کردن روت سلامت سرویس AI
+@app.get("/api/ai/health")
+async def ai_health_check():
+    """بررسی سلامت سرویس AI"""
+    try:
+        from ai_analysis_routes import ai_service
+        return {
+            "status": "healthy",
+            "service": "AI Analysis",
+            "timestamp": datetime.now().isoformat(),
+            "features": [
+                "تحلیل تکنیکال پیشرفته",
+                "پیش‌بینی هوش مصنوعی", 
+                "تحلیل چندنمادی",
+                "سیگنال‌های معاملاتی"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "AI Analysis", 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host="0.0.0.0", 
         port=8000,
         reload=True,
         log_level="info"
