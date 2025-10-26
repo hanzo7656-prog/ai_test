@@ -1,14 +1,18 @@
-# lbank_websocket.py - نسخه کامل با متدهای سازگاری
+# lbank_websocket.py - نسخه کامل با روت‌های FastAPI
 import websocket
 import json
 import threading
 import time
 from typing import Dict, Any, Callable, List
 import logging
+from fastapi import APIRouter, HTTPException
 
 # تنظیم لاگینگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ایجاد روتر
+router = APIRouter(prefix="/websocket", tags=["WebSocket"])
 
 class LBankWebSocketManager:
     def __init__(self, gist_manager=None):
@@ -231,6 +235,62 @@ class LBankWebSocketManager:
     def get_active_pairs(self):
         """دریافت لیست جفت ارزهای فعال"""
         return list(self.realtime_data.keys())
+
+# ایجاد نمونه WebSocket Manager
+ws_manager = LBankWebSocketManager()
+
+# تابع برای دسترسی از فایل‌های دیگر
+def get_websocket_manager():
+    return ws_manager
+
+# ========================= روت‌های WebSocket =========================
+
+@router.get("/status")
+async def websocket_status():
+    """وضعیت WebSocket"""
+    return ws_manager.get_connection_status()
+
+@router.get("/data")
+async def get_websocket_data(symbol: str = None):
+    """دریافت داده‌های لحظه‌ای"""
+    data = ws_manager.get_realtime_data(symbol)
+    if symbol and not data:
+        raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+    return data
+
+@router.get("/pairs/active")
+async def get_active_pairs():
+    """لیست جفت ارزهای فعال"""
+    return {
+        "active_pairs": ws_manager.get_active_pairs(),
+        "total": len(ws_manager.get_active_pairs())
+    }
+
+@router.post("/pairs/subscribe/{pair}")
+async def subscribe_pair(pair: str):
+    """اشتراک در جفت ارز جدید"""
+    try:
+        ws_manager.subscribe_pair(pair.upper())
+        return {"status": "success", "message": f"Subscribed to {pair}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/pairs/subscribed")
+async def get_subscribed_pairs():
+    """لیست جفت ارزهای مشترک شده"""
+    return {
+        "subscribed_pairs": list(ws_manager.subscribed_pairs),
+        "total": len(ws_manager.subscribed_pairs)
+    }
+
+@router.get("/health")
+async def websocket_health():
+    """سلامت WebSocket"""
+    return {
+        "status": "connected" if ws_manager.connected else "disconnected",
+        "active_connections": len(ws_manager.realtime_data),
+        "timestamp": time.time()
+    }
 
 # تست مستقل
 if __name__ == "__main__":
