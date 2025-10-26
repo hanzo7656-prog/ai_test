@@ -1,17 +1,19 @@
-# ai_analysis_routes.py - نسخه کاملاً اصلاح شده
+# ai_analysis_routes.py - نسخه کامل با داده‌های واقعی
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 import json
 import os
-import glob
+import time
 from datetime import datetime
-import requests
-from pydantic import BaseModel
 import logging
+from pydantic import BaseModel
 
-# تنظیم لاگینگ
+# ایمپورت مدیران
+from complete_coinstats_manager import coin_stats_manager
+from lbank_websocket import get_websocket_manager
+from debug_manager import debug_endpoint, debug_manager
+
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/ai", tags=["AI Analysis"])
 
 # مدل‌های درخواست
@@ -23,17 +25,7 @@ class AnalysisRequest(BaseModel):
     include_technical: bool = True
     analysis_type: str = "comprehensive"
 
-# 🔧 ایمپورت‌های fallback برای کتابخانه‌های ناموجود
-try:
-    from complete_coinstats_manager import CompleteCoinStatsManager
-    logger.info("✅ CompleteCoinStatsManager loaded successfully")
-except ImportError:
-    # Fallback ساده
-    class CompleteCoinStatsManager:
-        def get_all_coins(self, limit=100):
-            return [{"symbol": "BTC"}, {"symbol": "ETH"}, {"symbol": "SOL"}]  # داده نمونه
-    logger.warning("⚠️ Using fallback CompleteCoinStatsManager")
-
+# ایمپورت fallback برای کتابخانه‌های ML
 try:
     from technical_engine_complete import CompleteTechnicalEngine
     logger.info("✅ CompleteTechnicalEngine loaded successfully")
@@ -68,125 +60,84 @@ except ImportError:
 
 class AIAnalysisService:
     def __init__(self):
-        self.api_base_url = "https://openapiv1.coinstats.app"
-        self.api_key = "oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt123YtbpA="
-        self.headers = {"X-API-KEY": self.api_key}
-        self.raw_data_path = "./raw_data"
-        
-        # تنظیمات تحلیل AI
         self.supported_periods = ["1h", "4h", "1d", "7d", "30d", "90d", "all"]
         self.analysis_types = ["comprehensive", "technical", "sentiment", "momentum"]
-
-    def _load_raw_data(self) -> Dict[str, Any]:
-        """بارگذاری داده‌های خام از GitHub و local"""
-        raw_data = {}
-        try:
-            # اول از GitHub سعی کن
-            manager = CompleteCoinStatsManager()
-            github_data = manager._load_raw_data()
-            if github_data:
-                return github_data
-            
-            # اگر GitHub کار نکرد، local رو چک کن
-            for folder in ["A", "B", "C", "D"]:
-                folder_path = os.path.join(self.raw_data_path, folder)
-                if not os.path.exists(folder_path):
-                    continue
-
-                data_files = glob.glob(f"{folder_path}/**/*.json", recursive=True)
-                for file_path in data_files:
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            filename = os.path.basename(file_path)
-                            raw_data[filename] = json.load(f)
-                    except Exception as e:
-                        logger.error(f"Error loading {file_path}: {e}")
-                        
-        except Exception as e:
-            logger.error(f"Error in raw data loading: {e}")
-            
-        return raw_data
-
-    def _make_api_request(self, endpoint: str, params: Dict = None) -> Dict:
-        """ساخت درخواست به API"""
-        url = f"{self.api_base_url}/{endpoint}"
-        try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=15)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"API request error to {endpoint}: {e}")
-            return {}
+        
+        # ایجاد موتورها
+        self.technical_engine = CompleteTechnicalEngine()
+        self.signal_predictor = TradingSignalPredictor()
+        self.ws_manager = get_websocket_manager()
+        
+        logger.info("✅ AI Analysis Service Initialized")
 
     def get_coin_data(self, symbol: str, currency: str = "USD") -> Dict[str, Any]:
-        """دریافت داده‌های کامل یک کوین - نسخه واقعی"""
+        """دریافت داده‌های کامل یک کوین از منابع واقعی"""
         try:
-            # اول از داده‌های خام
-            raw_data = self._load_raw_data()
-            for filename, data in raw_data.items():
-                if symbol.lower() in filename.lower():
-                    logger.info(f"Found raw data for {symbol}: {filename}")
-                    return data
-
-            # اگر پیدا نشد، از API واقعی استفاده کن
-            logger.info(f"📡 دریافت داده‌های {symbol} از API...")
-            coin_data = self._make_api_request(f"coins/{symbol}", {"currency": currency})
-        
+            # اول از CoinStats API
+            coin_data = coin_stats_manager.get_coin_details(symbol, currency)
             if coin_data and 'result' in coin_data:
-                logger.info(f"✅ داده‌های {symbol} از API دریافت شد")
+                logger.info(f"✅ داده‌های {symbol} از CoinStats دریافت شد")
                 return coin_data['result']
-            else:
-                logger.warning(f"⚠️ داده‌های {symbol} از API دریافت نشد")
-                return {}
+            
+            # اگر پیدا نشد، از WebSocket
+            ws_data = self.ws_manager.get_realtime_data(symbol.upper())
+            if ws_data:
+                logger.info(f"✅ داده‌های {symbol} از WebSocket دریافت شد")
+                return {
+                    'symbol': symbol,
+                    'price': ws_data.get('price', 0),
+                    'volume': ws_data.get('volume', 0),
+                    'change': ws_data.get('change', 0)
+                }
+                
+            logger.warning(f"⚠️ داده‌های {symbol} از هیچ منبعی دریافت نشد")
+            return {}
             
         except Exception as e:
             logger.error(f"خطا در دریافت داده‌های {symbol}: {e}")
             return {}
 
     def get_historical_data(self, symbol: str, period: str = "all") -> Dict[str, Any]:
-        """دریافت داده‌های تاریخی"""
-        return self._make_api_request(f"coins/{symbol}/charts", {"period": period})
+        """دریافت داده‌های تاریخی از CoinStats"""
+        return coin_stats_manager.get_coin_charts(symbol, period)
 
     def get_market_insights(self) -> Dict[str, Any]:
-        """دریافت بینش‌های بازار"""
+        """دریافت بینش‌های بازار واقعی"""
         insights = {}
         
-        # ترس و طمع
-        fear_greed = self._make_api_request("insights/fear-and-greed")
-        if fear_greed:
-            insights["fear_greed"] = fear_greed
+        try:
+            # ترس و طمع
+            fear_greed = coin_stats_manager.get_fear_greed()
+            if fear_greed:
+                insights["fear_greed"] = fear_greed
 
-        # دامیننس بیت کوین
-        btc_dominance = self._make_api_request("insights/btc-dominance", {"type": "all"})
-        if btc_dominance:
-            insights["btc_dominance"] = btc_dominance
+            # دامیننس بیت کوین
+            btc_dominance = coin_stats_manager.get_btc_dominance("all")
+            if btc_dominance:
+                insights["btc_dominance"] = btc_dominance
+                
+        except Exception as e:
+            logger.error(f"Error getting market insights: {e}")
             
         return insights
 
     def get_news_data(self, limit: int = 10) -> Dict[str, Any]:
-        """دریافت داده‌های اخبار"""
+        """دریافت داده‌های اخبار واقعی"""
         news_data = {}
         
-        # اخبار عمومی
-        general_news = self._make_api_request("news", {"limit": limit})
-        if general_news:
-            news_data["general"] = general_news
+        try:
+            # اخبار عمومی
+            general_news = coin_stats_manager.get_news(limit=limit)
+            if general_news:
+                news_data["general"] = general_news
+                
+        except Exception as e:
+            logger.error(f"Error getting news data: {e}")
             
         return news_data
 
-    def get_market_data(self) -> Dict[str, Any]:
-        """دریافت داده‌های بازار"""
-        market_data = {}
-        
-        # لیست کوین ها با اطلاعات بازار
-        coins_list = self._make_api_request("coins", {"limit": 50})
-        if coins_list and 'result' in coins_list:
-            market_data["top_coins"] = coins_list["result"]
-            
-        return market_data
-
     def get_technical_indicators(self, symbol: str, period: str = "7d") -> Dict[str, Any]:
-        """دریافت اندیکاتورهای تکنیکال"""
+        """محاسبه اندیکاتورهای تکنیکال از داده‌های واقعی"""
         try:
             # دریافت داده‌های تاریخی
             historical_data = self.get_historical_data(symbol, period)
@@ -194,7 +145,13 @@ class AIAnalysisService:
                 return {}
                 
             # استخراج قیمت‌ها
-            prices = [float(item['price']) for item in historical_data['result'] if 'price' in item]
+            prices = []
+            for item in historical_data['result']:
+                if 'price' in item:
+                    try:
+                        prices.append(float(item['price']))
+                    except (ValueError, TypeError):
+                        continue
             
             if len(prices) < 20:
                 return {}
@@ -209,9 +166,9 @@ class AIAnalysisService:
             }
             
             # محاسبه اندیکاتورها
-            engine = CompleteTechnicalEngine()
-            indicators = engine.calculate_all_indicators(ohlc_data)
+            indicators = self.technical_engine.calculate_all_indicators(ohlc_data)
             
+            logger.info(f"📈 اندیکاتورهای تکنیکال {symbol} محاسبه شد")
             return indicators
             
         except Exception as e:
@@ -237,8 +194,7 @@ class AIAnalysisService:
             }
             
             # پیش‌بینی با مدل AI
-            predictor = TradingSignalPredictor()
-            result = predictor.predict_signals(market_data)
+            result = self.signal_predictor.predict_signals(market_data)
             
             return result.get('signals', {})
             
@@ -252,15 +208,16 @@ class AIAnalysisService:
             }
 
     def prepare_ai_input(self, symbols: List[str], period: str = "7d") -> Dict[str, Any]:
-        """آماده‌سازی داده‌های ورودی برای هوش مصنوعی - نسخه واقعی"""
+        """آماده‌سازی داده‌های ورودی برای هوش مصنوعی از منابع واقعی"""
         ai_input = {
             "timestamp": int(datetime.now().timestamp()),
             "analysis_scope": "multi_symbol" if len(symbols) > 1 else "single_symbol",
             "period": period,
             "symbols": symbols,
             "data_sources": {
-                "repo_data": False,
-                "api_data": False
+                "coinstats_api": False,
+                "websocket": False,
+                "cache": False
             },
             "market_data": {},
             "symbols_data": {},
@@ -269,17 +226,11 @@ class AIAnalysisService:
         }
 
         try:
-            # بارگذاری داده‌های خام
-            raw_data = self._load_raw_data()
-            if raw_data:
-                ai_input["data_sources"]['repo_data'] = True
-                ai_input["raw_files_count"] = len(raw_data)
-
             # داده‌های بازار
-            market_data = self.get_market_data()
+            market_data = coin_stats_manager.get_coins_list(limit=10)
             if market_data:
                 ai_input["market_data"] = market_data
-                ai_input["data_sources"]['api_data'] = True
+                ai_input["data_sources"]['coinstats_api'] = True
 
             # بینش‌های بازار
             insights = self.get_market_insights()
@@ -291,18 +242,21 @@ class AIAnalysisService:
             if news:
                 ai_input["news_data"] = news
 
-            # داده‌های هر نماد - فقط اگر API کار کند
+            # داده‌های WebSocket
+            ws_data = self.ws_manager.get_realtime_data()
+            if ws_data:
+                ai_input["websocket_data"] = ws_data
+                ai_input["data_sources"]['websocket'] = True
+
+            # داده‌های هر نماد
             for symbol in symbols:
                 symbol_data = {}
             
-                # اطلاعات اصلی کوین از API واقعی
+                # اطلاعات اصلی کوین
                 coin_data = self.get_coin_data(symbol)
                 if coin_data:
                     symbol_data["coin_info"] = coin_data
-                    logger.info(f"✅ داده‌های {symbol} از API دریافت شد")
-                else:
-                    logger.warning(f"⚠️ داده‌های {symbol} از API دریافت نشد")
-                    continue
+                    logger.info(f"✅ داده‌های {symbol} دریافت شد")
 
                 # داده‌های تاریخی
                 historical_data = self.get_historical_data(symbol, period)
@@ -324,14 +278,14 @@ class AIAnalysisService:
                     symbol_data["volumes"] = volumes
                     logger.info(f"📊 داده‌های تاریخی {symbol}: {len(prices)} نقطه")
 
-                # اندیکاتورهای تکنیکال فقط اگر داده کافی داریم
+                # اندیکاتورهای تکنیکال
                 if symbol_data.get("prices") and len(symbol_data["prices"]) > 20:
                     technical_indicators = self.get_technical_indicators(symbol, period)
                     if technical_indicators:
                         symbol_data["technical_indicators"] = technical_indicators
                         logger.info(f"📈 اندیکاتورهای تکنیکال {symbol} محاسبه شد")
 
-                # پیش‌بینی AI فقط اگر داده کافی داریم
+                # پیش‌بینی AI
                 if symbol_data:
                     ai_prediction = self.get_ai_prediction(symbol, symbol_data)
                     symbol_data["ai_prediction"] = ai_prediction
@@ -340,11 +294,16 @@ class AIAnalysisService:
                 if symbol_data:
                     ai_input["symbols_data"][symbol] = symbol_data
 
+            # اطلاعات کش
+            cache_info = coin_stats_manager.get_cache_info()
+            if cache_info:
+                ai_input["cache_info"] = cache_info
+                ai_input["data_sources"]['cache'] = True
+
             return ai_input
         
         except Exception as e:
             logger.error(f"خطا در آماده‌سازی داده‌های AI: {e}")
-            # بازگرداندن داده‌های خالی به جای fallback
             return ai_input
 
     def generate_analysis_report(self, ai_input: Dict) -> Dict[str, Any]:
@@ -358,8 +317,9 @@ class AIAnalysisService:
             "summary": {
                 "total_symbols": len(symbols_data),
                 "analysis_period": ai_input["period"],
-                "data_quality": "high" if ai_input["data_sources"]["api_data"] else "medium",
-                "market_sentiment": self._get_market_sentiment(market_insights)
+                "data_quality": "high" if ai_input["data_sources"]["coinstats_api"] else "medium",
+                "market_sentiment": self._get_market_sentiment(market_insights),
+                "data_sources": ai_input["data_sources"]
             },
             "symbol_analysis": {},
             "market_overview": {
@@ -413,7 +373,7 @@ class AIAnalysisService:
 
     def _get_top_performers(self, market_data: Dict) -> List[Dict]:
         """دریافت بهترین عملکردها"""
-        top_coins = market_data.get("top_coins", [])
+        top_coins = market_data.get("result", [])
         performers = []
         
         for coin in top_coins[:5]:
@@ -486,6 +446,7 @@ ai_service = AIAnalysisService()
 # ========================= روت‌ها =========================
 
 @router.get("/analysis")
+@debug_endpoint
 async def ai_analysis(
     symbols: str = Query(..., description="نمادها برای تحلیل (با کاما جدا شده)"),
     period: str = Query("7d", regex="^(1h|4h|1d|7d|30d|90d|all)$"),
@@ -494,7 +455,7 @@ async def ai_analysis(
     include_technical: bool = True,
     analysis_type: str = "comprehensive"
 ):
-    """تحلیل هوش مصنوعی برای نمادها - نسخه واقعی"""
+    """تحلیل هوش مصنوعی برای نمادها با داده‌های واقعی"""
     try:
         # تبدیل رشته به لیست
         symbols_list = [s.strip().upper() for s in symbols.split(',')]
@@ -526,6 +487,7 @@ async def ai_analysis(
                 "market_data_available": bool(ai_input["market_data"]),
                 "news_data_available": bool(ai_input["news_data"]),
                 "insights_available": bool(ai_input["insights_data"]),
+                "websocket_data_available": bool(ai_input.get("websocket_data")),
                 "technical_analysis": include_technical,
                 "data_sources": ai_input["data_sources"]
             }
@@ -541,6 +503,7 @@ async def ai_analysis(
         )
 
 @router.get("/analysis/status/{analysis_id}")
+@debug_endpoint
 async def get_analysis_status(analysis_id: str):
     """دریافت وضعیت تحلیل"""
     return {
@@ -552,11 +515,11 @@ async def get_analysis_status(analysis_id: str):
     }
 
 @router.get("/analysis/symbols")
+@debug_endpoint
 async def get_available_symbols():
     """دریافت لیست نمادهای قابل تحلیل"""
     try:
-        manager = CompleteCoinStatsManager()
-        coins = manager.get_all_coins(limit=100)
+        coins = coin_stats_manager.get_all_coins(limit=100)
         
         symbols = [coin['symbol'] for coin in coins if 'symbol' in coin]
         
@@ -574,6 +537,7 @@ async def get_available_symbols():
         }
 
 @router.get("/analysis/types")
+@debug_endpoint
 async def get_analysis_types():
     """دریافت انواع تحلیل‌های موجود"""
     return {
