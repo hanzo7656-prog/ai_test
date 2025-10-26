@@ -27,7 +27,6 @@ from system_monitor import ResourceMonitor, get_project_size, get_library_sizes,
 
 # ✅ اضافه کردن روت AI
 from ai_analysis_routes import router as ai_router
-app.include_router(ai_router, prefix="/api/v1")
 
 
 # ایجاد مدیر داده و موتور فنی
