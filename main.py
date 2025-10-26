@@ -6,9 +6,7 @@ import uvicorn
 import os
 from datetime import datetime
 import asyncio
-# در main.py سرور مطمئن شوید این خطوط وجود دارند:
-from ai_analysis_routes import router as ai_router
-app.include_router(ai_router, prefix="/api/v1")
+ 
 
 app = FastAPI(title="AI Trading Dashboard")
 
@@ -29,6 +27,8 @@ from system_monitor import ResourceMonitor, get_project_size, get_library_sizes,
 
 # ✅ اضافه کردن روت AI
 from ai_analysis_routes import router as ai_router
+app.include_router(ai_router, prefix="/api/v1")
+
 
 # ایجاد مدیر داده و موتور فنی
 data_manager = CompleteCoinStatsManager()
