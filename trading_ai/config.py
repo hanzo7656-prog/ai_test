@@ -1,32 +1,33 @@
-# config.py - تنظیمات سیستم تریدینگ واقعی
 from dataclasses import dataclass
 from typing import List, Dict
 
 @dataclass
 class TradingConfig:
-    """تنظیمات تریدینگ"""
+    """تنظیمات اصلی سیستم تحلیل تکنیکال"""
     
     # نمادهای تحت پوشش
     SYMBOLS: List[str] = ['bitcoin', 'ethereum', 'solana', 'binance-coin']
     
-    # تنظیمات مدل
-    MODEL_HIDDEN_DIMS: List[int] = (256, 128, 64, 32)
-    MODEL_DROPOUT: float = 0.2
-    TRAINING_EPOCHS: int = 100
-    EARLY_STOPPING_PATIENCE: int = 10
+    # تنظیمات معماری اسپارس
+    SPARSE_NEURONS: int = 2500
+    SPARSE_CONNECTIONS: int = 50
+    TEMPORAL_SEQUENCE: int = 60
+    INPUT_FEATURES: int = 5
     
-    # تنظیمات ریسک
-    MAX_POSITION_SIZE: float = 0.1  # 10% سرمایه
-    STOP_LOSS_ATR_MULTIPLIER: float = 1.5
-    TAKE_PROFIT_RATIO: float = 2.0
+    # تنظیمات آموزش
+    TRAINING_EPOCHS: int = 30
+    BATCH_SIZE: int = 32
+    LEARNING_RATE: float = 0.001
     
-    # تنظیمات داده
+    # تنظیمات تحلیل تکنیکال
+    TECHNICAL_INDICATORS: List[str] = ['RSI', 'MACD', 'BBANDS', 'STOCH', 'ATR', 'OBV']
     LOOKBACK_DAYS: int = 365
-    SEQUENCE_LENGTH: int = 60
     
-    # تنظیمات بک‌تست
-    INITIAL_BALANCE: float = 10000
-    COMMISSION_RATE: float = 0.001  # 0.1%
+    # تنظیمات اسکن
+    SCAN_INTERVAL: int = 300  # ثانیه
+    CONFIDENCE_THRESHOLD: float = 0.7
 
-# ایجاد نمونه تنظیمات
+# ایجاد نمونه‌های پیکربندی
 trading_config = TradingConfig()
+technical_config = TechnicalConfig()
+sparse_config = SparseConfig()
