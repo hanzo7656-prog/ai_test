@@ -1,4 +1,4 @@
-# config.py - نسخه کامل و اصلاح شده
+# config.py - نسخه کامل و اصلاح شده با URL درست WebSocket
 import os
 from typing import List, Dict, Any
 from dotenv import load_dotenv
@@ -94,9 +94,9 @@ TRADING_CONFIG = {
     'websocket_pairs': MAJOR_TRADING_PAIRS  # برای سازگاری بیشتر
 }
 
-# تنظیمات WebSocket
+# تنظیمات WebSocket - با lbank_websocket.py هماهنگ
 WEBSOCKET_CONFIG = {
-    'url': 'wss://www.lbank.net/ws/V2/',
+    'url': 'wss://www.lbkex.net/ws/V2/',  # 🔽 اصلاح شده به lbkex.net
     'reconnect_delay': 5,
     'timeout': 10,
     'heartbeat_interval': 30,
@@ -256,11 +256,16 @@ def get_cache_duration():
     """دریافت مدت زمان کش"""
     return CACHE_CONFIG['ttl']
 
+def get_websocket_url():
+    """دریافت آدرس WebSocket"""
+    return WEBSOCKET_CONFIG['url']
+
 # تنظیمات پیش‌فرض برای تست
 if __name__ == "__main__":
     print("✅ Config loaded successfully")
     print(f"🔑 API Key: {get_api_key()[:10]}...")
     print(f"🌐 Base URL: {get_base_url()}")
+    print(f"📡 WebSocket URL: {get_websocket_url()}")
     print(f"📊 Trading Pairs: {len(MAJOR_TRADING_PAIRS)} pairs")
     print(f"🧠 AI Model: {AI_MODEL_CONFIG['sparse_network']['total_neurons']} neurons")
     print(f"🚀 Server Port: {get_port()}")
