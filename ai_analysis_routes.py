@@ -1,4 +1,4 @@
-# ai_analysis_routes.py - نسخه کامل با مدل‌های واقعی trading_ai
+# ai_analysis_routes.py - نسخه کامل اصلاح شده
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 import json
@@ -31,13 +31,16 @@ try:
     from trading_ai.model_trainer import model_trainer
     logger.info("✅ Model Trainer loaded from trading_ai")
     
-    # استفاده از اسکنر تکنیکال واقعی شما
-    from trading_ai.technical_scanner import AdvancedTechnicalScanner
-    logger.info("✅ Technical Scanner loaded from trading_ai")
+    # استفاده از database manager جدید
+    from database_manager import trading_db
+    logger.info("✅ Database Manager loaded")
     
 except ImportError as e:
     logger.error(f"❌ Error loading trading_ai modules: {e}")
-    raise ImportError(f"ماژول‌های trading_ai یافت نشدند: {e}")
+    # Fallback برای زمانی که ماژول‌ها موجود نیستند
+    technical_engine = None
+    model_trainer = None
+    trading_db = None
 
 # ==================== ایجاد مدل‌های واقعی ====================
 
@@ -52,13 +55,18 @@ class RealTradingSignalPredictor:
     def train_model(self, symbols: List[str]):
         """آموزش مدل روی نمادها"""
         try:
+            if not model_trainer:
+                logger.error("❌ Model trainer not available")
+                return False
+                
             logger.info(f"🏋️ آموزش مدل اسپارس روی {len(symbols)} نماد...")
             
             # استفاده از مدل‌ترینر واقعی شما
-            results = model_trainer.train_technical_analysis(symbols)
+            results = model_trainer.train_technical_analysis(symbols, epochs=50)
             
             if results and results.get('final_accuracy', 0) > 0.6:
                 self.is_trained = True
+                self.model = model_trainer.model
                 logger.info(f"✅ مدل آموزش داده شد - دقت: {results['final_accuracy']:.3f}")
                 return True
             else:
@@ -68,6 +76,16 @@ class RealTradingSignalPredictor:
         except Exception as e:
             logger.error(f"❌ خطا در آموزش مدل: {e}")
             return False
+    
+    def get_ai_prediction(self, symbol: str, data: Dict) -> Dict[str, Any]:
+        """متد سازگاری - جایگزین متد مفقود"""
+        return self.predict_signals({
+            'price_data': {
+                'historical_prices': data.get('prices', []),
+                'volume_data': data.get('volumes', [])
+            },
+            'technical_indicators': data.get('technical_indicators', {})
+        })
     
     def predict_signals(self, market_data: Dict) -> Dict[str, Any]:
         """پیش‌بینی سیگنال با مدل واقعی اسپارس"""
@@ -213,7 +231,6 @@ class AIAnalysisService:
         # ایجاد موتورها با مدل‌های واقعی
         self.technical_engine = technical_engine
         self.signal_predictor = RealTradingSignalPredictor()
-        self.technical_scanner = AdvancedTechnicalScanner()
         self.ws_manager = get_websocket_manager()
         
         logger.info("✅ AI Analysis Service با مدل‌های واقعی راه‌اندازی شد")
@@ -272,6 +289,9 @@ class AIAnalysisService:
     def get_technical_indicators(self, symbol: str, period: str = "7d") -> Dict[str, Any]:
         """محاسبه اندیکاتورهای تکنیکال از داده‌های واقعی"""
         try:
+            if not self.technical_engine:
+                return {}
+                
             historical_data = self.get_historical_data(symbol, period)
             if not historical_data or 'result' not in historical_data:
                 return {}
@@ -373,6 +393,7 @@ class AIAnalysisService:
                         symbol_data["technical_indicators"] = technical_indicators
                         logger.info(f"📈 اندیکاتورهای تکنیکال {symbol} محاسبه شد")
 
+                # استفاده از متد اصلاح شده
                 ai_prediction = self.signal_predictor.get_ai_prediction(symbol, symbol_data)
                 symbol_data["ai_prediction"] = ai_prediction
                 logger.info(f"🤖 پیش‌بینی AI برای {symbol} انجام شد")
@@ -447,13 +468,14 @@ class AIAnalysisService:
             
             report["symbol_analysis"][symbol] = symbol_report
             
-            if ai_prediction:
+            if ai_prediction and 'signals' in ai_prediction:
+                signals = ai_prediction['signals']
                 report["trading_signals"][symbol] = {
-                    "action": ai_prediction.get("primary_signal", "HOLD"),
-                    "confidence": ai_prediction.get("signal_confidence", 0.5),
-                    "model_confidence": ai_prediction.get("model_confidence", 0.5),
+                    "action": signals.get("primary_signal", "HOLD"),
+                    "confidence": signals.get("signal_confidence", 0.5),
+                    "model_confidence": signals.get("model_confidence", 0.5),
                     "reasoning": self._generate_signal_reasoning(symbol, data),
-                    "risk_level": "low" if ai_prediction.get("signal_confidence", 0) > 0.7 else "medium" if ai_prediction.get("signal_confidence", 0) > 0.5 else "high",
+                    "risk_level": "low" if signals.get("signal_confidence", 0) > 0.7 else "medium" if signals.get("signal_confidence", 0) > 0.5 else "high",
                     "timeframe": "short_term"
                 }
         
@@ -509,7 +531,7 @@ class AIAnalysisService:
     def _generate_signal_reasoning(self, symbol: str, data: Dict) -> str:
         """تولید استدلال برای سیگنال"""
         technical = data.get("technical_indicators", {})
-        ai_signal = data.get("ai_prediction", {})
+        ai_signal = data.get("ai_prediction", {}).get('signals', {})
         
         reasons = []
         
