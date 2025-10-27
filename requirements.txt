@@ -1,4 +1,4 @@
-# requirements-optimized.txt
+# requirements.txt
 fastapi>=0.104.1
 uvicorn>=0.24.0
 websocket-client>=1.6.3
@@ -9,4 +9,4 @@ pydantic>=2.5.0
 python-multipart>=0.0.6
 colorlog>=6.7.0
 pandas>=2.1.4
-talib-binary>=0.4.28
+TA-Lib==0.4.28
