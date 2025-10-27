@@ -9,4 +9,4 @@ pydantic>=2.5.0
 python-multipart>=0.0.6
 colorlog>=6.7.0
 pandas>=2.1.4
-TA-Lib==0.4.28
+talib-binary>=0.4.28
