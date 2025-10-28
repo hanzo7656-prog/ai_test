@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}دشبورد - AI Trading Assistant{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-3xl font-bold text-gray-800 mb-2">دشبورد تحلیل بازار</h2>
+    <p class="text-gray-600">تحلیل زنده بازار با هوش مصنوعی پیشرفته</p>
+</div>
+
+<!-- کارت‌های وضعیت -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="status-card bg-white">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-700">وضعیت WebSocket</h3>
+                <div id="websocket-status" class="text-2xl font-bold text-green-600 mt-2">متصل</div>
+            </div>
+            <div class="text-3xl">📡</div>
+        </div>
+        <p id="active-pairs" class="text-gray-600 text-sm mt-2">12 جفت ارز فعال</p>
+    </div>
+
+    <div class="status-card bg-white">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-700">شاخص ترس و طمع</h3>
+                <div id="fear-greed-value" class="text-2xl font-bold text-yellow-600 mt-2">68</div>
+            </div>
+            <div class="text-3xl">😊</div>
+        </div>
+        <p id="fear-greed-text" class="text-gray-600 text-sm mt-2">حالت: طمع</p>
+    </div>
+
+    <div class="status-card bg-white">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-700">دامیننس بیت‌کوین</h3>
+                <div id="btc-dominance-value" class="text-2xl font-bold text-blue-600 mt-2">52.3%</div>
+            </div>
+            <div class="text-3xl">₿</div>
+        </div>
+        <p class="text-gray-600 text-sm mt-2">+0.5% امروز</p>
+    </div>
+
+    <div class="status-card bg-white">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-700">مدل AI</h3>
+                <div class="text-2xl font-bold text-purple-600 mt-2">فعال</div>
+            </div>
+            <div class="text-3xl">🤖</div>
+        </div>
+        <p class="text-gray-600 text-sm mt-2">2500 نورون اسپارس</p>
+    </div>
+</div>
+
+<!-- نمودارهای اصلی -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- نمودار BTC/USDT -->
+    <div class="chart-container">
+        <h3 class="text-xl font-semibold mb-4">بیت‌کوین (BTC/USDT)</h3>
+        <canvas id="btcChart" height="300"></canvas>
+    </div>
+
+    <!-- نمودار ETH/USDT -->
+    <div class="chart-container">
+        <h3 class="text-xl font-semibold mb-4">اتریوم (ETH/USDT)</h3>
+        <canvas id="ethChart" height="300"></canvas>
+    </div>
+</div>
+
+<!-- کوین‌های برتر -->
+<div class="bg-white rounded-lg shadow-md p-6 mb-8">
+    <h3 class="text-xl font-semibold mb-4">کوین‌های برتر بازار</h3>
+    <div id="top-coins" class="overflow-x-auto">
+        <!-- داده‌ها با JavaScript پر می‌شوند -->
+    </div>
+</div>
+
+<!-- تحلیل AI فوری -->
+<div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg shadow-lg p-6">
+    <h3 class="text-xl font-semibold mb-4">تحلیل فوری AI</h3>
+    <div class="flex space-x-4 space-x-reverse">
+        <input type="text" id="quick-symbol" placeholder="مثلاً BTC,ETH" 
+               class="flex-1 px-4 py-2 rounded-lg text-gray-800">
+        <button onclick="quickAnalysis()" class="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100">
+            تحلیل کن
+        </button>
+    </div>
+    <div id="quick-analysis-result" class="mt-4 hidden">
+        <!-- نتایج تحلیل -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}
