@@ -261,6 +261,8 @@ class AIAnalysisService:
 
     def get_historical_data(self, symbol: str, period: str = "all") -> Dict[str, Any]:
         """دریافت داده‌های تاریخی از CoinStats"""
+        if period == "7d":
+            period == "1w"
         return coin_stats_manager.get_coin_charts(symbol, period)
 
     def get_market_insights(self) -> Dict[str, Any]:
