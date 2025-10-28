@@ -45,7 +45,16 @@ except ImportError as e:
 # ==================== ایجاد مدل‌های واقعی ====================
 
 class RealTradingSignalPredictor:
-    """پیش‌بین‌کننده سیگنال با مدل واقعی اسپارس"""
+    def __init__(self):
+        try:
+            from trading_ai.sparse_technical_analyzer import SparseConfig
+            self.config = SparseConfig()
+            self.model = SparseTechnicalNetwork(self.config)
+            self.is_trained = False
+        except ImportError as e:
+            logger.error(f"❌ Error importing SparseConfig: {e}")
+            # Fallback
+            self.is_trained = False
     
     def __init__(self):
         self.config = SparseConfig()
