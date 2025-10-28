@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Assistant - Glass Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Background Animation -->
+    <div class="liquid-bg">
+        <div class="liquid-shape"></div>
+        <div class="liquid-shape"></div>
+        <div class="liquid-shape"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="glass-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="header-content">
+                <h1 class="logo">
+                    <i class="ri-ai-generative"></i>
+                    AI Trading Assistant
+                </h1>
+                <div class="status-indicators">
+                    <div class="status-item online">
+                        <i class="ri-wifi-line"></i>
+                        <span>WebSocket Connected</span>
+                    </div>
+                    <div class="status-item active">
+                        <i class="ri-brain-line"></i>
+                        <span>AI Model Ready</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="dashboard">
+            <!-- Market Overview Card -->
+            <div class="glass-card large">
+                <div class="card-header">
+                    <h2><i class="ri-line-chart-line"></i> Market Overview</h2>
+                    <button class="refresh-btn" onclick="loadMarketData()">
+                        <i class="ri-refresh-line"></i>
+                    </button>
+                </div>
+                <div class="card-content">
+                    <div class="market-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">BTC Price</span>
+                            <span class="stat-value" id="btc-price">$115,478.57</span>
+                            <span class="stat-change positive">+0.69%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">ETH Price</span>
+                            <span class="stat-value" id="eth-price">$4,134.99</span>
+                            <span class="stat-change negative">-1.89%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Fear & Greed</span>
+                            <span class="stat-value" id="fear-greed">42</span>
+                            <span class="stat-label">Neutral</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Analysis Card -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <h2><i class="ri-ai-generative"></i> AI Analysis</h2>
+                </div>
+                <div class="card-content">
+                    <div class="analysis-controls">
+                        <input type="text" id="symbols-input" placeholder="BTC,ETH,SOL" value="BTC,ETH">
+                        <select id="period-select">
+                            <option value="1w">1 Week</option>
+                            <option value="1m">1 Month</option>
+                            <option value="3m">3 Months</option>
+                        </select>
+                        <button class="analyze-btn" onclick="runAIAnalysis()">
+                            <i class="ri-play-line"></i> Analyze
+                        </button>
+                    </div>
+                    <div class="analysis-results" id="analysis-results">
+                        <div class="result-placeholder">
+                            <i class="ri-search-line"></i>
+                            <p>Click Analyze to get AI predictions</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Data Card -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <h2><i class="ri-dashboard-3-line"></i> Real-time Data</h2>
+                </div>
+                <div class="card-content">
+                    <div class="realtime-grid" id="realtime-data">
+                        <!-- WebSocket data will appear here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status Card -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <h2><i class="ri-server-line"></i> System Status</h2>
+                </div>
+                <div class="card-content">
+                    <div class="system-stats">
+                        <div class="system-item">
+                            <i class="ri-cpu-line"></i>
+                            <span>CPU: <span id="cpu-usage">28%</span></span>
+                        </div>
+                        <div class="system-item">
+                            <i class="ri-memory-line"></i>
+                            <span>Memory: <span id="memory-usage">58%</span></span>
+                        </div>
+                        <div class="system-item">
+                            <i class="ri-database-2-line"></i>
+                            <span>API Calls: <span id="api-calls">16</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
