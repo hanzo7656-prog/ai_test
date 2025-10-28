@@ -1,9 +1,15 @@
 import pandas as pd
 import numpy as np
-import talib
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import logging
+# جایگزین import talib:
+try:
+    import talib
+    TALIB_AVAILABLE = True
+except ImportError:
+    TALIB_AVAILABLE = False
+    logger.warning("⚠️ TA-Lib not available, using fallback calculations")
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +131,11 @@ class AdvancedTechnicalEngine:
         # پر کردن مقادیر NaN
         df = df.fillna(method='bfill').fillna(method='ffill')
         
+        if TALIB_AVAILABLE:
+            df['rsi_14'] = talib.RSI(closes, timeperiod=14)
+        else:
+            df['rsi_14'] = self._calculate_rsi_fallback(closes, 14)
+
         return df
     
     def get_historical_data(self, symbol: str, days: int) -> pd.DataFrame:
