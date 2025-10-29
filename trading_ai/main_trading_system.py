@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
-from database_manager import trading_db
-from advanced_technical_engine import technical_engine
+from trading_ai.database_manager import trading_db
+from trading_ai.advanced_technical_engine import technical_engine
 from config import trading_config
 from complete_coinstats_manager import coin_stats_manager
 from lbank_websocket import get_websocket_manager
