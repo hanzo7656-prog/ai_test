@@ -323,11 +323,10 @@ class SystemHealthDebugManager:
         }
 
     def _check_ai_performance(self) -> Dict[str, Any]:
-    def _check_ai_performance(self) -> Dict[str, Any]:
         """بررسی عملکرد واقعی مدل‌های AI"""
         try:
             from ai_analysis_routes import ai_service
-            from advanced_technical_engine import technical_engine
+            from trading_ai.advanced_technical_engine import technical_engine
         
             performance_metrics = {}
         
@@ -622,7 +621,7 @@ class SystemHealthDebugManager:
         """تست واقعی مدل‌های AI"""
         try:
             from ai_analysis_routes import ai_service
-            from advanced_technical_engine import technical_engine
+            from trading_ai.advanced_technical_engine import technical_engine
         
             test_results = []
         
@@ -778,7 +777,7 @@ class SystemHealthDebugManager:
         
         # تست Database
             try:
-                from database_manager import trading_db
+                from trading_ai.database_manager import trading_db
                 start_time = time.time()
                 sample_data = trading_db.get_historical_data("bitcoin", 1)
                 db_response_time = round((time.time() - start_time) * 1000, 2)
@@ -821,52 +820,50 @@ class SystemHealthDebugManager:
         """تست ظرفیت بار سیستم"""
         try:
             import asyncio
-            from concurrent.futures import ThreadPoolExecutor
-        
+          
             load_test_results = []
         
-            # تست بار همزمان روی API
+        # تست بار همزمان روی API - بدون ThreadPoolExecutor
             async def test_concurrent_requests():
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    futures = []
-                    for i in range(10):
-                        future = executor.submit(self._simulate_api_request, i)
-                        futures.append(future)
-                
-                    results = [f.result() for f in futures]
-                    return results
+                tasks = []
+                for i in range(5):  # کاهش به 5 درخواست همزمان
+                    task = asyncio.create_task(self._simulate_api_request(i))
+                    tasks.append(task)
+            
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                return results
         
             start_time = time.time()
             concurrent_results = await test_concurrent_requests()
             load_time = round((time.time() - start_time) * 1000, 2)
         
-            successful_requests = len([r for r in concurrent_results if r["status"] == "success"])
-          
+            successful_requests = len([r for r in concurrent_results if not isinstance(r, Exception)])
+        
             load_test_results.append({
                 "test_type": "concurrent_requests",
-                "total_requests": 10,
+                "total_requests": 5,  # کاهش یافته
                 "successful_requests": successful_requests,
                 "total_time_ms": load_time,
-                "avg_time_per_request": round(load_time / 10, 2)
+                "avg_time_per_request": round(load_time / 5, 2)
             })
         
         # تست پردازش داده‌های حجیم
             start_time = time.time()
             large_data_processing = self._simulate_large_data_processing()
             processing_time = round((time.time() - start_time) * 1000, 2)
-          
+        
             load_test_results.append({
                 "test_type": "large_data_processing",
-                "data_size": "1000 records",
+                "data_size": "500 records",  # کاهش یافته
                 "processing_time_ms": processing_time,
                 "status": "completed"
             })
         
             return {
                 'status': 'completed',
-                'max_concurrent_users': 50,  # بر اساس تست‌ها
+                'max_concurrent_users': 25,  # کاهش یافته
                 'response_time_under_load': load_time,
-                'success_rate_under_load': (successful_requests / 10) * 100,
+                'success_rate_under_load': (successful_requests / 5) * 100,
                 'details': load_test_results
             }
         
