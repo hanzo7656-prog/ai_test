@@ -1,21 +1,22 @@
 # config.py - نسخه کامل و اصلاح شده با URL درست WebSocket
+
 import os
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 🔽 این خط مهم را اضافه کنید - مشکل WebSocket حل می‌شود
+# حل مشکل WebSocket - این خط مهم را اضافه کنید ✔
 MAJOR_TRADING_PAIRS = [
     "btc_usdt", "eth_usdt", "sol_usdt", "bnb_usdt",
-    "ada_usdt", "xrp_usdt", "doge_usdt", "dot_usdt",
+    "ada_usdt", "xrp_usdt", "doge_usdt", "dot_usdt", 
     "ltc_usdt", "link_usdt", "matic_usdt", "avax_usdt"
 ]
 
-# تنظیمات API - با کلید مستقیم از مستندات
+# تنظیمات API با کلید مستقیم از مستندات
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
-    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
+    'api_key': 'oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
     'timeout': 30,
     'retry_attempts': 3,
     'rate_limit_per_minute': 60,
@@ -47,19 +48,20 @@ API_CONFIG = {
 # تنظیمات مسیرهای داده
 DATA_CONFIG = {
     'raw_data_paths': [
-        "./raw_data",
+        "/raw_data",
         "../my-dataset/raw_data", 
-        "./dataset/raw_data"
+        "/dataset/raw_data"
     ],
     'processed_data_path': "./processed_data",
     'cache_path': "./cache",
-    'coinstats_cache': "./coinstats_cache"
+    'coinstats_cache': "./coinstats_cache",
+    'trading_data_dir': "./trading_data"
 }
 
 # تایم‌فریم‌های پشتیبانی شده از مستندات
 TIME_FRAME_CONFIG = {
     'supported_timeframes': [
-        "1h", "4h", "8h", "1d", "7d", "1m", "3m", "1y", "all"
+        "24h", "1w", "1m", "3m", "6m", "1y", "all"
     ],
     'default_timeframe': "1d",
     'chart_periods': {
@@ -69,14 +71,15 @@ TIME_FRAME_CONFIG = {
         'monthly': '1m',
         'yearly': '1y',
         'all': 'all'
-    }
+    },
+    'valid_periods': ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
 }
 
 # کوین‌های اصلی از مستندات
 COIN_CONFIG = {
     'major_coins': [
         "bitcoin", "ethereum", "solana", "binance-coin",
-        "cardano", "ripple", "polkadot", "dogecoin", 
+        "cardano", "ripple", "polkadot", "dogecoin",
         "chainlink", "polygon", "avalanche", "litecoin"
     ],
     'default_currency': 'USD',
@@ -84,25 +87,28 @@ COIN_CONFIG = {
     'popular_symbols': ['BTC', 'ETH', 'SOL', 'BNB', 'ADA', 'XRP', 'DOT', 'LTC']
 }
 
-# جفت ارزهای اصلی برای WebSocket - با متغیر بالایی هماهنگ
+# جفت ارزهای اصلی برای WebSocket با متغیر بالایی هماهنگ
 TRADING_CONFIG = {
     'major_trading_pairs': MAJOR_TRADING_PAIRS,  # استفاده از متغیر بالایی
     'major_exchanges': [
-        "Binance", "Coinbase", "Kraken", "Huobi", 
+        "Binance", "Coinbase", "Kraken", "Huobi",
         "OKX", "KuCoin", "Gate.io", "Bitfinex"
     ],
-    'websocket_pairs': MAJOR_TRADING_PAIRS  # برای سازگاری بیشتر
+    'websocket_pairs': MAJOR_TRADING_PAIRS,  # برای سازگاری بیشتر
+    'trading_fee': 0.001,  # 0.1% fee
+    'min_trade_amount': 10.0
 }
 
-# تنظیمات WebSocket - با lbank_websocket.py هماهنگ
+# تنظیمات WebSocket - مشکل lbank_websocket.py را حل می‌کند
 WEBSOCKET_CONFIG = {
-    'url': 'wss://www.lbkex.net/ws/V2/',  # 🔽 اصلاح شده به lbkex.net
+    'url': 'wss://www.lbkex.net/ws/V2/',  # اصلاح شده به lbkex.net
     'reconnect_delay': 5,
     'timeout': 10,
     'heartbeat_interval': 30,
     'ping_interval': 30,
     'ping_timeout': 10,
-    'subscription_batch_size': 10
+    'subscription_batch_size': 10,
+    'max_reconnect_attempts': 5
 }
 
 # تنظیمات مدل AI برای trading_ai
@@ -124,10 +130,10 @@ AI_MODEL_CONFIG = {
         'specialty_groups': {
             "support_resistance": 800,
             "trend_detection": 700,
-            "pattern_recognition": 600,
+            "pattern_recognition": 600, 
             "volume_analysis": 400
         },
-        'hidden_dim': 128,
+        "hidden_dim": 128,
         'num_layers': 4,
         'time_steps': 6,
         'num_heads': 8
@@ -140,8 +146,8 @@ SERVER_CONFIG = {
     'port': 8000,
     'debug': False,
     'workers': 1,
-    'cors_origins': ['*'],
-    'render_port': 10000  # پورت پیش‌فرض Render
+    'cors_origins': ["*"],
+    'render_port': 10000  # پورت پیش فرض Render
 }
 
 # تنظیمات لاگ
@@ -157,19 +163,22 @@ LOGGING_CONFIG = {
 # تنظیمات فیلتر از مستندات
 FILTER_CONFIG = {
     'sort_fields': [
-        'rank', 'marketCap', 'price', 'volume', 
-        'priceChange1h', 'priceChange1d', 'priceChange7d', 
+        'rank', 'marketCap', 'price', 'volume',
+        'priceChange1h', 'priceChange1d', 'priceChange7d',
         'name', 'symbol'
     ],
     'sort_directions': ['asc', 'desc'],
+    
     'blockchains': [
-        'ethereum', 'solana', 'binance-smart-chain', 
+        'ethereum', 'solana', 'binance-smart-chain',
         'polygon', 'avalanche', 'bitcoin'
     ],
+    
     'categories': [
-        'defi', 'memecoins', 'gaming', 'nft', 
+        'defi', 'memecoins', 'gaming', 'nft',
         'metaverse', 'layer-1', 'layer-2'
     ],
+    
     'price_ranges': {
         'low': (0, 1),
         'medium': (1, 100),
@@ -182,7 +191,8 @@ CACHE_CONFIG = {
     'ttl': 300,  # 5 minutes
     'max_size': 1000,
     'cleanup_interval': 600,
-    'coinstats_cache_duration': 300  # 5 minutes for CoinStats
+    'coinstats_cache_duration': 300,  # 5 minutes for CoinStats
+    'websocket_cache_duration': 60   # 1 minute for WebSocket
 }
 
 # تنظیمات تحلیل تکنیکال
@@ -190,26 +200,29 @@ TECHNICAL_ANALYSIS_CONFIG = {
     'indicators': ['RSI', 'MACD', 'BBANDS', 'STOCH', 'ATR', 'OBV', 'SMA', 'EMA'],
     'rsi_period': 14,
     'macd_fast': 12,
-    'macd_slow': 26,
+    'macd_slow': 26, 
     'macd_signal': 9,
     'bb_period': 20,
     'stoch_period': 14,
     'atr_period': 14,
     'sma_periods': [5, 10, 20, 50, 200],
-    'ema_periods': [12, 26, 50]
+    'ema_periods': [12, 26, 50],
+    'sequence_length': 60,
+    'feature_count': 5
 }
 
 # تنظیمات AI Analysis
 AI_ANALYSIS_CONFIG = {
-    'supported_periods': ["1h", "4h", "1d", "7d", "30d", "90d", "all"],
-    'analysis_types': ["comprehensive", "technical", "sentiment", "momentum", "pattern"],
+    'supported_periods': ['1h', "4h", "1d", "7d", "30d", "90d", 'all'],
+    'analysis_types': ['comprehensive', "technical", "sentiment", "momentum", "pattern"],
     'default_symbols': ['BTC', 'ETH', 'SOL', 'BNB'],
     'max_symbols_per_request': 5,
     'confidence_thresholds': {
         'high': 0.7,
         'medium': 0.5,
         'low': 0.3
-    }
+    },
+    'raw_data_mode': True
 }
 
 # تنظیمات سیستم
@@ -222,15 +235,19 @@ SYSTEM_CONFIG = {
     'rate_limiting': {
         'max_requests_per_minute': 60,
         'max_requests_per_hour': 1000
-    }
+    },
+    'health_check_interval': 60,
+    'auto_recovery_enabled': True
 }
+
+# ========================= توابع کمکی =========================
 
 def get_api_key():
     """دریافت کلید API از محیط یا کانفیگ"""
     return os.getenv('COINSTATS_API_KEY', API_CONFIG['api_key'])
 
 def get_base_url():
-    """دریافت آدرس پایه API"""
+    """دریافت آدرس پایه"""
     return API_CONFIG['base_url']
 
 def get_endpoint(endpoint_name, **kwargs):
@@ -260,12 +277,39 @@ def get_websocket_url():
     """دریافت آدرس WebSocket"""
     return WEBSOCKET_CONFIG['url']
 
-# تنظیمات پیش‌فرض برای تست
+def get_valid_periods():
+    """دریافت تایم‌فریم‌های معتبر"""
+    return TIME_FRAME_CONFIG['valid_periods']
+
+def convert_to_valid_period(period: str) -> str:
+    """تبدیل تایم‌فریم به فرمت معتبر CoinStats"""
+    period_map = {
+        "1d": "24h",
+        "7d": "1w", 
+        "30d": "1m",
+        "90d": "3m",
+        "180d": "6m", 
+        "365d": "1y",
+        "all": "all"
+    }
+    return period_map.get(period, period)
+
+def get_ai_model_config():
+    """دریافت تنظیمات مدل AI"""
+    return AI_MODEL_CONFIG
+
+def get_technical_config():
+    """دریافت تنظیمات تحلیل تکنیکال"""
+    return TECHNICAL_ANALYSIS_CONFIG
+
+# تنظیمات پیش فرض برای تست
 if __name__ == "__main__":
     print("✅ Config loaded successfully")
-    print(f"🔑 API Key: {get_api_key()[:10]}...")
-    print(f"🌐 Base URL: {get_base_url()}")
-    print(f"📡 WebSocket URL: {get_websocket_url()}")
-    print(f"📊 Trading Pairs: {len(MAJOR_TRADING_PAIRS)} pairs")
-    print(f"🧠 AI Model: {AI_MODEL_CONFIG['sparse_network']['total_neurons']} neurons")
-    print(f"🚀 Server Port: {get_port()}")
+    print(f" 🔑 API Key: {get_api_key()[:10]}...")
+    print(f" 🌐 Base URL: {get_base_url()}")
+    print(f" 📞 WebSocket URL: {get_websocket_url()}")
+    print(f" 💱 Trading Pairs: {len(MAJOR_TRADING_PAIRS)} pairs")
+    print(f" 🧠 AI Model: {AI_MODEL_CONFIG['sparse_network']['total_neurons']} neurons")
+    print(f" 🚀 Server Port: {get_port()}")
+    print(f" 📊 Valid Periods: {get_valid_periods()}")
+    print(f" 🔧 Raw Data Mode: {AI_ANALYSIS_CONFIG['raw_data_mode']}")
