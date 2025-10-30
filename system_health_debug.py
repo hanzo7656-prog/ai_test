@@ -6,12 +6,7 @@ import sys
 import time
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Union
-try:
-    from typing import Any
-except ImportError:
-    class Any:
-        pass
+from typing import Dict, List, Optional, Callable, Union, Any
 import inspect
 import psutil
 import os
