@@ -1,9 +1,9 @@
-# requirements.txt - بهینه‌شده برای Python 3.11
+# requirements.txt - بهینه‌شده برای Python 3.11 و Render
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 requests==2.31.0
-websocket-client==1.6.4
+websockets==15.0.1
 numpy==1.25.2
 pandas==2.1.4
 torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
@@ -15,5 +15,6 @@ pydantic==2.5.0
 setuptools==68.2.2
 wheel==0.41.2
 aiofiles==23.2.1
-asyncio==3.4.3
 typing-extensions==4.8.0
+scipy==1.11.4
+pyyaml==6.0.1
