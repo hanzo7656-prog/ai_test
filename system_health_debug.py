@@ -76,19 +76,34 @@ class SystemHealthDebugManager:
         logger.info("🚀 سیستم پیشرفته سلامت و دیباگ راه‌اندازی شد")
 
     def setup_logging(self):
-        """تنظیم پیشرفته لاگینگ"""
+    """تنظیم پیشرفته لاگینگ"""
+    # ایجاد هندلرها
+        stream_handler = logging.StreamHandler(sys.stdout)
+    
+        file_handler = logging.FileHandler('advanced_debug.log', encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+    
+        error_handler = logging.FileHandler('error_debug.log', encoding='utf-8')
+        error_handler.setLevel(logging.ERROR)
+    
+    # تنظیم فرمت
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+    
+    # اعمال فرمت به هندلرها
+        stream_handler.setFormatter(formatter)
+        file_handler.setFormatter(formatter)
+        error_handler.setFormatter(formatter)
+      
+    # پیکربندی لاگر اصلی
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S',
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                logging.FileHandler('advanced_debug.log', encoding='utf-8'),
-                logging.FileHandler('error_debug.log', encoding='utf-8', level=logging.ERROR)
-            ]
+            handlers=[stream_handler, file_handler, error_handler]
         )
+    
         self.logger = logging.getLogger(__name__)
-
     # ============================ سیستم هشدار هوشمند ============================
     
     def add_alert(self, alert_type: AlertType, level: AlertLevel, title: str, 
