@@ -337,6 +337,7 @@ class SystemHealthDebugManager:
             "details": results
         }
 
+    from typing import Any
     def _check_ai_performance(self) -> Dict[str, Any]:
         """بررسی عملکرد واقعی مدل‌های AI"""
         try:
@@ -409,6 +410,7 @@ class SystemHealthDebugManager:
                 "error": str(e),
                 "overall_status": "unhealthy"
             }
+            
     def _calculate_health_score(self, system: Dict, api: Dict, ai: Dict) -> float:
         """محاسبه نمره سلامت کلی"""
         scores = []
