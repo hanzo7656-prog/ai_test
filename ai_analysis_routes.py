@@ -78,7 +78,7 @@ class AIAnalysisService:
             "180d": "6m",
             "365d": "1y"
         }
-    return period_map.get(period, period)
+        return period_map.get(period, period)
     def get_coin_data(self, symbol: str) -> Dict[str, Any]:
         """دریافت داده‌های خام کوین"""
         try:
