@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from system_routes import router as system_router
+from system_health_debug import router as system_router
 from ai_analysis_routes import router as ai_router
 from lbank_websocket import router as websocket_router
 import logging
