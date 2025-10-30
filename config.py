@@ -16,7 +16,7 @@ MAJOR_TRADING_PAIRS = [
 # تنظیمات API با کلید مستقیم از مستندات
 API_CONFIG = {
     'base_url': 'https://openapiv1.coinstats.app',
-    'api_key': 'oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
+    'api_key': 'oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA=',
     'timeout': 30,
     'retry_attempts': 3,
     'rate_limit_per_minute': 60,
