@@ -76,7 +76,7 @@ class SystemHealthDebugManager:
         logger.info("🚀 سیستم پیشرفته سلامت و دیباگ راه‌اندازی شد")
 
     def setup_logging(self):
-    """تنظیم پیشرفته لاگینگ"""
+        """تنظیم پیشرفته لاگینگ"""
     # ایجاد هندلرها
         stream_handler = logging.StreamHandler(sys.stdout)
     
