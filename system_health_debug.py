@@ -353,7 +353,7 @@ class SystemHealthDebugManager:
                 "last_activity": datetime.now().isoformat()
             }
         
-        # بررسی سرویس AI
+            # بررسی سرویس AI
             ai_service_status = {
                 "status": "initialized",
                 "signal_predictor_ready": hasattr(ai_service, 'signal_predictor'),
@@ -361,7 +361,7 @@ class SystemHealthDebugManager:
                 "raw_data_cache_size": len(getattr(ai_service, 'raw_data_cache', {}))
             }
         
-        # بررسی دقت پیش‌بینی‌های اخیر (بر اساس لاگ‌ها)
+            # بررسی دقت پیش‌بینی‌های اخیر (بر اساس لاگ‌ها)
             recent_predictions = [log for log in self.api_calls_log 
                                 if 'ai_prediction' in str(log) and 
                                 time.time() - datetime.fromisoformat(log['timestamp']).timestamp() < 3600]  # 1 ساعت اخیر
@@ -373,11 +373,11 @@ class SystemHealthDebugManager:
             }
         
             if recent_predictions:
-            # محاسبه میانگین confidence (ساده‌شده)
+                # محاسبه میانگین confidence (ساده‌شده)
                 confidences = []
                 for pred in recent_predictions:
                     if 'response_time' in pred and pred['response_time'] > 0:
-                    # شبیه‌سازی confidence بر اساس سرعت پاسخ
+                        # شبیه‌سازی confidence بر اساس سرعت پاسخ
                         confidence = max(0.5, min(0.95, 1.0 - (pred['response_time'] / 10000)))
                         confidences.append(confidence)
             
