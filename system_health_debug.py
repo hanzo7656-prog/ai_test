@@ -6,7 +6,12 @@ import sys
 import time
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Callable, union
+from typing import Dict, List, Optional, Callable, Union
+try:
+    from typing import Any
+except ImportError:
+    class Any:
+        pass
 import inspect
 import psutil
 import os
@@ -340,7 +345,6 @@ class SystemHealthDebugManager:
             "details": results
         }
 
-    from typing import Any
     def _check_ai_performance(self) -> Dict[str, Any]:
         """بررسی عملکرد واقعی مدل‌های AI"""
         try:
