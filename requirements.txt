@@ -1,9 +1,10 @@
-# requirements.txt - بهینه‌شده برای Python 3.11 و Render
+# requirements.txt - نسخه اصلاح شده
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 requests==2.31.0
 websockets==15.0.1
+websocket-client==1.6.4  # ✅ این خط را اضافه کنید
 numpy==1.25.2
 pandas==2.1.4
 torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
