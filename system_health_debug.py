@@ -6,7 +6,7 @@ import sys
 import time
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, union
 import inspect
 import psutil
 import os
