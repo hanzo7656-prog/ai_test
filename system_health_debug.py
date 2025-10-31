@@ -346,13 +346,35 @@ class SystemHealthDebugManager:
             self.logger.error(f"Error checking system resources: {e}")
             return {'status': 'error', 'error': str(e)}
 
-    def _check_external_connections(self) -> Dict[str, Union[str, int, Dict[str, Dict[str, Union[str, float, bool]]]]]:
-        """بررسی اتصالات خارجی به تمام اندپوینت‌های CoinStats"""
+    def _check_external_connections(self) -> Dict[str, Any]:
+        """بررسی اتصالات خارجی به تمام 19 اندپوینت CoinStats"""
         endpoints_to_check = [
-            {"name": "coins_list", "method": "get_coins_list"},
+            # اندپوینت‌های اصلی کوین‌ها
+            {"name": "coins_list", "method": "get_coins_list", "params": {"limit": 2}},
             {"name": "coin_details", "method": "get_coin_details", "params": {"coin_id": "bitcoin"}},
+            {"name": "coin_charts", "method": "get_coin_charts", "params": {"coin_id": "bitcoin", "period": "1w"}},
+            {"name": "coins_charts", "method": "get_coins_charts", "params": {"coin_ids": "bitcoin,ethereum", "period": "1w"}},
+            {"name": "coin_price_avg", "method": "get_coin_price_avg", "params": {"coin_id": "bitcoin", "timestamp": "2024-01-01"}},
+            {"name": "exchange_price", "method": "get_exchange_price", "params": {"exchange": "binance", "from_coin": "BTC", "to_coin": "USDT", "timestamp": "2024-01-01"}},
+        
+            # اندپوینت‌های مارکت
+            {"name": "tickers_exchanges", "method": "get_tickers_exchanges"},
+            {"name": "tickers_markets", "method": "get_tickers_markets"},
+            {"name": "markets", "method": "get_markets"},
+            {"name": "fiats", "method": "get_fiats"},
+            {"name": "currencies", "method": "get_currencies"},
+        
+            # اندپوینت‌های اخبار
+            {"name": "news_sources", "method": "get_news_sources"},
+            {"name": "news_general", "method": "get_news", "params": {"limit": 1}},
+            {"name": "news_handpicked", "method": "get_news_by_type", "params": {"news_type": "handpicked", "limit": 1}},
+            {"name": "news_detail", "method": "get_news_detail", "params": {"news_id": "sample"}},
+        
+            # اندپوینت‌های پیش‌بازار
+            {"name": "btc_dominance", "method": "get_btc_dominance"},
             {"name": "fear_greed", "method": "get_fear_greed"},
-            {"name": "news", "method": "get_news", "params": {"limit": 1}},
+            {"name": "fear_greed_chart", "method": "get_fear_greed_chart"},
+            {"name": "rainbow_chart", "method": "get_rainbow_chart", "params": {"coin_id": "bitcoin"}},
         ]
     
         results = {}
@@ -552,10 +574,35 @@ class SystemHealthDebugManager:
         return "healthy"
 
     def _check_ai_performance(self) -> Dict[str, Dict[str, Union[str, bool, int, float]]]:
-        """بررسی عملکرد واقعی مدل‌های AI - نسخه ساده‌شده"""
+        """بررسی عملکرد واقعی مدل‌های AI"""
         try:
-            
-        # 🔍 لاگ تشخیصی جدید
+            logger.error("🔴 [AI-DIAGNOSTIC] شروع بررسی AI...")
+        
+        # تست اول: بررسی وجود ماژول‌ها
+            logger.error("🔴 [AI-DIAGNOSTIC] در حال بررسی import ماژول‌ها...")
+        
+            try:
+                logger.error("🔴 [AI-DIAGNOSTIC] تست import ai_analysis_routes...")
+                import ai_analysis_routes
+                logger.error("🟢 [AI-DIAGNOSTIC] ai_analysis_routes با موفقیت import شد")
+            except ImportError as e:
+                logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import ai_analysis_routes: {e}")
+                logger.error(f"🔴 [AI-DIAGNOSTIC] مسیر فایل: {__file__}")
+         
+            try:
+                logger.error("🔴 [AI-DIAGNOSTIC] تست import trading_ai...")
+                import trading_ai
+                logger.error("🟢 [AI-DIAGNOSTIC] trading_ai با موفقیت import شد")
+            except ImportError as e:
+                logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import trading_ai: {e}")
+        
+            try:
+                logger.error("🔴 [AI-DIAGNOSTIC] تست import trading_ai.advanced_technical_engine...")
+                from trading_ai import advanced_technical_engine
+                logger.error("🟢 [AI-DIAGNOSTIC] advanced_technical_engine با موفقیت import شد")
+            except ImportError as e:
+                logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import advanced_technical_engine: {e}")       
+            # 🔍 لاگ تشخیصی جدید
             logger.error("🔴 [DIAGNOSTIC] وارد تابع _check_ai_performance شدیم")
             logger.error(f"🔴 [DIAGNOSTIC] Type hint مشکل‌دار: {self._get_type_hint_info('_check_ai_performance')}")
       
