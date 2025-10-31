@@ -254,8 +254,8 @@ class AdvancedTechnicalEngine:
     def get_historical_data(self, symbol: str, days: int) -> pd.DataFrame:
         """دریافت داده‌های تاریخی از دیتابیس با داده‌های خام"""
         try:
-            from trading_ai.database_manager import trading_db
-            df = trading_db.get_historical_data(symbol, days)
+            from trading_ai.database_manager import TradingDatabase
+            df = TradingDatabase.get_historical_data(symbol, days)
             
             if df.empty:
                 df = self._generate_sample_data(days)
