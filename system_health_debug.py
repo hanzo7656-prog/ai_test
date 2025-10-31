@@ -476,7 +476,7 @@ class SystemHealthDebugManager:
     def _check_ai_modules_availability(self) -> bool:
         """بررسی در دسترس بودن ماژول‌های AI"""
         try:
-            from ai_analysis_routes import ai_service
+            from ai_analysis_routes import AIAnalysisService
             from trading_ai.advanced_technical_engine import technical_engine
             return True
         except ImportError:
@@ -504,7 +504,7 @@ class SystemHealthDebugManager:
     def _check_ai_service(self) -> Dict[str, Union[str, bool, int]]:
         """بررسی وضعیت سرویس AI"""
         try:
-            from ai_analysis_routes import ai_service
+            from ai_analysis_routes import AIAnalysisService
         
             # بررسی اتصال WebSocket
             ws_connected = False
@@ -568,7 +568,7 @@ class SystemHealthDebugManager:
             return "degraded"
     
         # اگر سرویس‌ها آماده نیستند
-        if not ai_service.get("signal_predictor_ready", False):
+        if not AIAnalysisService.get("signal_predictor_ready", False):
             return "degraded"
     
         return "healthy"
