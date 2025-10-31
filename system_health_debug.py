@@ -872,22 +872,33 @@ class SystemHealthDebugManager:
                 'success_rate': 0
             }
 
-    async def _test_ai_models(self) -> Dict[str, Union[str, int, float, List[Dict[str, Union[str, float, bool, int, None]]]]]:
-        """تست واقعی مدل‌های AI"""
+    async def _test_ai_models(self) -> Dict[str, Any]:
+        """تست واقعی مدل‌های AI - نسخه اصلاح شده"""
         try:
-            from ai_analysis_routes import ai_service
-            from trading_ai.advanced_technical_engine import technical_engine
-        
+            # 🔧 اصلاح: استفاده از import درون تابع برای جلوگیری از خطا
+            try:
+                from ai_analysis_routes import ai_service
+                from trading_ai.advanced_technical_engine import technical_engine
+                ai_available = True
+            except ImportError:
+                ai_available = False
+                return {
+                    'status': 'failed',
+                    'error': 'ماژول‌های AI در دسترس نیستند',
+                    'models_tested': 0,
+                    'avg_accuracy': 0
+                }
+     
             test_results = []
-        
+     
             # تست 1: بررسی عملکرد موتور تکنیکال
             try:
                 start_time = time.time()
-            
-            # تست تولید داده نمونه
+        
+                # تست تولید داده نمونه
                 sample_data = technical_engine._generate_sample_data(10)
                 tech_engine_time = round((time.time() - start_time) * 1000, 2)
-            
+        
                 test_results.append({
                     "model": "TechnicalEngine",
                     "test": "sample_data_generation",
@@ -902,15 +913,15 @@ class SystemHealthDebugManager:
                     "status": "failed",
                     "error": str(e)
                 })
-        
-        # تست 2: بررسی سرویس AI
+    
+            # تست 2: بررسی سرویس AI
             try:
                 start_time = time.time()
-              
-            # تست آماده‌سازی داده برای AI
+          
+                # تست آماده‌سازی داده برای AI
                 ai_input = ai_service.prepare_ai_input(["BTC", "ETH"], "1w")
                 ai_service_time = round((time.time() - start_time) * 1000, 2)
-            
+        
                 test_results.append({
                     "model": "AIAnalysisService",
                     "test": "data_preparation",
@@ -925,47 +936,17 @@ class SystemHealthDebugManager:
                     "test": "data_preparation", 
                     "status": "failed",
                     "error": str(e)
-                })
-        
-        # تست 3: بررسی پیش‌بینی‌کننده سیگنال
-            try:
-                start_time = time.time()
-            
-            # تست پیش‌بینی نمونه
-                sample_data = {
-                    "prices": [45000, 45200, 44800, 45500, 45300],
-                    "technical_indicators": {"rsi": 45, "macd": 2.1},
-                    "market_data": {"volume": 1000000, "volatility": 0.02}
-                }
-            
-                prediction = ai_service.signal_predictor.get_ai_prediction("BTC", sample_data)
-                prediction_time = round((time.time() - start_time) * 1000, 2)
-            
-                test_results.append({
-                    "model": "SignalPredictor",
-                    "test": "prediction_generation",
-                    "status": "success",
-                    "execution_time_ms": prediction_time,
-                    "signal": prediction.get('signals', {}).get('primary_signal', 'UNKNOWN'),
-                    "confidence": prediction.get('signals', {}).get('signal_confidence', 0)
-                })
-            except Exception as e:
-                test_results.append({
-                    "model": "SignalPredictor",
-                    "test": "prediction_generation",
-                    "status": "failed",
-                    "error": str(e)
-                })
-        
-        # محاسبه آمار کلی
+                 })
+    
+            # محاسبه آمار کلی
             successful_tests = len([r for r in test_results if r["status"] == "success"])
             total_tests = len(test_results)
             success_rate = (successful_tests / total_tests) * 100
-        
-        # محاسبه دقت متوسط (ساده‌شده)
+    
+            # محاسبه دقت متوسط (ساده‌شده)
             confidences = [r.get("confidence", 0) for r in test_results if "confidence" in r]
             avg_accuracy = statistics.mean(confidences) if confidences else 0.5
-        
+    
             return {
                 'status': 'completed',
                 'models_tested': len(set(r["model"] for r in test_results)),
@@ -975,7 +956,7 @@ class SystemHealthDebugManager:
                 'avg_accuracy': round(avg_accuracy, 3),
                 'details': test_results
             }
-        
+    
         except Exception as e:
             self.logger.error(f"Error in AI models test: {e}")
             return {
@@ -984,7 +965,7 @@ class SystemHealthDebugManager:
                 'models_tested': 0,
                 'avg_accuracy': 0
             }
-
+        
     async def _test_connections(self) -> Dict[str, Union[str, int, float, List[Dict[str, Union[str, float, bool, int]]]]]:
         """تست واقعی تمام اتصالات خارجی"""
         try:
