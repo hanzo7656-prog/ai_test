@@ -1,0 +1,426 @@
+/* static/css/health.css */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #34495e;
+    --success-color: #27ae60;
+    --warning-color: #f39c12;
+    --danger-color: #e74c3c;
+    --info-color: #3498db;
+    --light-color: #ecf0f1;
+    --dark-color: #2c3e50;
+}
+
+/* ریست استایل‌ها */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Vazir', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+    color: #333;
+}
+
+/* کارت‌های سلامت */
+.health-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-bottom: 25px;
+    overflow: hidden;
+    position: relative;
+}
+
+.health-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--success-color), var(--info-color));
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.health-card:hover::before {
+    transform: scaleX(1);
+}
+
+.health-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+
+/* نشانگر وضعیت */
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 8px;
+    position: relative;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border-radius: 50%;
+    animation: ripple 2s infinite;
+}
+
+.status-healthy {
+    background-color: var(--success-color);
+    box-shadow: 0 0 20px rgba(39, 174, 96, 0.4);
+}
+
+.status-healthy::after {
+    border: 2px solid var(--success-color);
+}
+
+.status-degraded {
+    background-color: var(--warning-color);
+    box-shadow: 0 0 20px rgba(243, 156, 18, 0.4);
+}
+
+.status-degraded::after {
+    border: 2px solid var(--warning-color);
+}
+
+.status-unhealthy {
+    background-color: var(--danger-color);
+    box-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
+}
+
+.status-unhealthy::after {
+    border: 2px solid var(--danger-color);
+}
+
+/* انیمیشن‌ها */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* مقادیر متریک */
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin: 10px 0;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* وضعیت API */
+.api-status {
+    border-right: 4px solid;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    transition: all 0.3s ease;
+    animation: fadeIn 0.6s ease-out;
+}
+
+.api-status:hover {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateX(-5px);
+}
+
+.api-healthy {
+    border-color: var(--success-color);
+    background: linear-gradient(135deg, rgba(39, 174, 96, 0.1), transparent);
+}
+
+.api-degraded {
+    border-color: var(--warning-color);
+    background: linear-gradient(135deg, rgba(243, 156, 18, 0.1), transparent);
+}
+
+.api-unhealthy {
+    border-color: var(--danger-color);
+    background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), transparent);
+}
+
+/* دکمه‌ها */
+.refresh-btn {
+    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
+    border: none;
+    border-radius: 25px;
+    padding: 12px 30px;
+    color: white;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.refresh-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.refresh-btn:hover::before {
+    left: 100%;
+}
+
+.refresh-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(52, 152, 219, 0.6);
+}
+
+.refresh-btn:active {
+    transform: translateY(0);
+}
+
+/* پیشرفت‌بارها */
+.progress {
+    height: 12px;
+    border-radius: 10px;
+    background: rgba(236, 240, 241, 0.5);
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar {
+    border-radius: 10px;
+    transition: width 1s ease-in-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* بج‌ها */
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* نمودار */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+/* لاگ‌ها */
+.log-entry {
+    border-bottom: 1px solid rgba(236, 240, 241, 0.8);
+    padding: 12px 0;
+    transition: all 0.3s ease;
+}
+
+.log-entry:hover {
+    background: rgba(52, 152, 219, 0.05);
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin: 0 -15px;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+/* آیکون‌ها */
+.fa-heartbeat {
+    animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* وضعیت شبکه */
+.network-stats {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), transparent);
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 10px;
+}
+
+/* هشدارها */
+.alert-badge {
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-10px);
+    }
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+/* رسپانسیو */
+@media (max-width: 768px) {
+    .health-card {
+        margin-bottom: 15px;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+    }
+    
+    .health-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .api-status {
+        padding: 10px;
+    }
+}
+
+@media (max-width: 576px) {
+    .container-fluid {
+        padding: 10px;
+    }
+    
+    .health-card {
+        border-radius: 15px;
+    }
+    
+    .metric-value {
+        font-size: 1.8rem;
+    }
+}
+
+/* اسکرول بار سفارشی */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+}
+
+/* انیمیشن لودینگ */
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* تایپوگرافی */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
