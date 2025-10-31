@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from system_health_debug import router as system_router
 from ai_analysis_routes import router as ai_router
 from lbank_websocket import router as websocket_router
@@ -14,6 +17,10 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# 🔥 اضافه کردن این دو خط:
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # تنظیمات logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,6 +34,12 @@ app.include_router(ai_router, tags=["ai-analysis"])
 # اضافه کردن routes WebSocket
 app.include_router(websocket_router, tags=["websocket"])
 
+# 🔥 اضافه کردن این روت جدید:
+@app.get("/health/dashboard", response_class=HTMLResponse)
+async def health_dashboard(request: Request):
+    """صفحه داشبورد سلامت HTML"""
+    return templates.TemplateResponse("health.html", {"request": request})
+
 # Route اصلی
 @app.get("/")
 def root():
@@ -37,6 +50,7 @@ def root():
         "timestamp": datetime.now().isoformat(),
         "docs": "/docs",
         "health": "/health/detailed",
+        "dashboard": "/health/dashboard",  # 🔥 اضافه کردن لینک داشبورد
         "features": [
             "Real-time WebSocket Data",
             "AI Technical Analysis", 
@@ -51,7 +65,8 @@ def health_check():
     return {
         "status": "healthy", 
         "service": "crypto-ai-api",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "dashboard": "/health/dashboard"  # 🔥 اضافه کردن لینک داشبورد
     }
 
 @app.get("/status")
