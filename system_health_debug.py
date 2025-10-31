@@ -477,7 +477,7 @@ class SystemHealthDebugManager:
         """بررسی در دسترس بودن ماژول‌های AI"""
         try:
             from ai_analysis_routes import AIAnalysisService
-            from trading_ai.advanced_technical_engine import technical_engine
+            from trading_ai.advanced_technical_engine import AdvancedTechnicalEngine
             return True
         except ImportError:
             return False
@@ -485,7 +485,7 @@ class SystemHealthDebugManager:
     def _check_technical_engine(self) -> Dict[str, Union[str, bool, int]]:
         """بررسی وضعیت موتور تکنیکال"""
         try:
-            from trading_ai.advanced_technical_engine import technical_engine
+            from trading_ai.advanced_technical_engine import AdvancedTechnicalEngine
           
             return {
                 "status": "initialized",
@@ -560,7 +560,7 @@ class SystemHealthDebugManager:
     def _calculate_ai_overall_status(self, technical_engine: Dict, ai_service: Dict, accuracy: Dict) -> str:
         """محاسبه وضعیت کلی AI"""
         # اگر ماژول‌ها در دسترس نیستند
-        if technical_engine.get("status") == "not_available" or ai_service.get("status") == "not_available":
+        if AdvancedTechnicalEngine.get("status") == "not_available" or ai_service.get("status") == "not_available":
             return "unhealthy"
     
         # اگر دقت پایین است
@@ -618,8 +618,8 @@ class SystemHealthDebugManager:
                 }
         
             # اجرای بررسی‌های جزئی
-            technical_engine = self._check_technical_engine()
-            ai_service = self._check_ai_service()
+            AdvancedTechnicalEngine = self._check_AdvancedTechnicalEngine()
+            AIAnalysisService = self._check_AIAnalysisService()
             accuracy = self._analyze_ai_accuracy()
         
             # محاسبه وضعیت کلی
@@ -635,8 +635,8 @@ class SystemHealthDebugManager:
                 )
         
             return {
-                "technical_engine": technical_engine,
-                "ai_service": ai_service,
+                "AdvancedTechnicalEngine": AdvancedTechnicalEngine,
+                "AIAnalysisService": AIAnalysisService,
                 "accuracy": accuracy,
                 "overall_status": overall_status
             }
