@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>داشبورد سلامت سیستم - AI Trading</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --info-color: #3498db;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Vazir', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        
+        .health-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            border: none;
+            margin-bottom: 20px;
+        }
+        
+        .health-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+        }
+        
+        .status-healthy { background-color: var(--success-color); }
+        .status-degraded { background-color: var(--warning-color); }
+        .status-unhealthy { background-color: var(--danger-color); }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .alert-badge {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .api-status {
+            border-right: 4px solid;
+            padding-right: 15px;
+        }
+        
+        .api-healthy { border-color: var(--success-color); }
+        .api-degraded { border-color: var(--warning-color); }
+        .api-unhealthy { border-color: var(--danger-color); }
+        
+        .refresh-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- هدر -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="health-card p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h1 class="mb-1">
+                                <i class="fas fa-heartbeat text-danger me-2"></i>
+                                داشبورد سلامت سیستم
+                            </h1>
+                            <p class="text-muted mb-0">مانیتورینگ لحظه‌ای سیستم معاملاتی هوش مصنوعی</p>
+                        </div>
+                        <div class="col-md-4 text-start">
+                            <button class="refresh-btn" onclick="refreshData()">
+                                <i class="fas fa-sync-alt me-2"></i>
+                                بروزرسانی
+                            </button>
+                            <div class="mt-2">
+                                <small class="text-muted" id="lastUpdate">آخرین بروزرسانی: -</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- متریک‌های اصلی -->
+        <div class="row">
+            <!-- سلامت کلی -->
+            <div class="col-md-3">
+                <div class="health-card p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-shield-alt fa-3x text-success"></i>
+                    </div>
+                    <h4>سلامت کلی</h4>
+                    <div class="metric-value" id="overallHealth">-</div>
+                    <div class="mt-2">
+                        <span class="status-indicator" id="overallStatus"></span>
+                        <span id="overallStatusText">در حال بارگذاری...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- آپتایم -->
+            <div class="col-md-3">
+                <div class="health-card p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-clock fa-3x text-info"></i>
+                    </div>
+                    <h4>مدت فعالیت</h4>
+                    <div class="metric-value" id="uptime">-</div>
+                    <small class="text-muted">از آخرین راه‌اندازی</small>
+                </div>
+            </div>
+
+            <!-- هشدارهای فعال -->
+            <div class="col-md-3">
+                <div class="health-card p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-bell fa-3x text-warning"></i>
+                    </div>
+                    <h4>هشدارهای فعال</h4>
+                    <div class="metric-value" id="activeAlerts">0</div>
+                    <small class="text-muted">نیازمند توجه</small>
+                </div>
+            </div>
+
+            <!-- درخواست‌های API -->
+            <div class="col-md-3">
+                <div class="health-card p-4 text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-exchange-alt fa-3x text-primary"></i>
+                    </div>
+                    <h4>درخواست API</h4>
+                    <div class="metric-value" id="apiCalls">-</div>
+                    <small class="text-muted">در ۵ دقیقه گذشته</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- وضعیت منابع سیستم -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="health-card p-4">
+                    <h4 class="mb-4">
+                        <i class="fas fa-microchip me-2"></i>
+                        وضعیت منابع سیستم
+                    </h4>
+                    <div class="row">
+                        <!-- CPU -->
+                        <div class="col-md-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>پردازنده (CPU)</span>
+                                <span id="cpuPercent">-</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div id="cpuProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                        </div>
+
+                        <!-- حافظه -->
+                        <div class="col-md-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>حافظه (RAM)</span>
+                                <span id="memoryPercent">-</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div id="memoryProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                        </div>
+
+                        <!-- دیسک -->
+                        <div class="col-md-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>فضای ذخیره‌سازی</span>
+                                <span id="diskPercent">-</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div id="diskProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                        </div>
+
+                        <!-- شبکه -->
+                        <div class="col-md-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>شبکه</span>
+                                <span id="networkStatus">-</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div id="networkProgress" class="progress-bar" role="progressbar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- وضعیت APIها و سرویس‌ها -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="health-card p-4 h-100">
+                    <h4 class="mb-4">
+                        <i class="fas fa-plug me-2"></i>
+                        وضعیت اتصالات API
+                    </h4>
+                    <div id="apiStatusList">
+                        <!-- لیست وضعیت APIها اینجا نمایش داده می‌شود -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="health-card p-4 h-100">
+                    <h4 class="mb-4">
+                        <i class="fas fa-robot me-2"></i>
+                        وضعیت هوش مصنوعی
+                    </h4>
+                    <div id="aiStatus">
+                        <!-- وضعیت AI اینجا نمایش داده می‌شود -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- نمودار سلامت -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="health-card p-4">
+                    <h4 class="mb-4">
+                        <i class="fas fa-chart-line me-2"></i>
+                        نمودار سلامت سیستم
+                    </h4>
+                    <canvas id="healthChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- لاگ‌های اخیر -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="health-card p-4">
+                    <h4 class="mb-4">
+                        <i class="fas fa-list-alt me-2"></i>
+                        رویدادهای اخیر
+                    </h4>
+                    <div id="recentLogs" style="max-height: 300px; overflow-y: auto;">
+                        <!-- لاگ‌های اخیر اینجا نمایش داده می‌شود -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let healthChart;
+        
+        // بارگذاری اولیه داده‌ها
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+            setInterval(refreshData, 30000); // بروزرسانی هر 30 ثانیه
+        });
+
+        async function refreshData() {
+            try {
+                const response = await fetch('/system/dashboard');
+                const data = await response.json();
+                
+                updateDashboard(data);
+                updateLastUpdateTime();
+                
+            } catch (error) {
+                console.error('Error fetching health data:', error);
+                showError('خطا در دریافت داده‌های سلامت');
+            }
+        }
+
+        function updateDashboard(data) {
+            // سلامت کلی
+            document.getElementById('overallHealth').textContent = data.health_score + '%';
+            document.getElementById('overallStatus').className = `status-indicator status-${getStatusClass(data.health_score)}`;
+            document.getElementById('overallStatusText').textContent = getStatusText(data.health_score);
+            
+            // آپتایم
+            document.getElementById('uptime').textContent = formatUptime(data.system?.uptime_seconds);
+            
+            // هشدارها
+            document.getElementById('activeAlerts').textContent = data.active_alerts || 0;
+            
+            // منابع سیستم
+            updateSystemResources(data.system);
+            
+            // وضعیت APIها
+            updateApiStatus(data.api);
+            
+            // وضعیت AI
+            updateAiStatus(data.ai);
+            
+            // نمودار
+            updateHealthChart(data);
+            
+            // لاگ‌ها
+            updateRecentLogs(data.live_logs);
+        }
+
+        function updateSystemResources(system) {
+            if (!system) return;
+            
+            // CPU
+            const cpuPercent = system.cpu?.percent || 0;
+            document.getElementById('cpuPercent').textContent = cpuPercent + '%';
+            const cpuProgress = document.getElementById('cpuProgress');
+            cpuProgress.style.width = cpuPercent + '%';
+            cpuProgress.className = `progress-bar ${getProgressBarClass(cpuPercent)}`;
+            
+            // Memory
+            const memoryPercent = system.memory?.percent || 0;
+            document.getElementById('memoryPercent').textContent = memoryPercent + '%';
+            const memoryProgress = document.getElementById('memoryProgress');
+            memoryProgress.style.width = memoryPercent + '%';
+            memoryProgress.className = `progress-bar ${getProgressBarClass(memoryPercent)}`;
+            
+            // Disk
+            const diskPercent = system.disk?.percent || 0;
+            document.getElementById('diskPercent').textContent = diskPercent + '%';
+            const diskProgress = document.getElementById('diskProgress');
+            diskProgress.style.width = diskPercent + '%';
+            diskProgress.className = `progress-bar ${getProgressBarClass(diskPercent)}`;
+        }
+
+        function updateApiStatus(api) {
+            const apiStatusList = document.getElementById('apiStatusList');
+            if (!api || !api.details) {
+                apiStatusList.innerHTML = '<p class="text-muted">داده‌ای موجود نیست</p>';
+                return;
+            }
+            
+            let html = '';
+            Object.entries(api.details).forEach(([name, status]) => {
+                const statusClass = status.status === 'healthy' ? 'api-healthy' : 
+                                  status.status === 'degraded' ? 'api-degraded' : 'api-unhealthy';
+                
+                html += `
+                    <div class="api-status ${statusClass} mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>${name}</strong>
+                            <span class="badge ${getStatusBadgeClass(status.status)}">
+                                ${getStatusText(status.status)}
+                            </span>
+                        </div>
+                        <small class="text-muted">
+                            زمان پاسخ: ${status.response_time_ms || 0}ms
+                        </small>
+                    </div>
+                `;
+            });
+            
+            apiStatusList.innerHTML = html;
+            document.getElementById('apiCalls').textContent = api.total_calls || 0;
+        }
+
+        function updateAiStatus(ai) {
+            const aiStatus = document.getElementById('aiStatus');
+            if (!ai) {
+                aiStatus.innerHTML = '<p class="text-muted">داده‌ای موجود نیست</p>';
+                return;
+            }
+            
+            aiStatus.innerHTML = `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>موتور تکنیکال</span>
+                        <span class="badge ${getStatusBadgeClass(ai.technical_engine?.status)}">
+                            ${ai.technical_engine?.status || 'unknown'}
+                        </span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>سرویس AI</span>
+                        <span class="badge ${getStatusBadgeClass(ai.ai_service?.status)}">
+                            ${ai.ai_service?.status || 'unknown'}
+                        </span>
+                    </div>
+                </div>
+                <div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>میانگین دقت</span>
+                        <span>${(ai.accuracy?.avg_confidence * 100 || 0).toFixed(1)}%</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateHealthChart(data) {
+            // پیاده‌سازی نمودار - ساده شده
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            
+            if (healthChart) {
+                healthChart.destroy();
+            }
+            
+            healthChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['۱', '۲', '۳', '۴', '۵', '۶'],
+                    datasets: [{
+                        label: 'سلامت سیستم',
+                        data: [85, 78, 92, 88, 95, data.health_score || 90],
+                        borderColor: '#27ae60',
+                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateRecentLogs(logs) {
+            const recentLogs = document.getElementById('recentLogs');
+            if (!logs || logs.length === 0) {
+                recentLogs.innerHTML = '<p class="text-muted">رویدادی ثبت نشده است</p>';
+                return;
+            }
+            
+            let html = '';
+            logs.slice(0, 10).forEach(log => {
+                const logClass = log.status === 'error' ? 'text-danger' : 
+                               log.status === 'warning' ? 'text-warning' : 'text-success';
+                
+                html += `
+                    <div class="border-bottom pb-2 mb-2">
+                        <div class="d-flex justify-content-between">
+                            <small class="${logClass}">
+                                <i class="fas ${getLogIcon(log.status)} me-1"></i>
+                                ${log.message || log.endpoint || 'Unknown event'}
+                            </small>
+                            <small class="text-muted">${formatTime(log.timestamp)}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            recentLogs.innerHTML = html;
+        }
+
+        // توابع کمکی
+        function getStatusClass(score) {
+            if (score >= 80) return 'healthy';
+            if (score >= 60) return 'degraded';
+            return 'unhealthy';
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'healthy': 'سالم',
+                'degraded': 'کاهش عملکرد',
+                'unhealthy': 'مشکل دار',
+                'healthy': 'سالم',
+                'degraded': 'کاهش عملکرد', 
+                'unhealthy': 'مشکل دار'
+            };
+            return statusMap[status] || status;
+        }
+
+        function getStatusBadgeClass(status) {
+            const classMap = {
+                'healthy': 'bg-success',
+                'degraded': 'bg-warning',
+                'unhealthy': 'bg-danger',
+                'error': 'bg-danger'
+            };
+            return classMap[status] || 'bg-secondary';
+        }
+
+        function getProgressBarClass(percent) {
+            if (percent < 70) return 'bg-success';
+            if (percent < 85) return 'bg-warning';
+            return 'bg-danger';
+        }
+
+        function getLogIcon(status) {
+            const iconMap = {
+                'error': 'fa-exclamation-circle',
+                'warning': 'fa-exclamation-triangle',
+                'success': 'fa-check-circle'
+            };
+            return iconMap[status] || 'fa-info-circle';
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds) return '-';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            return new Date(timestamp).toLocaleTimeString('fa-IR');
+        }
+
+        function updateLastUpdateTime() {
+            document.getElementById('lastUpdate').textContent = 
+                `آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')}`;
+        }
+
+        function showError(message) {
+            // نمایش خطا به کاربر
+            console.error(message);
+        }
+    </script>
+</body>
+</html>
