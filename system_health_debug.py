@@ -341,76 +341,153 @@ class SystemHealthDebugManager:
             "details": results
         }
 
-    def _check_ai_performance(self) -> Dict[str, Union[str, float, Dict[str, Union[str, bool, int, float]], List[Dict]]]:
-        """بررسی عملکرد واقعی مدل‌های AI"""
+
+    #======================توابع تقسیم شده مانیتورینگ===============================
+
+    def _check_ai_modules_availability(self) -> bool:
+        """بررسی در دسترس بودن ماژول‌های AI"""
         try:
             from ai_analysis_routes import ai_service
             from trading_ai.advanced_technical_engine import technical_engine
-        
-            performance_metrics = {}
-        
-            # بررسی موتور تکنیکال
-            tech_engine_status = {
+            return True
+        except ImportError:
+            return False
+
+    def _check_technical_engine(self) -> Dict[str, Union[str, bool, int]]:
+        """بررسی وضعیت موتور تکنیکال"""
+        try:
+            from trading_ai.advanced_technical_engine import technical_engine
+          
+            return {
                 "status": "initialized",
                 "config_loaded": hasattr(technical_engine, 'config'),
                 "sequence_length": technical_engine.config.sequence_length if hasattr(technical_engine, 'config') else 0,
                 "last_activity": datetime.now().isoformat()
             }
+        except ImportError:
+            return {
+                "status": "not_available",
+                "config_loaded": False,
+                "sequence_length": 0,
+                "last_activity": datetime.now().isoformat()
+            }
+
+    def _check_ai_service(self) -> Dict[str, Union[str, bool, int]]:
+        """بررسی وضعیت سرویس AI"""
+        try:
+            from ai_analysis_routes import ai_service
         
-            # بررسی سرویس AI
-            ai_service_status = {
+            # بررسی اتصال WebSocket
+            ws_connected = False
+            if hasattr(ai_service, 'ws_manager'):
+                if hasattr(ai_service.ws_manager, 'is_connected'):
+                    try:
+                        ws_connected = ai_service.ws_manager.is_connected()
+                    except:
+                        ws_connected = False
+          
+            return {
                 "status": "initialized",
                 "signal_predictor_ready": hasattr(ai_service, 'signal_predictor'),
-                "ws_manager_connected": ai_service.ws_manager.is_connected() if hasattr(ai_service.ws_manager, 'is_connected') else False,
+                "ws_manager_connected": ws_connected,
                 "raw_data_cache_size": len(getattr(ai_service, 'raw_data_cache', {}))
             }
-        
-            # بررسی دقت پیش‌بینی‌های اخیر (بر اساس لاگ‌ها)
-            recent_predictions = [log for log in self.api_calls_log 
-                                if 'ai_prediction' in str(log) and 
-                                time.time() - datetime.fromisoformat(log['timestamp']).timestamp() < 3600]  # 1 ساعت اخیر
-        
-            accuracy_metrics = {
-                "total_predictions_last_hour": len(recent_predictions),
-                "avg_confidence": 0.0,
-                "prediction_trend": "stable"
+        except ImportError:
+            return {
+                "status": "not_available",
+                "signal_predictor_ready": False,
+                "ws_manager_connected": False,
+                "raw_data_cache_size": 0
             }
+
+    def _analyze_ai_accuracy(self) -> Dict[str, Union[int, float, str]]:
+        """تحلیل دقت و عملکرد مدل‌های AI"""
+        # پیدا کردن پیش‌بینی‌های اخیر
+        recent_predictions = [
+            log for log in self.api_calls_log 
+            if 'ai_prediction' in str(log) and 
+            time.time() - datetime.fromisoformat(log['timestamp']).timestamp() < 3600
+        ]
+    
+        accuracy_metrics = {
+            "total_predictions_last_hour": len(recent_predictions),
+            "avg_confidence": 0.0,
+            "prediction_trend": "stable"
+        }
+    
+    # محاسبه میانگین confidence
+        if recent_predictions:
+            confidences = []
+            for pred in recent_predictions:
+                if 'response_time' in pred and pred['response_time'] > 0:
+                    confidence = max(0.5, min(0.95, 1.0 - (pred['response_time'] / 10000)))
+                    confidences.append(confidence)
         
-            if recent_predictions:
-                # محاسبه میانگین confidence (ساده‌شده)
-                confidences = []
-                for pred in recent_predictions:
-                    if 'response_time' in pred and pred['response_time'] > 0:
-                        # شبیه‌سازی confidence بر اساس سرعت پاسخ
-                        confidence = max(0.5, min(0.95, 1.0 - (pred['response_time'] / 10000)))
-                        confidences.append(confidence)
-            
-                if confidences:
-                    accuracy_metrics["avg_confidence"] = round(statistics.mean(confidences), 3)
+            if confidences:
+                accuracy_metrics["avg_confidence"] = round(statistics.mean(confidences), 3)
+
+        return accuracy_metrics
+
+    def _calculate_ai_overall_status(self, technical_engine: Dict, ai_service: Dict, accuracy: Dict) -> str:
+        """محاسبه وضعیت کلی AI"""
+        # اگر ماژول‌ها در دسترس نیستند
+        if technical_engine.get("status") == "not_available" or ai_service.get("status") == "not_available":
+            return "unhealthy"
+    
+        # اگر دقت پایین است
+        if accuracy["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
+            return "degraded"
+    
+        # اگر سرویس‌ها آماده نیستند
+        if not ai_service.get("signal_predictor_ready", False):
+            return "degraded"
+    
+        return "healthy"
+
+    def _check_ai_performance(self) -> Dict[str, Dict[str, Union[str, bool, int, float]]]:
+        """بررسی عملکرد واقعی مدل‌های AI - نسخه ساده‌شده"""
+        try:
+            # بررسی وجود ماژول‌های AI
+            ai_modules_available = self._check_ai_modules_availability()
+           
+            if not ai_modules_available:
+                return {
+                    "technical_engine": {"status": "not_available"},
+                    "ai_service": {"status": "not_available"},
+                    "accuracy": {"total_predictions_last_hour": 0, "avg_confidence": 0.0},
+                    "overall_status": "unhealthy"
+                }
+        
+            # اجرای بررسی‌های جزئی
+            technical_engine = self._check_technical_engine()
+            ai_service = self._check_ai_service()
+            accuracy = self._analyze_ai_accuracy()
+        
+            # محاسبه وضعیت کلی
+            overall_status = self._calculate_ai_overall_status(technical_engine, ai_service, accuracy)
         
             # هشدار در صورت کاهش دقت
-            if accuracy_metrics["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
+            if accuracy["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
                 self.add_alert(
                     AlertType.ACCURACY, AlertLevel.MEDIUM,
                     "کاهش دقت مدل AI",
-                    f"میانگین confidence: {accuracy_metrics['avg_confidence']}",
+                    f"میانگین confidence: {accuracy['avg_confidence']}",
                     "ai_performance", True
                 )
         
-            performance_metrics = {
-                "technical_engine": tech_engine_status,
-                "ai_service": ai_service_status,
-                "accuracy": accuracy_metrics,
-                "overall_status": "healthy" if accuracy_metrics["avg_confidence"] > 0.7 else "degraded"
+            return {
+                "technical_engine": technical_engine,
+                "ai_service": ai_service,
+                "accuracy": accuracy,
+                "overall_status": overall_status
             }
-        
-            return performance_metrics
         
         except Exception as e:
             self.logger.error(f"Error checking AI performance: {e}")
             return {
-                "status": "error",
-                "error": str(e),
+                "technical_engine": {"status": "error"},
+                "ai_service": {"status": "error"},
+                "accuracy": {"total_predictions_last_hour": 0, "avg_confidence": 0.0},
                 "overall_status": "unhealthy"
             }
             
