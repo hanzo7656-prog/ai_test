@@ -54,7 +54,12 @@ class SystemHealthDebugManager:
     def __init__(self):
         self.setup_logging()
         self.start_time = time.time()
-        
+    
+        # 🔍 لاگ بررسی importها
+        logger.error("🔴 [DIAGNOSTIC] SystemHealthDebugManager در حال راه‌اندازی...")
+        self._log_import_status()
+    
+
         # سیستم‌های مانیتورینگ
         self.error_log = []
         self.api_calls_log = []
@@ -77,7 +82,17 @@ class SystemHealthDebugManager:
         self._start_background_monitoring()
         
         logger.info("🚀 سیستم پیشرفته سلامت و دیباگ راه‌اندازی شد")
-
+        
+    def _log_import_status(self):
+        """لاگ وضعیت import ماژول‌ها"""
+        modules_to_check = ['psutil', 'fastapi', 'typing']
+        for module in modules_to_check:
+            try:
+                __import__(module)
+                logger.error(f"🟢 [DIAGNOSTIC] ماژول {module} با موفقیت import شد")
+            except ImportError as e:
+                logger.error(f"🔴 [DIAGNOSTIC] خطا در import {module}: {e}")
+        
     def setup_logging(self):
         """تنظیم پیشرفته لاگینگ"""
         # ایجاد هندلرها
@@ -189,15 +204,20 @@ class SystemHealthDebugManager:
     def _start_background_monitoring(self):
         """شروع مانیتورینگ پس‌زمینه"""
         def monitor_loop():
+            logger.error("🟢 [DIAGNOSTIC] حلقه مانیتورینگ شروع شد")
+          
             while True:
                 try:
+                    logger.error("🔵 [DIAGNOSTIC] شروع چک سلامت دوره‌ای...")
                     self._perform_health_checks()
                     self._check_performance_metrics()
                     self._analyze_error_patterns()
                     self._manage_cache_intelligently()
-                    time.sleep(60)  # هر 1 دقیقه
+                    logger.error("🟢 [DIAGNOSTIC] چک سلامت دوره‌ای تکمیل شد")
+                    time.sleep(60)
                 except Exception as e:
-                    self.logger.error(f"Error in monitoring loop: {e}")
+                    logger.error(f"🔴 [DIAGNOSTIC] خطا در حلقه مانیتورینگ: {e}")
+                    logger.error(f"🔴 [DIAGNOSTIC] Stack trace: {traceback.format_exc()}")
                     time.sleep(30)
         
         monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
@@ -207,16 +227,54 @@ class SystemHealthDebugManager:
     def _perform_health_checks(self):
         """انجام چک‌های سلامت دوره‌ای"""
         try:
+            # 🔍 لاگ‌های تشخیصی جدید
+            logger.error("🟢 [DIAGNOSTIC] _perform_health_checks شروع شد")
+            logger.error(f"🔵 [DIAGNOSTIC] زمان: {datetime.now().isoformat()}")
+        
             # چک منابع سیستم
+            logger.error("🔵 [DIAGNOSTIC] در حال چک منابع سیستم...")
             system_health = self._check_system_resources()
-            
+            logger.error(f"🟢 [DIAGNOSTIC] سیستم: {system_health.get('status', 'unknown')}")
+            logger.error(f"🔵 [DIAGNOSTIC] جزئیات سیستم: CPU={system_health.get('cpu_percent', 0)}%, Memory={system_health.get('memory_percent', 0)}%")
+
             # چک اتصالات خارجی
+            logger.error("🔵 [DIAGNOSTIC] در حال چک اتصالات API...")
             api_health = self._check_external_connections()
+            logger.error(f"🟢 [DIAGNOSTIC] API: {api_health.get('overall_status', 'unknown')}")
+            logger.error(f"🔵 [DIAGNOSTIC] اندپوینت‌های سالم: {api_health.get('healthy_endpoints', 0)}/{api_health.get('total_endpoints', 0)}")
+
+            # ❌ قسمت مشکل‌دار - اضافه کردن لاگ تشخیصی کامل
+            logger.error("🔴 [DIAGNOSTIC] در حال فراخوانی _check_ai_performance...")
+        
+            try:
+                # این تابع مشکل‌داره - لاگ کامل می‌ذاریم
+                logger.error("🔴 [DIAGNOSTIC] قبل از فراخوانی _check_ai_performance")
+                ai_health = self._check_ai_performance()
+                logger.error(f"🟢 [DIAGNOSTIC] AI: {ai_health.get('overall_status', 'unknown')}")
+                logger.error(f"🔵 [DIAGNOSTIC] وضعیت AI: {ai_health}")
             
-            # چک عملکرد AI
-            ai_health = self._check_ai_performance()
+            except NameError as e:
+                logger.error(f"🔴 [DIAGNOSTIC] خطای NameError در _check_ai_performance: {e}")
+                logger.error(f"🔴 [DIAGNOSTIC] احتمالاً مشکل از type hint یا import است")
+                ai_health = {
+                    "status": "name_error", 
+                    "error": str(e),
+                    "error_type": "NameError"
+                }
             
+            except Exception as e:
+                logger.error(f"🔴 [DIAGNOSTIC] خطای عمومی در _check_ai_performance: {e}")
+                logger.error(f"🔴 [DIAGNOSTIC] نوع خطا: {type(e).__name__}")
+                logger.error(f"🔴 [DIAGNOSTIC] Stack trace کامل:")
+                logger.error(traceback.format_exc())
+                ai_health = {
+                    "status": "error", 
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
+
             # ذخیره متریک‌ها
+            logger.error("🔵 [DIAGNOSTIC] در حال ذخیره متریک‌ها...")
             health_metric = {
                 'timestamp': datetime.now().isoformat(),
                 'system': system_health,
@@ -224,16 +282,31 @@ class SystemHealthDebugManager:
                 'ai': ai_health,
                 'overall_score': self._calculate_health_score(system_health, api_health, ai_health)
             }
-            
+        
             self.health_metrics.append(health_metric)
-            
+            logger.error(f"🟢 [DIAGNOSTIC] متریک سلامت ذخیره شد. تعداد: {len(self.health_metrics)}")
+
             # حفظ تاریخچه 24 ساعته
             if len(self.health_metrics) > 1440:  # 24 ساعت * 60 دقیقه
-                self.health_metrics.pop(0)
-                
-        except Exception as e:
-            self.logger.error(f"Error in health checks: {e}")
+                removed = self.health_metrics.pop(0)
+                logger.error(f"🔵 [DIAGNOSTIC] متریک قدیمی حذف شد: {removed['timestamp']}")
 
+            logger.error("🟢 [DIAGNOSTIC] _perform_health_checks با موفقیت تکمیل شد")
+        
+        except Exception as e:
+            logger.error(f"🔴 [DIAGNOSTIC] خطای کلی در _perform_health_checks: {e}")
+            logger.error(f"🔴 [DIAGNOSTIC] Stack trace کلی:")
+            logger.error(traceback.format_exc())
+        
+            # ذخیره وضعیت خطا
+            error_metric = {
+                'timestamp': datetime.now().isoformat(),
+                'system': {'status': 'error', 'error': str(e)},
+                'api': {'status': 'error', 'error': str(e)},
+                'ai': {'status': 'error', 'error': str(e)},
+                'overall_score': 0.0
+            }
+            self.health_metrics.append(error_metric)
     def _check_system_resources(self) -> Dict[str, Union[float, str, Dict[str, str]]]:
         """بررسی منابع سیستم"""
         try:
@@ -341,7 +414,41 @@ class SystemHealthDebugManager:
             "details": results
         }
 
+    # بعد از تابع _check_external_connections و قبل از _check_ai_performance:
 
+    def _get_type_hint_info(self, method_name: str) -> str:
+        """دریافت اطلاعات type hint یک متد"""
+        try:
+            method = getattr(self, method_name)
+            type_hint = method.__annotations__.get('return', 'NO_RETURN_HINT')
+            return f"Type hint: {type_hint}"
+        except Exception as e:
+            return f"Error getting type hint: {e}"
+
+    def _log_import_status(self):
+        """لاگ وضعیت import ماژول‌ها"""
+        modules_to_check = ['psutil', 'fastapi', 'typing']
+        for module in modules_to_check:
+            try:
+                __import__(module)
+                logger.error(f"🟢 [DIAGNOSTIC] ماژول {module} با موفقیت import شد")
+            except ImportError as e:
+                logger.error(f"🔴 [DIAGNOSTIC] خطا در import {module}: {e}")
+
+    def _log_versions(self):
+        """لاگ نسخه‌های ماژول‌ها"""
+        try:
+            import sys
+            logger.error(f"🔵 [DIAGNOSTIC] Python version: {sys.version}")
+        
+            import fastapi
+            logger.error(f"🔵 [DIAGNOSTIC] FastAPI version: {fastapi.__version__}")
+        
+            import psutil
+            logger.error(f"🔵 [DIAGNOSTIC] psutil version: {psutil.__version__}")
+        
+        except Exception as e:
+            logger.error(f"🔴 [DIAGNOSTIC] خطا در لاگ نسخه‌ها: {e}")
     #======================توابع تقسیم شده مانیتورینگ===============================
 
     def _check_ai_modules_availability(self) -> bool:
@@ -447,6 +554,11 @@ class SystemHealthDebugManager:
     def _check_ai_performance(self) -> Dict[str, Dict[str, Union[str, bool, int, float]]]:
         """بررسی عملکرد واقعی مدل‌های AI - نسخه ساده‌شده"""
         try:
+            
+        # 🔍 لاگ تشخیصی جدید
+            logger.error("🔴 [DIAGNOSTIC] وارد تابع _check_ai_performance شدیم")
+            logger.error(f"🔴 [DIAGNOSTIC] Type hint مشکل‌دار: {self._get_type_hint_info('_check_ai_performance')}")
+      
             # بررسی وجود ماژول‌های AI
             ai_modules_available = self._check_ai_modules_availability()
            
@@ -465,14 +577,14 @@ class SystemHealthDebugManager:
         
             # محاسبه وضعیت کلی
             overall_status = self._calculate_ai_overall_status(technical_engine, ai_service, accuracy)
-        
+      
             # هشدار در صورت کاهش دقت
             if accuracy["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
                 self.add_alert(
                     AlertType.ACCURACY, AlertLevel.MEDIUM,
-                    "کاهش دقت مدل AI",
-                    f"میانگین confidence: {accuracy['avg_confidence']}",
-                    "ai_performance", True
+                     "کاهش دقت مدل AI",
+                     f"میانگین confidence: {accuracy['avg_confidence']}",
+                     "ai_performance", True
                 )
         
             return {
