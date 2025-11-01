@@ -1,426 +1,405 @@
 /* static/css/health.css */
-
-:root {
-    --primary-color: #2c3e50;
-    --secondary-color: #34495e;
-    --success-color: #27ae60;
-    --warning-color: #f39c12;
-    --danger-color: #e74c3c;
-    --info-color: #3498db;
-    --light-color: #ecf0f1;
-    --dark-color: #2c3e50;
-}
-
-/* ریست استایل‌ها */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    font-family: 'Vazir', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+.health-container {
     min-height: 100vh;
-    line-height: 1.6;
-    color: #333;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    padding: 1rem;
 }
 
-/* کارت‌های سلامت */
-.health-card {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    margin-bottom: 25px;
-    overflow: hidden;
-    position: relative;
+/* هدر سلامت */
+.health-header {
+    margin-bottom: 2rem;
 }
 
-.health-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--success-color), var(--info-color));
-    transform: scaleX(0);
-    transition: transform 0.3s ease;
+.health-header .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2rem;
 }
 
-.health-card:hover::before {
-    transform: scaleX(1);
+.back-button {
+    flex-shrink: 0;
 }
 
-.health-card:hover {
-    transform: translateY(-10px) scale(1.02);
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+.health-score {
+    flex-shrink: 0;
 }
 
-/* نشانگر وضعیت */
-.status-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-left: 8px;
-    position: relative;
-    animation: pulse 2s infinite;
+.score-circle {
+    text-align: center;
+    padding: 1rem;
 }
 
-.status-indicator::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    border-radius: 50%;
-    animation: ripple 2s infinite;
-}
-
-.status-healthy {
-    background-color: var(--success-color);
-    box-shadow: 0 0 20px rgba(39, 174, 96, 0.4);
-}
-
-.status-healthy::after {
-    border: 2px solid var(--success-color);
-}
-
-.status-degraded {
-    background-color: var(--warning-color);
-    box-shadow: 0 0 20px rgba(243, 156, 18, 0.4);
-}
-
-.status-degraded::after {
-    border: 2px solid var(--warning-color);
-}
-
-.status-unhealthy {
-    background-color: var(--danger-color);
-    box-shadow: 0 0 20px rgba(231, 76, 60, 0.4);
-}
-
-.status-unhealthy::after {
-    border: 2px solid var(--danger-color);
-}
-
-/* انیمیشن‌ها */
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    50% {
-        transform: scale(1.1);
-        opacity: 0.8;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-@keyframes ripple {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    100% {
-        transform: scale(1.5);
-        opacity: 0;
-    }
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* مقادیر متریک */
-.metric-value {
+.score-value {
     font-size: 2.5rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+    font-weight: 700;
+    background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    line-height: 1;
-    margin: 10px 0;
+    margin-bottom: 0.5rem;
+}
+
+.score-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* متریک‌کارت‌ها */
+.health-metrics {
+    margin-bottom: 2rem;
+}
+
+.metric-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.metric-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.metric-info {
+    flex: 1;
+}
+
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
 }
 
 .metric-label {
+    color: var(--text-secondary);
     font-size: 0.9rem;
-    color: #7f8c8d;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
-/* وضعیت API */
-.api-status {
-    border-right: 4px solid;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.7);
-    transition: all 0.3s ease;
-    animation: fadeIn 0.6s ease-out;
-}
-
-.api-status:hover {
-    background: rgba(255, 255, 255, 0.9);
-    transform: translateX(-5px);
-}
-
-.api-healthy {
-    border-color: var(--success-color);
-    background: linear-gradient(135deg, rgba(39, 174, 96, 0.1), transparent);
-}
-
-.api-degraded {
-    border-color: var(--warning-color);
-    background: linear-gradient(135deg, rgba(243, 156, 18, 0.1), transparent);
-}
-
-.api-unhealthy {
-    border-color: var(--danger-color);
-    background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), transparent);
-}
-
-/* دکمه‌ها */
-.refresh-btn {
-    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
-    border: none;
-    border-radius: 25px;
-    padding: 12px 30px;
-    color: white;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
-    position: relative;
-    overflow: hidden;
-}
-
-.refresh-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s;
-}
-
-.refresh-btn:hover::before {
-    left: 100%;
-}
-
-.refresh-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(52, 152, 219, 0.6);
-}
-
-.refresh-btn:active {
-    transform: translateY(0);
-}
-
-/* پیشرفت‌بارها */
-.progress {
-    height: 12px;
-    border-radius: 10px;
-    background: rgba(236, 240, 241, 0.5);
-    overflow: hidden;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+.metric-progress {
+    width: 80px;
+    flex-shrink: 0;
 }
 
 .progress-bar {
-    border-radius: 10px;
-    transition: width 1s ease-in-out;
-    position: relative;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
     overflow: hidden;
 }
 
-.progress-bar::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
+.progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-    animation: shimmer 2s infinite;
+    background: var(--gradient-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
 }
 
-@keyframes shimmer {
-    0% {
-        left: -100%;
-    }
-    100% {
-        left: 100%;
-    }
+/* وضعیت سرویس‌ها */
+.services-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
-/* بج‌ها */
-.badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 6px 12px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* نمودار */
-.chart-container {
-    position: relative;
-    height: 300px;
-    width: 100%;
-}
-
-/* لاگ‌ها */
-.log-entry {
-    border-bottom: 1px solid rgba(236, 240, 241, 0.8);
-    padding: 12px 0;
-    transition: all 0.3s ease;
-}
-
-.log-entry:hover {
-    background: rgba(52, 152, 219, 0.05);
+.service-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
-    padding: 12px 15px;
-    margin: 0 -15px;
+    border-left: 4px solid var(--accent-success);
 }
 
-.log-entry:last-child {
-    border-bottom: none;
+.service-item.critical {
+    border-left-color: var(--accent-danger);
 }
 
-/* آیکون‌ها */
-.fa-heartbeat {
-    animation: heartbeat 1.5s ease-in-out infinite;
+.service-item.warning {
+    border-left-color: var(--accent-warning);
 }
 
-@keyframes heartbeat {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
+.service-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-/* وضعیت شبکه */
-.network-stats {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), transparent);
-    border-radius: 15px;
-    padding: 20px;
-    margin-top: 10px;
+.service-icon {
+    font-size: 1.2rem;
 }
 
-/* هشدارها */
-.alert-badge {
-    animation: bounce 2s infinite;
+.service-details h4 {
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
 }
 
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {
-        transform: translateY(0);
-    }
-    40% {
-        transform: translateY(-10px);
-    }
-    60% {
-        transform: translateY(-5px);
-    }
+.service-desc {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.service-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-badge.healthy {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-success);
+}
+
+.status-badge.critical {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+
+.status-badge.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--accent-warning);
+}
+
+/* فیلترها */
+.status-filter {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--bg-tertiary);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.8rem;
+}
+
+.filter-btn.active {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
+/* هشدارهای سلامت */
+.alerts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid;
+}
+
+.alert-item.critical {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.alert-item.warning {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.alert-item.info {
+    background: rgba(19, 188, 255, 0.1);
+    border-color: rgba(19, 188, 255, 0.3);
+}
+
+.alert-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: 0.25rem;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.alert-desc {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.alert-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.alert-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* نمودارهای سلامت */
+.charts-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.chart-item {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.chart-title {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.chart {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+/* لاگ‌های سیستم */
+.logs-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.logs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+}
+
+.log-level {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.log-level.error {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+
+.log-level.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--accent-warning);
+}
+
+.log-level.info {
+    background: rgba(19, 188, 255, 0.2);
+    color: var(--accent-primary);
+}
+
+.log-time {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+.log-message {
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.log-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* شمارنده هشدارها */
+.alerts-count {
+    background: var(--accent-danger);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 
 /* رسپانسیو */
 @media (max-width: 768px) {
-    .health-card {
-        margin-bottom: 15px;
+    .health-header .header-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
     }
     
-    .metric-value {
-        font-size: 2rem;
+    .health-metrics.grid-4 {
+        grid-template-columns: repeat(2, 1fr);
     }
     
-    .health-card:hover {
-        transform: translateY(-5px);
+    .charts-container {
+        grid-template-columns: 1fr;
     }
     
-    .api-status {
-        padding: 10px;
-    }
-}
-
-@media (max-width: 576px) {
-    .container-fluid {
-        padding: 10px;
+    .metric-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.75rem;
     }
     
-    .health-card {
-        border-radius: 15px;
+    .metric-progress {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .health-metrics.grid-4 {
+        grid-template-columns: 1fr;
     }
     
-    .metric-value {
-        font-size: 1.8rem;
+    .health-grid.grid-2 {
+        grid-template-columns: 1fr;
     }
-}
-
-/* اسکرول بار سفارشی */
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
-}
-
-/* انیمیشن لودینگ */
-.loading-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: #fff;
-    animation: spin 1s ease-in-out infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
+    
+    .service-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
     }
-}
-
-/* تایپوگرافی */
-h1, h2, h3, h4, h5, h6 {
-    font-weight: 700;
-    color: var(--primary-color);
-}
-
-.text-gradient {
-    background: linear-gradient(135deg, var(--info-color), var(--primary-color));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    
+    .service-status {
+        align-self: flex-end;
+    }
 }
