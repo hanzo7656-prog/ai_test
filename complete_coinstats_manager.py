@@ -18,7 +18,8 @@ class CompleteCoinStatsManager:
         self.api_key = api_key or "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
 
         self.session = requests.Session()
-        self.session.headers.update({"X-API-KEY": self.api_key})
+        self.headers = {"X-API-KEY": self.api_key}
+        self.session.headers.update(self.headers)
         
         # تنظیمات کش
         self.cache_dir = "./coinstats_cache"
