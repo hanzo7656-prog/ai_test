@@ -347,7 +347,7 @@ class SystemHealthDebugManager:
             return {'status': 'error', 'error': str(e)}
 
     def _check_external_connections(self) -> Dict[str, Any]:
-        """بررسی اتصالات خارجی به تمام 19 اندپوینت CoinStats"""
+        """بررسی اتصالات خارجی به تمام 19 اندپوینت CoinStats - نسخه اصلاح شده"""
         endpoints_to_check = [
             # اندپوینت‌های اصلی کوین‌ها
             {"name": "coins_list", "method": "get_coins_list", "params": {"limit": 2}},
@@ -356,59 +356,75 @@ class SystemHealthDebugManager:
             {"name": "coins_charts", "method": "get_coins_charts", "params": {"coin_ids": "bitcoin,ethereum", "period": "1w"}},
             {"name": "coin_price_avg", "method": "get_coin_price_avg", "params": {"coin_id": "bitcoin", "timestamp": "2024-01-01"}},
             {"name": "exchange_price", "method": "get_exchange_price", "params": {"exchange": "binance", "from_coin": "BTC", "to_coin": "USDT", "timestamp": "2024-01-01"}},
-        
+    
             # اندپوینت‌های مارکت
             {"name": "tickers_exchanges", "method": "get_tickers_exchanges"},
             {"name": "tickers_markets", "method": "get_tickers_markets"},
             {"name": "markets", "method": "get_markets"},
             {"name": "fiats", "method": "get_fiats"},
             {"name": "currencies", "method": "get_currencies"},
-        
+    
             # اندپوینت‌های اخبار
             {"name": "news_sources", "method": "get_news_sources"},
             {"name": "news_general", "method": "get_news", "params": {"limit": 1}},
             {"name": "news_handpicked", "method": "get_news_by_type", "params": {"news_type": "handpicked", "limit": 1}},
             {"name": "news_detail", "method": "get_news_detail", "params": {"news_id": "sample"}},
-        
+    
             # اندپوینت‌های پیش‌بازار
             {"name": "btc_dominance", "method": "get_btc_dominance"},
             {"name": "fear_greed", "method": "get_fear_greed"},
             {"name": "fear_greed_chart", "method": "get_fear_greed_chart"},
             {"name": "rainbow_chart", "method": "get_rainbow_chart", "params": {"coin_id": "bitcoin"}},
         ]
-    
+
         results = {}
         for endpoint in endpoints_to_check:
             try:
                 start_time = time.time()
-            
+        
                 # فراخوانی واقعی اندپوینت
                 from complete_coinstats_manager import coin_stats_manager
                 method = getattr(coin_stats_manager, endpoint["method"])
                 params = endpoint.get("params", {})
                 result = method(**params)
-            
+        
                 response_time = round((time.time() - start_time) * 1000, 2)
-            
-                # بررسی سلامت پاسخ
-                is_healthy = bool(result) and not result.get('error')
-            
+        
+                # 🔧 اصلاح: بررسی سلامت پاسخ برای داده‌های لیستی و دیکشنری
+                if isinstance(result, list):
+                    # اگر داده لیست است، بررسی کنیم که خالی نباشد
+                    is_healthy = len(result) > 0
+                    data_type = "list"
+                    item_count = len(result)
+                elif isinstance(result, dict):
+                    # اگر داده دیکشنری است، بررسی خطا
+                    is_healthy = bool(result) and not result.get('error')
+                    data_type = "dict"
+                    item_count = len(result) if result else 0
+                else:
+                    # سایر انواع داده
+                    is_healthy = bool(result)
+                    data_type = type(result).__name__
+                    item_count = 1 if result else 0
+        
                 results[endpoint["name"]] = {
                     "status": "healthy" if is_healthy else "unhealthy",
                     "response_time_ms": response_time,
                     "data_received": bool(result),
+                    "data_type": data_type,
+                    "item_count": item_count,
                     "last_checked": datetime.now().isoformat()
                 }
-              
+          
                 # هشدار در صورت مشکل
                 if not is_healthy:
                     self.add_alert(
                         AlertType.CONNECTION, AlertLevel.MEDIUM,
                         f"مشکل در اتصال به {endpoint['name']}",
-                        f"پاسخ نامعتبر از اندپوینت {endpoint['name']}",
+                        f"پاسخ نامعتبر از اندپوینت {endpoint['name']} (نوع: {data_type})",
                         "external_connections", True
                     )
-                
+            
             except Exception as e:
                 results[endpoint["name"]] = {
                     "status": "error",
@@ -416,27 +432,26 @@ class SystemHealthDebugManager:
                     "error": str(e),
                     "last_checked": datetime.now().isoformat()
                 }
-            
+        
                 self.add_alert(
                     AlertType.CONNECTION, AlertLevel.HIGH,
                     f"خطا در اتصال به {endpoint['name']}",
                     f"خطا: {str(e)}",
                     "external_connections", True
                 )
-    
+
         # محاسبه وضعیت کلی
         healthy_count = len([r for r in results.values() if r["status"] == "healthy"])
         total_count = len(results)
         overall_status = "healthy" if healthy_count / total_count > 0.8 else "degraded"
-    
+
         return {
             "overall_status": overall_status,
             "healthy_endpoints": healthy_count,
             "total_endpoints": total_count,
             "details": results
         }
-
-    # بعد از تابع _check_external_connections و قبل از _check_ai_performance:
+        # بعد از تابع _check_external_connections و قبل از _check_ai_performance:
 
     def _get_type_hint_info(self, method_name: str) -> str:
         """دریافت اطلاعات type hint یک متد"""
@@ -482,30 +497,41 @@ class SystemHealthDebugManager:
         except ImportError:
             return False
 
-    def _check_technical_engine(self) -> Dict[str, Union[str, bool, int]]:
-        """بررسی وضعیت موتور تکنیکال"""
+    def _check_technical_engine(self) -> Dict[str, Any]:
+        """بررسی وضعیت موتور تکنیکال - نسخه اصلاح شده"""
         try:
-            from trading_ai.advanced_technical_engine import AdvancedTechnicalEngine
-          
+            from trading_ai.advanced_technical_engine import technical_engine
+      
             return {
                 "status": "initialized",
                 "config_loaded": hasattr(technical_engine, 'config'),
                 "sequence_length": technical_engine.config.sequence_length if hasattr(technical_engine, 'config') else 0,
                 "last_activity": datetime.now().isoformat()
             }
-        except ImportError:
+        except ImportError as e:
+            logger.error(f"🔴 خطای import در موتور تکنیکال: {e}")
             return {
                 "status": "not_available",
                 "config_loaded": False,
                 "sequence_length": 0,
-                "last_activity": datetime.now().isoformat()
+                "last_activity": datetime.now().isoformat(),
+                "error": str(e)
+            }
+        except Exception as e:
+            logger.error(f"🔴 خطای عمومی در موتور تکنیکال: {e}")
+            return {
+                "status": "error",
+                "config_loaded": False,
+                "sequence_length": 0,
+                "last_activity": datetime.now().isoformat(),
+                "error": str(e)
             }
 
-    def _check_ai_service(self) -> Dict[str, Union[str, bool, int]]:
-        """بررسی وضعیت سرویس AI"""
+    def _check_ai_service(self) -> Dict[str, Any]:
+        """بررسی وضعیت سرویس AI - نسخه اصلاح شده"""
         try:
-            from ai_analysis_routes import AIAnalysisService
-        
+            from ai_analysis_routes import ai_service
+    
             # بررسی اتصال WebSocket
             ws_connected = False
             if hasattr(ai_service, 'ws_manager'):
@@ -514,19 +540,30 @@ class SystemHealthDebugManager:
                         ws_connected = ai_service.ws_manager.is_connected()
                     except:
                         ws_connected = False
-          
+  
             return {
                 "status": "initialized",
                 "signal_predictor_ready": hasattr(ai_service, 'signal_predictor'),
                 "ws_manager_connected": ws_connected,
                 "raw_data_cache_size": len(getattr(ai_service, 'raw_data_cache', {}))
             }
-        except ImportError:
+        except ImportError as e:
+            logger.error(f"🔴 خطای import در سرویس AI: {e}")
             return {
                 "status": "not_available",
                 "signal_predictor_ready": False,
                 "ws_manager_connected": False,
-                "raw_data_cache_size": 0
+                "raw_data_cache_size": 0,
+                "error": str(e)
+            }
+        except Exception as e:
+            logger.error(f"🔴 خطای عمومی در سرویس AI: {e}")
+            return {
+                "status": "error",
+                "signal_predictor_ready": False,
+                "ws_manager_connected": False,
+                "raw_data_cache_size": 0,
+                "error": str(e)
             }
 
     def _analyze_ai_accuracy(self) -> Dict[str, Union[int, float, str]]:
@@ -558,29 +595,30 @@ class SystemHealthDebugManager:
         return accuracy_metrics
 
     def _calculate_ai_overall_status(self, technical_engine: Dict, ai_service: Dict, accuracy: Dict) -> str:
-        """محاسبه وضعیت کلی AI"""
+        """محاسبه وضعیت کلی AI - نسخه اصلاح شده"""
         # اگر ماژول‌ها در دسترس نیستند
-        if AdvancedTechnicalEngine.get("status") == "not_available" or ai_service.get("status") == "not_available":
+        if technical_engine.get("status") == "not_available" or ai_service.get("status") == "not_available":
             return "unhealthy"
     
-        # اگر دقت پایین است
-        if accuracy["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
+        # 🔧 اصلاح: استفاده از پارامترهای ورودی به جای متغیرهای گلوبال
+        if accuracy.get("avg_confidence", 0) < self.performance_thresholds['ai_accuracy']:
             return "degraded"
     
         # اگر سرویس‌ها آماده نیستند
-        if not AIAnalysisService.get("signal_predictor_ready", False):
+        if not ai_service.get("signal_predictor_ready", False):
             return "degraded"
     
         return "healthy"
 
-    def _check_ai_performance(self) -> Dict[str, Dict[str, Union[str, bool, int, float]]]:
-        """بررسی عملکرد واقعی مدل‌های AI"""
+
+    def _check_ai_performance(self) -> Dict[str, Any]:
+        """بررسی عملکرد واقعی مدل‌های AI - نسخه اصلاح شده"""
         try:
             logger.error("🔴 [AI-DIAGNOSTIC] شروع بررسی AI...")
-        
-        # تست اول: بررسی وجود ماژول‌ها
+    
+            # تست اول: بررسی وجود ماژول‌ها
             logger.error("🔴 [AI-DIAGNOSTIC] در حال بررسی import ماژول‌ها...")
-        
+    
             try:
                 logger.error("🔴 [AI-DIAGNOSTIC] تست import ai_analysis_routes...")
                 import ai_analysis_routes
@@ -588,27 +626,24 @@ class SystemHealthDebugManager:
             except ImportError as e:
                 logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import ai_analysis_routes: {e}")
                 logger.error(f"🔴 [AI-DIAGNOSTIC] مسیر فایل: {__file__}")
-         
+     
             try:
                 logger.error("🔴 [AI-DIAGNOSTIC] تست import trading_ai...")
                 import trading_ai
                 logger.error("🟢 [AI-DIAGNOSTIC] trading_ai با موفقیت import شد")
             except ImportError as e:
                 logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import trading_ai: {e}")
-        
+      
             try:
                 logger.error("🔴 [AI-DIAGNOSTIC] تست import trading_ai.advanced_technical_engine...")
                 from trading_ai import advanced_technical_engine
                 logger.error("🟢 [AI-DIAGNOSTIC] advanced_technical_engine با موفقیت import شد")
             except ImportError as e:
-                logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import advanced_technical_engine: {e}")       
-            # 🔍 لاگ تشخیصی جدید
-            logger.error("🔴 [DIAGNOSTIC] وارد تابع _check_ai_performance شدیم")
-            logger.error(f"🔴 [DIAGNOSTIC] Type hint مشکل‌دار: {self._get_type_hint_info('_check_ai_performance')}")
-      
-            # بررسی وجود ماژول‌های AI
+                logger.error(f"🔴 [AI-DIAGNOSTIC] خطای import advanced_technical_engine: {e}")
+    
+            # 🔧 اصلاح: بررسی وجود ماژول‌های AI
             ai_modules_available = self._check_ai_modules_availability()
-           
+       
             if not ai_modules_available:
                 return {
                     "technical_engine": {"status": "not_available"},
@@ -616,40 +651,39 @@ class SystemHealthDebugManager:
                     "accuracy": {"total_predictions_last_hour": 0, "avg_confidence": 0.0},
                     "overall_status": "unhealthy"
                 }
-        
-            # اجرای بررسی‌های جزئی
-            AdvancedTechnicalEngine = self._check_AdvancedTechnicalEngine()
-            AIAnalysisService = self._check_AIAnalysisService()
-            accuracy = self._analyze_ai_accuracy()
-        
-            # محاسبه وضعیت کلی
-            overall_status = self._calculate_ai_overall_status(technical_engine, ai_service, accuracy)
-      
+    
+            # 🔧 اصلاح: اجرای بررسی‌های جزئی با نام‌های صحیح
+            technical_engine_status = self._check_technical_engine()
+            ai_service_status = self._check_ai_service()
+            accuracy_metrics = self._analyze_ai_accuracy()
+    
+            # 🔧 اصلاح: محاسبه وضعیت کلی با پارامترهای صحیح
+            overall_status = self._calculate_ai_overall_status(technical_engine_status, ai_service_status, accuracy_metrics)
+  
             # هشدار در صورت کاهش دقت
-            if accuracy["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
+            if accuracy_metrics["avg_confidence"] < self.performance_thresholds['ai_accuracy']:
                 self.add_alert(
                     AlertType.ACCURACY, AlertLevel.MEDIUM,
-                     "کاهش دقت مدل AI",
-                     f"میانگین confidence: {accuracy['avg_confidence']}",
-                     "ai_performance", True
+                    "کاهش دقت مدل AI",
+                    f"میانگین confidence: {accuracy_metrics['avg_confidence']}",
+                    "ai_performance", True
                 )
-        
+     
             return {
-                "AdvancedTechnicalEngine": AdvancedTechnicalEngine,
-                "AIAnalysisService": AIAnalysisService,
-                "accuracy": accuracy,
+                "technical_engine": technical_engine_status,
+                "ai_service": ai_service_status,
+                "accuracy": accuracy_metrics,
                 "overall_status": overall_status
             }
-        
+    
         except Exception as e:
-            self.logger.error(f"Error checking AI performance: {e}")
+            logger.error(f"Error checking AI performance: {e}")
             return {
-                "technical_engine": {"status": "error"},
-                "ai_service": {"status": "error"},
+                "technical_engine": {"status": "error", "error": str(e)},
+                "ai_service": {"status": "error", "error": str(e)},
                 "accuracy": {"total_predictions_last_hour": 0, "avg_confidence": 0.0},
                 "overall_status": "unhealthy"
-            }
-            
+            }        
     def _calculate_health_score(self, system: Dict, api: Dict, ai: Dict) -> float:
         """محاسبه نمره سلامت کلی"""
         scores = []
