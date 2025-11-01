@@ -481,7 +481,7 @@ class CompleteCoinStatsManager:
             logger.warning(f"⚠️ فرمت تاریخ نامعتبر: '{date_str}' - استفاده از زمان فعلی")
             return str(int(datetime.now().timestamp()))
         
-         except Exception as e:
+        except Exception as e:
             logger.error(f"❌ خطای غیرمنتظره در تبدیل تاریخ '{date_str}': {e}")
             return str(int(datetime.now().timestamp()))
         
