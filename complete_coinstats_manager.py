@@ -88,9 +88,9 @@ class CompleteCoinStatsManager:
             logger.info(f"🔍 API Raw Data Request: {endpoint}")
         
             # تنظیم timeout منطقی
-            timeout = 15  # افزایش timeout عمومی
+            timeout = 10  # افزایش timeout عمومی
             if "news" in endpoint:
-                timeout = 12  # افزایش timeout برای اخبار
+                timeout = 15  # افزایش timeout برای اخبار
             elif "charts" in endpoint:
                 timeout = 20  # افزایش timeout برای چارت‌ها
         
@@ -237,20 +237,20 @@ class CompleteCoinStatsManager:
         logger.info(f"🔍 درخواست قیمت متوسط برای {coin_id} در تایم‌استمپ {timestamp_fixed}")
         return self._make_api_request("coins/price/avg", params)
 
-    def get_exchange_price(self, exchange: str = "binance", from_coin: str = "BTC", 
-                          to_coin: str = "USDT", timestamp: str = "2024-01-01") -> Dict:
-        """دریافت قیمت مبادله - با timestamp اصلاح شده"""
-        timestamp_fixed = self._date_to_timestamp(timestamp)
-        params = {
-            "exchange": exchange,
-            "from": from_coin,
-            "to": to_coin,
-            "timestamp": timestamp_fixed  # ✅ حالا عددی است
-        }
+    def get_exchange_price(self, exchange: str = "Binance", from_coin: str = "BTC", 
+                          to_coin: str = "ETH", timestamp: str = "1636315200") -> Dict:
+        """دریافت قیمت exchange - نسخه اصلاح شده"""
     
-        logger.info(f"🔍 درخواست قیمت exchange {exchange} برای {from_coin}/{to_coin} در تایم‌استمپ {timestamp_fixed}")
+        # 🔥 استفاده از مقادیر دقیق تست شده
+        params = {
+            "exchange": exchange,    # "Binance" با B بزرگ
+            "from": from_coin,       # "BTC"  
+            "to": to_coin,          # "ETH" - نه USDT
+            "timestamp": str(timestamp)  # رشته باشد
+        }
+      
+        logger.info(f"🔍 Exchange price request: {params}")
         return self._make_api_request("coins/price/exchange", params)
-
     # ============================= اندپوینت‌های جدید ============================
 
     def get_tickers_exchanges(self) -> Dict:
@@ -284,50 +284,16 @@ class CompleteCoinStatsManager:
         params = {"limit": limit}
         return self._make_api_request("news", params)
 
-    def get_news_by_type(self, news_type: str = "handpicked", limit: int = 10) -> Dict:
-        """دریافت اخبار بر اساس نوع - نسخه اصلاح شده"""
+    def get_news_by_type(self, news_type: str = "trending", limit: int = 10) -> Dict:
+        """دریافت اخبار - نسخه اصلاح شده"""
         valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
         if news_type not in valid_types:
-            news_type = "latest"
-            logger.warning(f"⚠️ نوع خبر نامعتبر، استفاده از {news_type}")
+            news_type = "trending"  # 🔥 پیش‌فرض trending که تست شده
     
-        params = {"limit": limit}
+        params = {"limit": limit} if limit else {}
     
-        try:
-            # افزایش timeout برای اخبار
-            result = self._make_api_request(f"news/type/{news_type}", params)
-        
-            # بررسی ساختار داده بازگشتی
-            if result and isinstance(result, dict) and result.get('data'):
-                return result
-            else:
-                # داده نمونه با ساختار صحیح
-                logger.info(f"📝 استفاده از داده نمونه برای اخبار {news_type}")
-                return {
-                    "data": [
-                        {
-                            "id": f"sample_{news_type}_1",
-                            "title": f"Sample {news_type} News Title",
-                            "content": f"This is sample content for {news_type} news type.",
-                            "source": "system_fallback",
-                            "publishedAt": datetime.now().isoformat(),
-                            "url": "https://example.com/sample-news"
-                        }
-                    ],
-                    "count": 1,
-                    "total": 1,
-                    "page": 1
-                }
-            
-        except Exception as e:
-            logger.error(f"❌ خطا در دریافت اخبار {news_type}: {e}")
-            return {
-                "data": [],
-                "count": 0,
-                "total": 0,
-                "page": 1,
-                "error": f"Failed to fetch {news_type} news: {str(e)}"
-            }
+        logger.info(f"📡 Fetching {news_type} news...")
+        return self._make_api_request(f"news/type/{news_type}", params)
 
     def get_news_detail(self, news_id: str = "sample") -> Dict:
         """دریافت جزئیات خبر - با fallback هوشمند"""
