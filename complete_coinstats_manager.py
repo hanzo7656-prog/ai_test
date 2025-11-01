@@ -239,24 +239,20 @@ class CompleteCoinStatsManager:
 
     def get_exchange_price(self, exchange: str = "Binance", from_coin: str = "BTC", 
                           to_coin: str = "ETH", timestamp: str = "1636315200") -> Dict:
-        """دریافت قیمت exchange - نسخه اصلاح شده"""
+        """دریافت قیمت exchange با پارامترهای صحیح"""
     
-        params = {
-            "exchange": exchange,
-            "from": from_coin,  
-            "to": to_coin,
-            "timestamp": str(timestamp)
-        }
+        # تبدیل تاریخ به تایم‌استمپ عددی
+        timestamp_fixed = self._date_to_timestamp(timestamp)
       
+        params = {
+            "exchange": "Binance",      # ✅ با B بزرگ
+            "from": "BTC",              # ✅
+            "to": "ETH",                # ✅ ETH نه USDT
+            "timestamp": timestamp_fixed  # ✅ تایم‌استمپ عددی
+        }
+    
         logger.info(f"🔍 Exchange price request: {params}")
-
-        try:
-            result = self._make_api_request("coins/price/exchange", params, use_cache=False)
-            logger.info(f"✅ Exchange price successful: {result}")
-            return result
-        except Exception as e:
-            logger.error(f"❌ Exchange price failed: {e}")
-            raise  # ✅ فقط خطا رو پرتاب کن
+        return self._make_api_request("coins/price/exchange", params)
     # ============================= اندپوینت‌های جدید ============================
 
     def get_tickers_exchanges(self) -> Dict:
@@ -291,14 +287,19 @@ class CompleteCoinStatsManager:
         return self._make_api_request("news", params)
 
     def get_news_by_type(self, news_type: str = "trending", limit: int = 10) -> Dict:
-        """دریافت اخبار - نسخه اصلاح شده"""
-        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        """دریافت اخبار - بدون handpicked"""
+    
+        valid_types = ["trending", "latest", "bullish", "bearish"]
+    
+        # اگر handpicked وارد شد، به trending تغییرش بده
+        if news_type == "handpicked":
+            logger.warning("🗑️ handpicked حذف شده، استفاده از trending")
+            news_type = "trending"
+      
         if news_type not in valid_types:
-            news_type = "trending"  # 🔥 پیش‌فرض trending که تست شده
+            news_type = "trending"
     
-        params = {"limit": limit} if limit else {}
-    
-        logger.info(f"📡 Fetching {news_type} news...")
+        params = {"limit": limit}
         return self._make_api_request(f"news/type/{news_type}", params)
 
     def get_news_detail(self, news_id: str = "sample") -> Dict:
@@ -366,7 +367,7 @@ class CompleteCoinStatsManager:
         return {}
 
     def _date_to_timestamp(self, date_str: str) -> str:
-        """تبدیل تاریخ به تایم‌استمپ رشته‌ای - نسخه کامل"""
+        """تبدیل تاریخ به تایم‌استمپ عددی - نسخه نهایی"""
         try:
             # اگر None یا خالی است
             if not date_str:
@@ -379,51 +380,33 @@ class CompleteCoinStatsManager:
                 logger.info(f"✅ timestamp عددی دریافت شد: {timestamp}")
                 return str(timestamp)
         
-            # اگر رشته عددی است
+            # اگر رشته است
             if isinstance(date_str, str):
                 date_str = date_str.strip()
             
-                # بررسی اینکه آیا رشته عددی است
+                # بررسی اینکه آیا رشته عددی است (تایم‌استمپ)
                 if date_str.isdigit():
-                    # اگر عدد ۱۰ رقمی یا کمتر است (تا سال ۲۲۸۶)
-                    if len(date_str) <= 10:
-                        timestamp = int(date_str)
-                        logger.info(f"✅ timestamp رشته‌ای دریافت شد: {timestamp}")
-                        return str(timestamp)
+                    timestamp = int(date_str)
+                    # اگر عدد ۱۳ رقمی یا بیشتر است (میلی‌ثانیه)
+                    if len(date_str) >= 13:
+                        timestamp = timestamp // 1000  # تبدیل به ثانیه
+                        logger.info(f"✅ میلی‌ثانیه به ثانیه تبدیل شد: {date_str} -> {timestamp}")
                     else:
-                        # ممکن است میلی‌ثانیه باشد
-                        timestamp_ms = int(date_str)
-                        timestamp_sec = timestamp_ms // 1000
-                        logger.info(f"✅ timestamp میلی‌ثانیه تبدیل شد: {timestamp_ms} -> {timestamp_sec}")
-                        return str(timestamp_sec)
+                        logger.info(f"✅ timestamp رشته‌ای دریافت شد: {timestamp}")
+                    return str(timestamp)
             
-                # بررسی فرمت‌های تاریخ مختلف
+                # 🔥 اگر رشته تاریخ است، به تایم‌استمپ تبدیل کن
                 date_formats = [
                     "%Y-%m-%d",                    # 2024-01-01
                     "%Y-%m-%d %H:%M:%S",           # 2024-01-01 12:00:00
                     "%Y-%m-%dT%H:%M:%S",           # 2024-01-01T12:00:00
                     "%Y-%m-%dT%H:%M:%S.%fZ",       # 2024-01-01T12:00:00.000Z
-                    "%Y-%m-%dT%H:%M:%S.%f",        # 2024-01-01T12:00:00.000
                     "%d/%m/%Y",                    # 01/01/2024
                     "%d/%m/%Y %H:%M:%S",           # 01/01/2024 12:00:00
                     "%m/%d/%Y",                    # 01/01/2024
                     "%m/%d/%Y %H:%M:%S",           # 01/01/2024 12:00:00
                     "%d-%m-%Y",                    # 01-01-2024
                     "%d-%m-%Y %H:%M:%S",           # 01-01-2024 12:00:00
-                    "%m-%d-%Y",                    # 01-01-2024
-                    "%m-%d-%Y %H:%M:%S",           # 01-01-2024 12:00:00
-                    "%d.%m.%Y",                    # 01.01.2024
-                    "%d.%m.%Y %H:%M:%S",           # 01.01.2024 12:00:00
-                    "%Y.%m.%d",                    # 2024.01.01
-                    "%Y.%m.%d %H:%M:%S",           # 2024.01.01 12:00:00
-                    "%b %d, %Y",                   # Jan 01, 2024
-                    "%B %d, %Y",                   # January 01, 2024
-                    "%b %d, %Y %H:%M:%S",          # Jan 01, 2024 12:00:00
-                    "%B %d, %Y %H:%M:%S",          # January 01, 2024 12:00:00
-                    "%d %b %Y",                    # 01 Jan 2024
-                    "%d %B %Y",                    # 01 January 2024
-                    "%d %b %Y %H:%M:%S",           # 01 Jan 2024 12:00:00
-                    "%d %B %Y %H:%M:%S",           # 01 January 2024 12:00:00
                 ]
             
                 for date_format in date_formats:
@@ -431,48 +414,15 @@ class CompleteCoinStatsManager:
                         dt = datetime.strptime(date_str, date_format)
                         timestamp = int(dt.timestamp())
                         logger.info(f"✅ تاریخ '{date_str}' با فرمت '{date_format}' به تایم‌استمپ {timestamp} تبدیل شد")
-                        return str(timestamp)
+                        return str(timestamp)  # 🔥 عدد برمی‌گرداند
                     except ValueError:
                         continue
             
-                # بررسی فرمت‌های نسبی
+                # بررسی تاریخ‌های نسبی
                 if date_str.lower() in ['now', 'current', 'today']:
                     timestamp = int(datetime.now().timestamp())
                     logger.info(f"✅ تاریخ نسبی '{date_str}' به تایم‌استمپ {timestamp} تبدیل شد")
                     return str(timestamp)
-                
-                elif date_str.lower().startswith('today'):
-                    # امروز با offset: today-1d, today+2h
-                    try:
-                        base_time = datetime.now()
-                        offset_str = date_str[5:]  # بعد از 'today'
-                    
-                        if offset_str.startswith('+') or offset_str.startswith('-'):
-                            # پارس کردن offset
-                            import re
-                            match = re.match(r'([+-])(\d+)([smhdw])', offset_str)
-                            if match:
-                                sign, num, unit = match.groups()
-                                num = int(num)
-                                if sign == '-':
-                                    num = -num
-                            
-                                if unit == 's':  # ثانیه
-                                    base_time += timedelta(seconds=num)
-                                elif unit == 'm':  # دقیقه
-                                    base_time += timedelta(minutes=num)
-                                elif unit == 'h':  # ساعت
-                                    base_time += timedelta(hours=num)
-                                elif unit == 'd':  # روز
-                                    base_time += timedelta(days=num)
-                                elif unit == 'w':  # هفته
-                                    base_time += timedelta(weeks=num)
-                            
-                                timestamp = int(base_time.timestamp())
-                                logger.info(f"✅ تاریخ نسبی '{date_str}' به تایم‌استمپ {timestamp} تبدیل شد")
-                                return str(timestamp)
-                    except Exception as e:
-                        logger.warning(f"⚠️ خطا در پردازش تاریخ نسبی '{date_str}': {e}")
         
             # اگر هیچکدام کار نکرد
             logger.warning(f"⚠️ فرمت تاریخ نامعتبر: '{date_str}' - استفاده از زمان فعلی")
@@ -481,29 +431,6 @@ class CompleteCoinStatsManager:
         except Exception as e:
             logger.error(f"❌ خطای غیرمنتظره در تبدیل تاریخ '{date_str}': {e}")
             return str(int(datetime.now().timestamp()))
-        
-    def test_timestamp_conversion(self):
-        """تست تبدیل تایم‌استمپ"""
-        test_cases = [
-            "2024-01-01",
-            "2024-01-01 12:00:00",
-            "01/01/2024",
-            "1704067200",  # timestamp عددی رشته‌ای
-            1704067200,    # timestamp عددی
-            "1704067200000",  # میلی‌ثانیه
-            "today",
-            "today-1d",
-            "today+2h",
-            "now",
-            "invalid-date"
-        ]
-    
-        for test_case in test_cases:
-            try:
-                result = self._date_to_timestamp(test_case)
-                logger.info(f"🧪 تست '{test_case}' -> '{result}'")
-            except Exception as e:
-                logger.error(f"❌ تست '{test_case}' خطا: {e}")
 
     def _load_raw_data(self) -> Dict[str, Any]:
         """بارگذاری داده‌های خام از کش - سازگاری با AI"""
