@@ -1,99 +1,0 @@
-{% extends "base.html" %}
-
-{% block title %}بازار - AI Trading Assistant{% endblock %}
-
-{% block content %}
-<div class="mb-8">
-    <h2 class="text-3xl font-bold text-gray-800 mb-2">📊 بازار ارزهای دیجیتال</h2>
-    <p class="text-gray-600">داده‌های زنده و تحلیل بازار</p>
-</div>
-
-<!-- فیلترها و جستجو -->
-<div class="bg-white rounded-lg shadow-md p-6 mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">جستجو</label>
-            <input type="text" id="search-coins" placeholder="جستجوی نماد..." 
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md">
-        </div>
-        
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">مرتب‌سازی</label>
-            <select id="sort-by" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option value="rank">رتبه</option>
-                <option value="price">قیمت</option>
-                <option value="priceChange1d">تغییر 24h</option>
-                <option value="marketCap">ارزش بازار</option>
-                <option value="volume">حجم</option>
-            </select>
-        </div>
-        
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">جهت</label>
-            <select id="sort-dir" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option value="asc">صعودی</option>
-                <option value="desc">نزولی</option>
-            </select>
-        </div>
-        
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">نمایش</label>
-            <select id="limit" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option value="20">20 نماد</option>
-                <option value="50">50 نماد</option>
-                <option value="100">100 نماد</option>
-            </select>
-        </div>
-    </div>
-</div>
-
-<!-- جدول کوین‌ها -->
-<div class="bg-white rounded-lg shadow-md overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">نماد</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">قیمت</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تغییر 24h</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">ارزش بازار</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">حجم 24h</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">تحلیل AI</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">عملیات</th>
-                </tr>
-            </thead>
-            <tbody id="coins-table-body" class="bg-white divide-y divide-gray-200">
-                <!-- داده‌ها با JavaScript پر می‌شوند -->
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- صفحه‌بندی -->
-    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-        <div class="flex-1 flex justify-between items-center">
-            <button id="prev-page" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                قبلی
-            </button>
-            <div class="text-sm text-gray-700">
-                صفحه <span id="current-page">1</span> از <span id="total-pages">1</span>
-            </div>
-            <button id="next-page" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                بعدی
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- داده‌های لحظه‌ای WebSocket -->
-<div class="mt-8 bg-white rounded-lg shadow-md p-6">
-    <h3 class="text-xl font-semibold mb-4">📡 داده‌های لحظه‌ای WebSocket</h3>
-    <div id="websocket-data" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <!-- داده‌های لحظه‌ای -->
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/market.js') }}"></script>
-{% endblock %}
