@@ -1,30 +1,36 @@
-// static/js/dashboard.js - استفاده از endpoint های درست
+// static/js/dashboard.js - کاملاً اصلاح شده
 class Dashboard {
     constructor() {
         this.systemStatus = {};
-        this.marketData = {};
+        this.marketData = [];
         this.activeAlerts = [];
+        this.systemMetrics = {};
         this.initializeDashboard();
     }
 
     async initializeDashboard() {
-        await this.loadSystemStatus();
-        await this.loadMarketData(); 
-        await this.loadActiveAlerts();
+        console.log('🚀 راه‌اندازی داشبورد...');
+        
+        // لود همزمان همه داده‌ها
+        await Promise.all([
+            this.loadSystemStatus(),
+            this.loadMarketData(),
+            this.loadActiveAlerts(),
+            this.loadSystemMetrics()
+        ]);
+        
         this.setupEventListeners();
         this.startRealTimeUpdates();
+        
+        console.log('✅ داشبورد با موفقیت راه‌اندازی شد');
     }
 
     async loadSystemStatus() {
         try {
             console.log('🔄 دریافت وضعیت سیستم...');
-            
-            // استفاده از endpoint درست
             const response = await fetch('/api/system/status');
             
-            if (!response.ok) {
-                throw new Error(`خطای API: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`خطای API: ${response.status}`);
             
             const data = await response.json();
             console.log('📊 وضعیت سیستم:', data);
@@ -45,18 +51,9 @@ class Dashboard {
     async loadMarketData() {
         try {
             console.log('🔄 دریافت داده‌های بازار...');
-            
-            // استفاده از endpoint اسکن سریع
-            const response = await fetch('/api/ai/scan', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
+            const response = await fetch('/api/ai/scan', { method: 'POST' });
 
-            if (!response.ok) {
-                throw new Error(`خطای اسکن: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`خطای اسکن: ${response.status}`);
             
             const data = await response.json();
             console.log('📊 داده‌های بازار:', data);
@@ -77,17 +74,32 @@ class Dashboard {
     async loadActiveAlerts() {
         try {
             console.log('🔄 دریافت هشدارها...');
+            const response = await fetch('/api/system/alerts');
             
-            // استفاده از endpoint سلامت سیستم
-            const response = await fetch('/api/system/health');
             if (response.ok) {
                 const data = await response.json();
-                this.activeAlerts = data.system_health?.active_alerts || [];
+                this.activeAlerts = data.alerts || [];
                 this.renderActiveAlerts();
             }
         } catch (error) {
             console.error('❌ خطا در دریافت هشدارها:', error);
             this.activeAlerts = [];
+        }
+    }
+
+    async loadSystemMetrics() {
+        try {
+            console.log('🔄 دریافت متریک‌های سیستم...');
+            const response = await fetch('/api/system/metrics');
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.systemMetrics = data.current_metrics || {};
+                this.renderSystemMetrics();
+            }
+        } catch (error) {
+            console.error('❌ خطا در دریافت متریک‌ها:', error);
+            this.systemMetrics = {};
         }
     }
 
@@ -138,9 +150,7 @@ class Dashboard {
         const changeElement = document.querySelector('.quick-chart .price-change');
         const chartContainer = document.querySelector('.quick-chart');
         
-        if (chartContainer) {
-            chartContainer.style.cursor = 'pointer';
-        }
+        if (chartContainer) chartContainer.style.cursor = 'pointer';
         
         if (this.marketData.length > 0) {
             const btcData = this.marketData.find(item => item.symbol === 'BTC');
@@ -150,6 +160,10 @@ class Dashboard {
                 const change = btcData.change || 0;
                 changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
                 changeElement.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+                
+                // آپدیت عنوان
+                const titleElement = document.querySelector('.quick-chart .section-header h2');
+                if (titleElement) titleElement.textContent = `📊 ${btcData.symbol}/USDT`;
                 return;
             }
         }
@@ -166,14 +180,14 @@ class Dashboard {
         container.style.cursor = 'pointer';
 
         if (this.marketData.length === 0) {
-            container.innerHTML = '<div class="no-data">داده‌ای برای نمایش موجود نیست</div>';
+            container.innerHTML = '<div class="no-data">در حال دریافت داده‌های بازار...</div>';
             return;
         }
 
         // فیلتر سیگنال‌های قوی
-        const strongSignals = this.marketData.filter(item => 
-            item.ai_signal && item.ai_signal.confidence > 0.6
-        ).slice(0, 4); // حداکثر ۴ سیگنال
+        const strongSignals = this.marketData
+            .filter(item => item.ai_signal && item.ai_signal.confidence > 0.6)
+            .slice(0, 4);
 
         if (strongSignals.length === 0) {
             container.innerHTML = '<div class="no-data">سیگنال قوی یافت نشد</div>';
@@ -195,64 +209,63 @@ class Dashboard {
         `).join('');
     }
 
-    // بقیه متدها مانند قبل...
+    renderActiveAlerts() {
+        const container = document.getElementById('alertsList');
+        if (!container) return;
 
-    setupEventListeners() {
-        console.log('🎯 راه‌اندازی event listener ها...');
+        container.style.cursor = 'pointer';
 
-        // کلیک روی هشدارها
-        const alertsList = document.getElementById('alertsList');
-        if (alertsList) {
-            alertsList.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = '/health#alerts';
-            });
+        if (this.activeAlerts.length === 0) {
+            container.innerHTML = '<div class="no-data">هشدار فعالی وجود ندارد</div>';
+            return;
         }
 
-        // کلیک روی سیگنال‌ها
-        const signalsList = document.getElementById('signalsList');
-        if (signalsList) {
-            signalsList.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = '/analysis';
-            });
+        // فقط هشدارهای مهم
+        const importantAlerts = this.activeAlerts
+            .filter(alert => alert.level === 'critical' || alert.level === 'warning')
+            .slice(0, 3);
+
+        container.innerHTML = importantAlerts.map(alert => `
+            <div class="alert-item ${alert.level}">
+                <div class="alert-icon">${this.getAlertIcon(alert.level)}</div>
+                <div class="alert-content">
+                    <div class="alert-title">${alert.title}</div>
+                    <div class="alert-desc">${alert.message}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    renderSystemMetrics() {
+        // نمایش متریک‌های سیستم در کنسول برای دیباگ
+        console.log('📈 متریک‌های سیستم:', this.systemMetrics);
+    }
+
+    renderSystemStatusError() {
+        const container = document.querySelector('.status-grid');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="status-item full-width">
+                <div class="status-label">وضعیت سیستم</div>
+                <div class="status-value error">خطا در اتصال به API</div>
+            </div>
+        `;
+    }
+
+    renderMarketDataError() {
+        const priceElement = document.querySelector('.quick-chart .current-price');
+        const changeElement = document.querySelector('.quick-chart .price-change');
+        const signalsContainer = document.getElementById('signalsList');
+        
+        if (priceElement) priceElement.textContent = '---';
+        if (changeElement) {
+            changeElement.textContent = 'خطا در دریافت داده';
+            changeElement.className = 'price-change error';
         }
-
-        // کلیک روی وضعیت سیستم
-        const systemStatus = document.querySelector('.system-status');
-        if (systemStatus) {
-            systemStatus.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = '/health';
-            });
+        if (signalsContainer) {
+            signalsContainer.innerHTML = '<div class="no-data">خطا در اتصال به API بازار</div>';
         }
-
-        // کلیک روی نمودار
-        const quickChart = document.querySelector('.quick-chart');
-        if (quickChart) {
-            quickChart.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = '/analysis';
-            });
-        }
-
-        // کلیک روی کارت‌های سریع
-        document.querySelectorAll('.quick-card').forEach((card) => {
-            card.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const page = card.dataset.page;
-                if (page) {
-                    window.location.href = page;
-                }
-            });
-        });
-
-        console.log('✅ event listener ها راه‌اندازی شدند');
     }
 
     getCoinName(symbol) {
@@ -264,24 +277,130 @@ class Dashboard {
         return names[symbol] || symbol;
     }
 
+    getAlertIcon(level) {
+        const icons = {
+            'critical': '🚨',
+            'warning': '⚠️', 
+            'info': 'ℹ️'
+        };
+        return icons[level] || '⚠️';
+    }
+
+    setupEventListeners() {
+        console.log('🎯 راه‌اندازی event listener ها...');
+
+        // کلیک روی هشدارها
+        this.setupClickListener('alertsList', '/health#alerts', 'هشدارها');
+
+        // کلیک روی سیگنال‌ها
+        this.setupClickListener('signalsList', '/analysis', 'سیگنال‌ها');
+
+        // کلیک روی وضعیت سیستم
+        this.setupClickListener('system-status', '/health', 'وضعیت سیستم');
+
+        // کلیک روی نمودار
+        this.setupClickListener('quick-chart', '/analysis', 'نمودار');
+
+        // کلیک روی کارت‌های سریع
+        document.querySelectorAll('.quick-card').forEach((card, index) => {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const page = card.dataset.page;
+                console.log(`🚀 کلیک روی کارت ${index + 1}: ${page}`);
+                
+                if (page) {
+                    window.location.href = page;
+                }
+            });
+        });
+
+        console.log('✅ همه event listener ها راه‌اندازی شدند');
+    }
+
+    setupClickListener(elementId, targetUrl, description) {
+        const element = document.getElementById(elementId) || document.querySelector(`.${elementId}`);
+        if (element) {
+            element.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log(`🎯 کلیک روی ${description}`);
+                window.location.href = targetUrl;
+            });
+        }
+    }
+
+    setupChart() {
+        this.renderSampleChart();
+    }
+
+    renderSampleChart() {
+        const container = document.getElementById('btcChart');
+        if (!container) return;
+
+        container.style.cursor = 'pointer';
+
+        const prices = Array.from({length: 20}, (_, i) => {
+            return 43000 + Math.sin(i * 0.5) * 500 + Math.random() * 300;
+        });
+
+        const maxPrice = Math.max(...prices);
+        const minPrice = Math.min(...prices);
+        const range = maxPrice - minPrice || 1;
+
+        container.innerHTML = '';
+        const chart = document.createElement('div');
+        chart.className = 'simple-chart';
+        chart.style.cssText = `
+            width: 100%; height: 100%; display: flex; align-items: flex-end; 
+            gap: 2px; padding: 10px; cursor: pointer;
+        `;
+
+        prices.forEach((price, index) => {
+            const bar = document.createElement('div');
+            const height = ((price - minPrice) / range) * 80;
+            const isGreen = index === 0 || price >= prices[index - 1];
+            
+            bar.style.cssText = `
+                flex: 1; height: ${height}%;
+                background: ${isGreen ? 'var(--accent-success)' : 'var(--accent-danger)'};
+                border-radius: 2px; opacity: ${0.6 + (index * 0.02)};
+                transition: all 0.3s ease;
+            `;
+            
+            bar.title = `$${price.toFixed(2)}`;
+            chart.appendChild(bar);
+        });
+
+        container.appendChild(chart);
+    }
+
     startRealTimeUpdates() {
+        console.log('🔄 شروع بروزرسانی‌های Real-time...');
+        
+        // بروزرسانی هر 30 ثانیه
         setInterval(async () => {
-            await this.loadSystemStatus();
-            await this.loadMarketData();
-            await this.loadActiveAlerts();
+            console.log('🔄 بروزرسانی Real-time داده‌ها...');
+            await Promise.all([
+                this.loadSystemStatus(),
+                this.loadMarketData(),
+                this.loadActiveAlerts()
+            ]);
         }, 30000);
     }
 }
 
-// راه‌اندازی
+// راه‌اندازی با تاخیر برای اطمینان از لود کامل DOM
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 راه‌اندازی داشبورد...');
+    console.log('🚀 DOM Ready - Starting Dashboard System...');
+    
     setTimeout(() => {
         try {
-            new Dashboard();
-            console.log('✅ داشبورد با موفقیت راه‌اندازی شد');
+            window.dashboard = new Dashboard();
+            console.log('✅ Dashboard System Successfully Initialized');
         } catch (error) {
-            console.error('❌ خطا در راه‌اندازی داشبورد:', error);
+            console.error('❌ Dashboard System Initialization Error:', error);
         }
     }, 1000);
 });
