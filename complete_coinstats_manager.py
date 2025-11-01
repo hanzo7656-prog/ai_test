@@ -241,25 +241,22 @@ class CompleteCoinStatsManager:
                           to_coin: str = "ETH", timestamp: str = "1636315200") -> Dict:
         """دریافت قیمت exchange - نسخه اصلاح شده"""
     
-        # 🔥 استفاده از مقادیر دقیق تست شده
         params = {
-            "exchange": exchange,    # "Binance" با B بزرگ
-            "from": from_coin,       # "BTC"  
-            "to": to_coin,          # "ETH" - نه USDT
-            "timestamp": str(timestamp)  # رشته باشد
+            "exchange": exchange,
+            "from": from_coin,  
+            "to": to_coin,
+            "timestamp": str(timestamp)
         }
       
         logger.info(f"🔍 Exchange price request: {params}")
 
-            # تست مستقیم
         try:
             result = self._make_api_request("coins/price/exchange", params, use_cache=False)
             logger.info(f"✅ Exchange price successful: {result}")
             return result
         except Exception as e:
             logger.error(f"❌ Exchange price failed: {e}")
-            raise
-            return self._make_api_request("coins/price/exchange", params)
+            raise  # ✅ فقط خطا رو پرتاب کن
     # ============================= اندپوینت‌های جدید ============================
 
     def get_tickers_exchanges(self) -> Dict:
