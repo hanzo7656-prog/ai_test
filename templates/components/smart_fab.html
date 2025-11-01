@@ -8,7 +8,9 @@
 
     <!-- منوی تطبیقی -->
     <div class="context-menu">
-        <!-- محتوای منو بر اساس context پر میشود -->
+        <div class="menu-grid" id="menuGrid">
+            <!-- منو بر اساس context پر میشود -->
+        </div>
     </div>
 
     <!-- حباب‌های شناور -->
@@ -47,7 +49,6 @@
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* استایل‌های مایع و انیمیشن‌ها */
 .liquid-drop {
     width: 20px;
     height: 20px;
@@ -84,7 +85,77 @@
     animation-delay: var(--delay);
 }
 
-/* انیمیشن‌های کلیدی */
+/* منوی تطبیقی */
+.context-menu {
+    position: absolute;
+    bottom: 85px;
+    right: 0;
+    background: rgba(15, 15, 26, 0.95);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(19, 188, 255, 0.2);
+    border-radius: 20px;
+    padding: 20px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.9);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 10001;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.liquid-fab.active .context-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.menu-item {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-item:hover {
+    transform: translateY(-5px) scale(1.05);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(19, 188, 255, 0.4);
+    box-shadow: 0 10px 25px rgba(19, 188, 255, 0.2);
+}
+
+.menu-icon {
+    font-size: 1.5rem;
+    margin-bottom: 5px;
+    transition: all 0.3s ease;
+}
+
+.menu-item:hover .menu-icon {
+    transform: scale(1.2);
+}
+
+.menu-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+}
+
+/* انیمیشن‌ها */
 @keyframes liquidFloat {
     0%, 100% { transform: translateY(0px) scale(1); }
     50% { transform: translateY(-5px) scale(1.1); }
@@ -109,7 +180,7 @@
     }
 }
 
-/* کلاس‌های وضعیت بازار */
+/* وضعیت‌های بازار */
 .liquid-fab.bullish {
     background: linear-gradient(135deg, 
         rgba(16, 185, 129, 0.8) 0%,
@@ -125,10 +196,6 @@
 }
 
 .liquid-fab.volatile {
-    background: linear-gradient(135deg, 
-        rgba(245, 158, 11, 0.8) 0%,
-        rgba(245, 158, 11, 0.4) 50%, 
-        rgba(245, 158, 11, 0.2) 100%);
     animation: marketShake 0.5s ease-in-out infinite;
 }
 
@@ -137,91 +204,110 @@
     25% { transform: translateX(-2px); }
     75% { transform: translateX(2px); }
 }
+
+/* رسپانسیو */
+@media (max-width: 768px) {
+    .liquid-fab {
+        bottom: 20px;
+        right: 20px;
+    }
+    
+    .fab-liquid-core {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .menu-grid {
+        gap: 10px;
+    }
+    
+    .menu-item {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .menu-icon {
+        font-size: 1.3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .context-menu {
+        right: -10px;
+    }
+    
+    .menu-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .menu-item {
+        width: 65px;
+        height: 65px;
+    }
+}
 </style>
 
 <script>
-// منطق FAB مایع تطبیقی
 class LiquidFab {
     constructor() {
         this.fab = document.getElementById('liquidFab');
-        this.currentContext = 'dashboard';
+        this.menuGrid = document.getElementById('menuGrid');
+        this.currentContext = this.detectContext();
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.detectContext();
+        this.updateMenu();
         this.startMarketPulse();
     }
 
     setupEventListeners() {
-        this.fab.addEventListener('click', this.toggleMenu.bind(this));
-        
-        // تشخیص حرکت موس برای افکت‌های تعاملی
-        this.fab.addEventListener('mouseenter', this.onHover.bind(this));
-        this.fab.addEventListener('mouseleave', this.onHoverEnd.bind(this));
+        // کلیک روی FAB
+        this.fab.querySelector('.fab-liquid-core').addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.toggleMenu();
+        });
+
+        // کلیک روی آیتم‌های منو
+        this.menuGrid.addEventListener('click', (e) => {
+            const menuItem = e.target.closest('.menu-item');
+            if (menuItem) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleMenuItemClick(menuItem);
+            }
+        });
+
+        // بستن منو با کلیک خارج
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#liquidFab')) {
+                this.closeMenu();
+            }
+        });
+
+        // بستن منو با کلید ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeMenu();
+            }
+        });
     }
 
     detectContext() {
         const path = window.location.pathname;
-        if (path.includes('health')) this.setContext('health');
-        else if (path.includes('analysis')) this.setContext('analysis');
-        else if (path.includes('scan')) this.setContext('scan');
-        else if (path.includes('settings')) this.setContext('settings');
-        else this.setContext('dashboard');
+        if (path.includes('/health')) return 'health';
+        if (path.includes('/analysis')) return 'analysis';
+        if (path.includes('/scan')) return 'scan';
+        if (path.includes('/settings')) return 'settings';
+        return 'dashboard';
     }
 
-    setContext(context) {
-        this.currentContext = context;
-        this.fab.setAttribute('data-context', context);
-        this.updateMenuContent();
-        this.updateVisualStyle();
-    }
-
-    updateMenuContent() {
-        const menu = this.fab.querySelector('.context-menu');
+    updateMenu() {
         const menuItems = this.getMenuItemsForContext(this.currentContext);
-        menu.innerHTML = this.generateMenuHTML(menuItems);
-    }
-
-    getMenuItemsForContext(context) {
-        const menus = {
-            dashboard: [
-                { icon: '📊', label: 'تحلیل سریع', action: 'quickAnalysis' },
-                { icon: '🔍', label: 'اسکن بازار', action: 'Scan' },
-                { icon: '📈', label: 'نمودارها', action: 'showCharts' },
-                { icon: '⚡', label: 'سیگنال‌ها', action: 'showSignals' }
-            ],
-            health: [
-                { icon: '🩺', label: 'متریک‌ها', action: 'showMetrics' },
-                { icon: '📊', label: 'گزارش سلامت', action: 'health' },
-                { icon: '⚠️', label: 'هشدارها', action: 'showAlerts' },
-                { icon: '🔧', label: 'تنظیمات', action: 'healthSettings' }
-            ],
-            analysis: [
-                { icon: '📈', label: 'تکنیکال', action: 'technicalAnalysis' },
-                { icon: '🤖', label: 'تحلیل AI', action: 'aiAnalysis' },
-                { icon: '📊', label: 'اندیکاتورها', action: 'indicators' },
-                { icon: '🎯', label: 'پیش‌بینی', action: 'predictions' }
-            ],
-            scan: [
-                { icon: '🔍', label: 'اسکن پیشرفته', action: 'advancedScan' },
-                { icon: '⭐', label: 'نمادهای برتر', action: 'topSymbols' },
-                { icon: '📋', label: 'فیلترها', action: 'filters' },
-                { icon: '🚀', label: 'سیگنال‌های فعال', action: 'activeSignals' }
-            ],
-            settings: [
-                { icon: '⚙️', label: 'تنظیمات کاربر', action: 'userSettings' },
-                { icon: '🎨', label: 'ظاهر', action: 'appearance' },
-                { icon: '🔔', label: 'نوتیفیکیشن', action: 'notifications' },
-                { icon: '📊', label: 'داده‌ها', action: 'dataManagement' }
-            ]
-        };
-        return menus[context] || menus.dashboard;
-    }
-
-    generateMenuHTML(items) {
-        return items.map(item => `
+        this.menuGrid.innerHTML = menuItems.map(item => `
             <div class="menu-item" data-action="${item.action}">
                 <div class="menu-icon">${item.icon}</div>
                 <div class="menu-label">${item.label}</div>
@@ -229,39 +315,148 @@ class LiquidFab {
         `).join('');
     }
 
-    updateVisualStyle() {
-        // بر اساس context استایل بصری رو آپدیت کن
-        this.fab.className = `liquid-fab ${this.currentContext}`;
+    getMenuItemsForContext(context) {
+        const menus = {
+            dashboard: [
+                { icon: '📊', label: 'تحلیل', action: '/analysis' },
+                { icon: '🔍', label: 'اسکن', action: '/scan' },
+                { icon: '🩺', label: 'سلامت', action: '/health' },
+                { icon: '⚡', label: 'سیگنال', action: '/analysis' },
+                { icon: '📈', label: 'نمودار', action: '/analysis' },
+                { icon: '⚙️', label: 'تنظیمات', action: '/settings' }
+            ],
+            health: [
+                { icon: '📊', label: 'متریک', action: 'showMetrics' },
+                { icon: '⚠️', label: 'هشدار', action: 'showAlerts' },
+                { icon: '📝', label: 'لاگ', action: 'showLogs' },
+                { icon: '🔄', label: 'بروزرسانی', action: 'refreshHealth' },
+                { icon: '🏠', label: 'داشبورد', action: '/' },
+                { icon: '⚙️', label: 'تنظیمات', action: '/settings' }
+            ],
+            analysis: [
+                { icon: '🤖', label: 'تحلیل AI', action: 'aiAnalysis' },
+                { icon: '📈', label: 'تکنیکال', action: 'technicalAnalysis' },
+                { icon: '🎯', label: 'پیش‌بینی', action: 'predictions' },
+                { icon: '📊', label: 'اندیکاتور', action: 'indicators' },
+                { icon: '🏠', label: 'داشبورد', action: '/' },
+                { icon: '🔍', label: 'اسکن', action: '/scan' }
+            ],
+            scan: [
+                { icon: '🚀', label: 'اسکن سریع', action: 'quickScan' },
+                { icon: '🔬', label: 'اسکن پیشرفته', action: 'advancedScan' },
+                { icon: '⭐', label: 'نمادهای برتر', action: 'topSymbols' },
+                { icon: '📋', label: 'فیلترها', action: 'filters' },
+                { icon: '🏠', label: 'داشبورد', action: '/' },
+                { icon: '📊', label: 'تحلیل', action: '/analysis' }
+            ],
+            settings: [
+                { icon: '👤', label: 'پروفایل', action: '/settings#profile' },
+                { icon: '🎨', label: 'ظاهر', action: '/settings#appearance' },
+                { icon: '🔔', label: 'نوتیفیکیشن', action: '/settings#notifications' },
+                { icon: '🤖', label: 'مدل AI', action: '/settings#ai-models' },
+                { icon: '🏠', label: 'داشبورد', action: '/' },
+                { icon: '🛡️', label: 'امنیت', action: '/settings#security' }
+            ]
+        };
+        return menus[context] || menus.dashboard;
     }
 
-    startMarketPulse() {
-        // شبیه‌سازی وضعیت بازار (در واقعیت از API گرفته میشه)
-        setInterval(() => {
-            const status = this.getMarketStatus();
-            this.updateMarketStatus(status);
-        }, 5000);
+    handleMenuItemClick(menuItem) {
+        const action = menuItem.dataset.action;
+        
+        // انیمیشن کلیک
+        menuItem.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+            menuItem.style.transform = '';
+        }, 150);
+
+        // اجرای action
+        setTimeout(() => {
+            this.executeAction(action);
+            this.closeMenu();
+        }, 300);
     }
 
-    getMarketStatus() {
-        const statuses = ['bullish', 'bearish', 'volatile'];
-        return statuses[Math.floor(Math.random() * statuses.length)];
+    executeAction(action) {
+        if (action.startsWith('/')) {
+            // ناوبری به صفحه
+            window.location.href = action;
+        } else {
+            // اجرای تابع داخلی
+            this[action]?.();
+        }
     }
 
-    updateMarketStatus(status) {
-        this.fab.classList.remove('bullish', 'bearish', 'volatile');
-        this.fab.classList.add(status);
+    // توابع داخلی منو
+    showMetrics() {
+        window.location.href = '/health#metrics';
+    }
+
+    showAlerts() {
+        window.location.href = '/health#alerts';
+    }
+
+    showLogs() {
+        window.location.href = '/health#logs';
+    }
+
+    refreshHealth() {
+        window.location.reload();
+    }
+
+    aiAnalysis() {
+        window.location.href = '/analysis#ai';
+    }
+
+    technicalAnalysis() {
+        window.location.href = '/analysis#technical';
+    }
+
+    predictions() {
+        window.location.href = '/analysis#predictions';
+    }
+
+    indicators() {
+        window.location.href = '/analysis#indicators';
+    }
+
+    quickScan() {
+        document.getElementById('startScan')?.click();
+    }
+
+    advancedScan() {
+        document.getElementById('advancedScan')?.click();
+    }
+
+    topSymbols() {
+        window.location.href = '/scan#top-symbols';
+    }
+
+    filters() {
+        window.location.href = '/scan#filters';
     }
 
     toggleMenu() {
         this.fab.classList.toggle('active');
     }
 
-    onHover() {
-        this.fab.style.transform = 'scale(1.1)';
+    closeMenu() {
+        this.fab.classList.remove('active');
     }
 
-    onHoverEnd() {
-        this.fab.style.transform = 'scale(1)';
+    startMarketPulse() {
+        // شبیه‌سازی وضعیت بازار
+        setInterval(() => {
+            this.updateMarketStatus();
+        }, 10000);
+    }
+
+    updateMarketStatus() {
+        const statuses = ['bullish', 'bearish', 'volatile'];
+        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+        
+        this.fab.classList.remove('bullish', 'bearish', 'volatile');
+        this.fab.classList.add(randomStatus);
     }
 }
 
