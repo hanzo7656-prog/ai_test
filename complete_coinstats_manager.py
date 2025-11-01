@@ -16,8 +16,9 @@ class CompleteCoinStatsManager:
     def __init__(self, api_key: str = None):
         self.base_url = "https://openapiv1.coinstats.app"
         self.api_key = api_key or "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
-                                   
-        self.headers = {"X-API-KEY": self.api_key}
+
+        self.session = requests.Session()
+        self.session.headers.update({"X-API-KEY": self.api_key})
         
         # تنظیمات کش
         self.cache_dir = "./coinstats_cache"
