@@ -1,0 +1,468 @@
+/* static/css/analysis.css */
+.analysis-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+    padding: 1rem;
+}
+
+/* هدر تحلیل */
+.analysis-header {
+    margin-bottom: 2rem;
+}
+
+.analysis-header .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+.symbol-selector {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.symbol-dropdown {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    min-width: 150px;
+    cursor: pointer;
+}
+
+.current-price {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.price {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.change {
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+}
+
+.change.positive {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-success);
+}
+
+.change.negative {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+
+.timeframe-selector {
+    flex-shrink: 0;
+}
+
+.timeframe-buttons {
+    display: flex;
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.25rem;
+    gap: 0.25rem;
+}
+
+.timeframe-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.timeframe-btn.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+/* نمودار اصلی */
+.chart-section {
+    margin-bottom: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.chart-tools {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tool-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.tool-btn:hover {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.chart-container {
+    height: 400px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+/* سیگنال AI */
+.ai-signal {
+    text-align: center;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.confidence-score {
+    background: var(--gradient-primary);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.signal-direction {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.signal-direction.bullish {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-success);
+}
+
+.signal-direction.bearish {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+
+.direction-icon {
+    font-size: 1.5rem;
+}
+
+.signal-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.value {
+    font-weight: 600;
+}
+
+.value.high {
+    color: var(--accent-success);
+}
+
+.value.medium {
+    color: var(--accent-warning);
+}
+
+.value.low {
+    color: var(--accent-danger);
+}
+
+/* اندیکاتورها */
+.indicators-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.indicator-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.indicator-name {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.indicator-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.indicator-value.bullish {
+    color: var(--accent-success);
+}
+
+.indicator-value.bearish {
+    color: var(--accent-danger);
+}
+
+.indicator-value.neutral {
+    color: var(--accent-warning);
+}
+
+.indicator-status {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+}
+
+/* تحلیل احساسات */
+.sentiment-score {
+    background: var(--gradient-primary);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.sentiment-meters {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.meter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.meter-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.meter-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.meter-fill {
+    height: 100%;
+    background: var(--gradient-primary);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.meter-fill.high {
+    background: var(--accent-warning);
+}
+
+.meter-value {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: left;
+}
+
+/* تحلیل پیشرفته */
+.analysis-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary);
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--accent-primary);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.analysis-result {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.result-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.result-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.result-value {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.strength-meter {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    background: var(--gradient-primary);
+    border-radius: 3px;
+}
+
+/* رسپانسیو */
+@media (max-width: 768px) {
+    .analysis-header .header-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .symbol-selector {
+        justify-content: space-between;
+    }
+    
+    .analysis-grid.grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+    
+    .indicators-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .symbol-selector {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .timeframe-buttons {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .indicators-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .analysis-result {
+        grid-template-columns: 1fr;
+    }
+}
