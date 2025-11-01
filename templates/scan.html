@@ -1,0 +1,141 @@
+<!-- templates/scan.html -->
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اسکن بازار - VortexAI Trading</title>
+    <link rel="stylesheet" href="/static/css/dark-theme.css">
+    <link rel="stylesheet" href="/static/css/scan.css">
+</head>
+<body>
+    <div class="scan-container">
+        <!-- هدر اسکن -->
+        <header class="scan-header">
+            <div class="header-content">
+                <div class="back-button">
+                    <a href="/" class="btn btn-secondary">← بازگشت</a>
+                </div>
+                <h1>🔍 اسکن بازار</h1>
+                <div class="scan-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalSymbols">۳۲۷</div>
+                        <div class="stat-label">نماد فعال</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="signalsFound">۲۴</div>
+                        <div class="stat-label">سیگنال یافت شد</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="scanTime">۱.۲s</div>
+                        <div class="stat-label">زمان اسکن</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- کنترل‌های اسکن -->
+        <section class="scan-controls glass-card">
+            <div class="controls-grid">
+                <!-- فیلترها -->
+                <div class="filter-group">
+                    <label class="filter-label">فیلترهای اسکن</label>
+                    <div class="filter-chips">
+                        <div class="filter-chip active" data-filter="all">
+                            همه نمادها
+                            <span class="chip-count">۳۲۷</span>
+                        </div>
+                        <div class="filter-chip" data-filter="bullish">
+                            صعودی
+                            <span class="chip-count">۱۴۲</span>
+                        </div>
+                        <div class="filter-chip" data-filter="bearish">
+                            نزولی
+                            <span class="chip-count">۸۹</span>
+                        </div>
+                        <div class="filter-chip" data-filter="high-volume">
+                            حجم بالا
+                            <span class="chip-count">۵۶</span>
+                        </div>
+                        <div class="filter-chip" data-filter="breakout">
+                            شکست مقاومت
+                            <span class="chip-count">۳۴</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- تنظیمات پیشرفته -->
+                <div class="settings-group">
+                    <label class="settings-label">تنظیمات پیشرفته</label>
+                    <div class="settings-options">
+                        <div class="setting-option">
+                            <label class="option-label">حداقل حجم (24h)</label>
+                            <input type="range" min="1" max="100" value="50" class="volume-slider" id="volumeFilter">
+                            <span class="option-value" id="volumeValue">۵۰M</span>
+                        </div>
+                        <div class="setting-option">
+                            <label class="option-label">حداقل تغییر قیمت</label>
+                            <input type="range" min="1" max="20" value="5" class="change-slider" id="changeFilter">
+                            <span class="option-value" id="changeValue">۵٪</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- دکمه‌های اقدام -->
+                <div class="actions-group">
+                    <button class="btn btn-primary" id="startScan">
+                        🚀 شروع اسکن
+                    </button>
+                    <button class="btn btn-secondary" id="advancedScan">
+                        🔬 اسکن پیشرفته
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- نتایج اسکن -->
+        <main class="scan-results">
+            <div class="results-header">
+                <h2>📋 نتایج اسکن</h2>
+                <div class="results-controls">
+                    <div class="sort-options">
+                        <select id="sortBy" class="sort-select">
+                            <option value="confidence">بالاترین اعتماد</option>
+                            <option value="volume">بیشترین حجم</option>
+                            <option value="change">بیشترین تغییر</option>
+                            <option value="marketcap">بزرگترین مارکت‌کپ</option>
+                        </select>
+                    </div>
+                    <div class="view-options">
+                        <button class="view-btn active" data-view="grid">📊</button>
+                        <button class="view-btn" data-view="list">📝</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- لیست نتایج -->
+            <div class="results-grid" id="resultsGrid">
+                <!-- نتایج از JavaScript پر میشود -->
+            </div>
+
+            <!-- وضعیت اسکن -->
+            <div class="scan-status" id="scanStatus">
+                <div class="status-content">
+                    <div class="status-icon">⏳</div>
+                    <div class="status-text">در حال اسکن بازار...</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- FAB مایع -->
+    {% include 'components/smart_fab.html' %}
+
+    <!-- اسکریپت‌ها -->
+    <script src="/static/js/scan.js"></script>
+    <script src="/static/js/smart_fab.js"></script>
+</body>
+</html>
