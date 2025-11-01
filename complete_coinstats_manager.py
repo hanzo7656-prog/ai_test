@@ -72,28 +72,28 @@ class CompleteCoinStatsManager:
             return None
 
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Union[Dict, List]:
-        """ساخت درخواست به API با کش - بازگشت داده خام - نسخه اصلاح شده"""
+        """ساخت درخواست به API با کش - نسخه اصلاح شده"""
         cache_path = self._get_cache_path(endpoint, params)
-    
+
         # بررسی کش
         if use_cache and self._is_cache_valid(cache_path):
             logger.info(f"🔍 Using cache for: {endpoint}")
             cached_data = self._load_from_cache(cache_path)
             if cached_data is not None:
                 return cached_data
-  
+
         # درخواست به API
         url = f"{self.base_url}/{endpoint}"
         try:
             logger.info(f"🔍 API Raw Data Request: {endpoint}")
-         
-            # تنظیم timeout پویا بر اساس نوع اندپوینت
-            timeout = 10  # پیش‌فرض
+        
+            # تنظیم timeout منطقی
+            timeout = 15  # افزایش timeout عمومی
             if "news" in endpoint:
-                timeout = 8  # کاهش timeout برای اخبار
+                timeout = 12  # افزایش timeout برای اخبار
             elif "charts" in endpoint:
-                timeout = 12  # افزایش کمی برای چارت‌ها
-            
+                timeout = 20  # افزایش timeout برای چارت‌ها
+        
             response = self.session.get(
                 url,
                 headers=self.headers,
@@ -111,23 +111,21 @@ class CompleteCoinStatsManager:
                 logger.info(f"✅ Raw data received from {endpoint}")
                 return data
             else:
-                logger.error(f"✗ API Error {response.status_code}: {response.text}")
+                logger.warning(f"⚠️ API Error {response.status_code} for {endpoint}")
             
-                # 🔧 بهبود: مدیریت خطاهای خاص
-                if response.status_code == 400 and "timestamp" in response.text:
-                    logger.warning(f"⚠️ مشکل timestamp در {endpoint} - استفاده از کش")
-                elif response.status_code == 404:
-                    logger.warning(f"⚠️ اندپوینت {endpoint} یافت نشد")
-                 
-                # استفاده از کش در صورت خطا
+                # استفاده از کش قدیمی در صورت خطا
                 if use_cache and os.path.exists(cache_path):
                     logger.info("🔍 Using expired cache due to API error")
                     cached_data = self._load_from_cache(cache_path)
                     if cached_data is not None:
                         return cached_data
-                
-                return {} if endpoint not in ["news/sample"] else []
-                
+            
+                # بازگشت ساختار داده مناسب بر اساس endpoint
+                if "news" in endpoint:
+                    return {"data": [], "count": 0}
+                else:
+                    return {}
+                  
         except requests.exceptions.Timeout:
             logger.error(f"⏰ Timeout برای {endpoint}")
             # استفاده از کش در صورت timeout
@@ -136,8 +134,13 @@ class CompleteCoinStatsManager:
                 cached_data = self._load_from_cache(cache_path)
                 if cached_data is not None:
                     return cached_data
-            return {} if endpoint not in ["news/sample"] else []
         
+            # بازگشت ساختار مناسب
+            if "news" in endpoint:
+                return {"data": [], "count": 0, "error": "timeout"}
+            else:
+                return {"error": "timeout"}
+    
         except Exception as e:
             logger.error(f"🚨 خطا در {endpoint}: {e}")
             # استفاده از کش در صورت خطا
@@ -146,9 +149,13 @@ class CompleteCoinStatsManager:
                 cached_data = self._load_from_cache(cache_path)
                 if cached_data is not None:
                     return cached_data
-            
-            return {} if endpoint not in ["news/sample"] else []
-
+        
+            # بازگشت ساختار مناسب
+            if "news" in endpoint:
+                return {"data": [], "count": 0, "error": str(e)}
+            else:
+                return {"error": str(e)}
+                
     def clear_cache(self, endpoint: str = None):
         """پاک کردن کش"""
         try:
@@ -277,49 +284,49 @@ class CompleteCoinStatsManager:
         params = {"limit": limit}
         return self._make_api_request("news", params)
 
-    def get_news_by_type(self, news_type: str = "handpicked", limit: int = 1) -> Dict:
-        """دریافت اخبار بر اساس نوع - با مدیریت خطای بهتر"""
+    def get_news_by_type(self, news_type: str = "handpicked", limit: int = 10) -> Dict:
+        """دریافت اخبار بر اساس نوع - نسخه اصلاح شده"""
+        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        if news_type not in valid_types:
+            news_type = "latest"
+            logger.warning(f"⚠️ نوع خبر نامعتبر، استفاده از {news_type}")
+    
+        params = {"limit": limit}
+    
         try:
-            valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
-            if news_type not in valid_types:
-                news_type = "latest"
-                logger.warning(f"⚠️ نوع خبر نامعتبر، استفاده از {news_type}")
-            
-            params = {"limit": limit}
-        
-            # کاهش timeout برای اخبار
-            original_timeout = getattr(self.session, 'timeout', 15)
-            self.session.timeout = 8
-        
+            # افزایش timeout برای اخبار
             result = self._make_api_request(f"news/type/{news_type}", params)
         
-            # بازگرداندن timeout به حالت اول
-            self.session.timeout = original_timeout
-        
-            # اگر داده خالی است، نمونه بازگردان
-            if not result or (isinstance(result, dict) and not result.get('data')):
+            # بررسی ساختار داده بازگشتی
+            if result and isinstance(result, dict) and result.get('data'):
+                return result
+            else:
+                # داده نمونه با ساختار صحیح
                 logger.info(f"📝 استفاده از داده نمونه برای اخبار {news_type}")
                 return {
                     "data": [
                         {
-                            "title": f"Sample {news_type} News",
-                            "content": f"This is sample content for {news_type} news.",
+                            "id": f"sample_{news_type}_1",
+                            "title": f"Sample {news_type} News Title",
+                            "content": f"This is sample content for {news_type} news type.",
                             "source": "system_fallback",
-                            "published_at": datetime.now().isoformat()
+                            "publishedAt": datetime.now().isoformat(),
+                            "url": "https://example.com/sample-news"
                         }
                     ],
                     "count": 1,
-                    "source": "fallback"
+                    "total": 1,
+                    "page": 1
                 }
-             
-            return result
-        
+            
         except Exception as e:
             logger.error(f"❌ خطا در دریافت اخبار {news_type}: {e}")
             return {
                 "data": [],
-                "error": str(e),
-                "source": "error_fallback"
+                "count": 0,
+                "total": 0,
+                "page": 1,
+                "error": f"Failed to fetch {news_type} news: {str(e)}"
             }
 
     def get_news_detail(self, news_id: str = "sample") -> Dict:
@@ -387,39 +394,48 @@ class CompleteCoinStatsManager:
         return {}
 
     def _date_to_timestamp(self, date_str: str) -> int:
-        """تبدیل تاریخ به تایم‌استمپ عددی"""
+        """تبدیل تاریخ به تایم‌استمپ عددی - نسخه ایمن"""
         try:
-            # اگر قبلاً timestamp عددی است
-            if isinstance(date_str, int):
-                return date_str
-            if date_str.isdigit():
+            # اگر عدد است
+            if isinstance(date_str, (int, float)):
                 return int(date_str)
         
-            # فرمت‌های مختلف تاریخ
-            date_formats = [
-                "%Y-%m-%d",           # 2024-01-01
-                "%Y-%m-%d %H:%M:%S",  # 2024-01-01 12:00:00
-                "%d/%m/%Y",           # 01/01/2024
-                "%m/%d/%Y"            # 01/01/2024
+            # اگر رشته عددی است
+            if isinstance(date_str, str) and date_str.strip().isdigit():
+                return int(date_str.strip())
+        
+            # اگر None یا خالی است
+            if not date_str:
+                return int(datetime.now().timestamp())
+        
+            # تبدیل رشته تاریخ
+            date_str = date_str.strip()
+          
+            # فرمت‌های مختلف
+            formats = [
+                "%Y-%m-%d",
+                "%Y-%m-%d %H:%M:%S", 
+                "%d/%m/%Y",
+                "%m/%d/%Y",
+                "%d-%m-%Y",
+                "%m-%d-%Y"
             ]
         
-            for date_format in date_formats:
+            for fmt in formats:
                 try:
-                    dt = datetime.strptime(date_str, date_format)
-                    timestamp = int(dt.timestamp())
-                    logger.info(f"✅ تاریخ {date_str} به تایم‌استمپ {timestamp} تبدیل شد")
-                    return timestamp
+                    dt = datetime.strptime(date_str, fmt)
+                    return int(dt.timestamp())
                 except ValueError:
                     continue
                 
-            # اگر هیچکدام کار نکرد، از زمان فعلی استفاده کن
-            logger.warning(f"⚠️ فرمت تاریخ نامعتبر: {date_str} - استفاده از تایم‌استمپ فعلی")
+            # اگر هیچکدام کار نکرد
+            logger.warning(f"⚠️ فرمت تاریخ نامعتبر: {date_str} - استفاده از زمان فعلی")
             return int(datetime.now().timestamp())
         
         except Exception as e:
             logger.error(f"❌ خطا در تبدیل تاریخ {date_str}: {e}")
             return int(datetime.now().timestamp())
-            
+ 
     def _load_raw_data(self) -> Dict[str, Any]:
         """بارگذاری داده‌های خام از کش - سازگاری با AI"""
         try:
