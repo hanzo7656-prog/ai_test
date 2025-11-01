@@ -1,599 +1,160 @@
+<!-- templates/health.html -->
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html dir="rtl" lang="fa">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>داشبورد سلامت سیستم - AI Trading</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>سلامت سیستم - VortexAI Trading</title>
+    <link rel="stylesheet" href="/static/css/dark-theme.css">
     <link rel="stylesheet" href="/static/css/health.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div class="container-fluid py-4">
-        <!-- هدر -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="health-card p-4">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h1 class="mb-1">
-                                <i class="fas fa-heartbeat text-danger me-2"></i>
-                                داشبورد سلامت سیستم
-                            </h1>
-                            <p class="text-muted mb-0">مانیتورینگ لحظه‌ای سیستم معاملاتی هوش مصنوعی</p>
-                        </div>
-                        <div class="col-md-4 text-start">
-                            <button class="refresh-btn" onclick="refreshData()">
-                                <i class="fas fa-sync-alt me-2"></i>
-                                بروزرسانی
-                            </button>
-                            <div class="mt-2">
-                                <small class="text-muted" id="lastUpdate">آخرین بروزرسانی: -</small>
-                            </div>
-                        </div>
+    <div class="health-container">
+        <!-- هدر سلامت -->
+        <header class="health-header">
+            <div class="header-content">
+                <div class="back-button">
+                    <a href="/" class="btn btn-secondary">← بازگشت</a>
+                </div>
+                <h1>🩺 سلامت سیستم</h1>
+                <div class="health-score">
+                    <div class="score-circle">
+                        <div class="score-value" id="healthScore">۹۵</div>
+                        <div class="score-label">امتیاز سلامت</div>
                     </div>
                 </div>
             </div>
-        </div>
+        </header>
 
         <!-- متریک‌های اصلی -->
-        <div class="row">
-            <!-- سلامت کلی -->
-            <div class="col-md-3">
-                <div class="health-card p-4 text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-shield-alt fa-3x text-success"></i>
-                    </div>
-                    <h4>سلامت کلی</h4>
-                    <div class="metric-value" id="overallHealth">-</div>
-                    <div class="mt-2">
-                        <span class="status-indicator" id="overallStatus"></span>
-                        <span id="overallStatusText">در حال بارگذاری...</span>
+        <section class="health-metrics grid-system grid-4">
+            <div class="metric-card glass-card">
+                <div class="metric-icon">💻</div>
+                <div class="metric-info">
+                    <div class="metric-value" id="cpuUsage">۲۳٪</div>
+                    <div class="metric-label">مصرف CPU</div>
+                </div>
+                <div class="metric-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 23%"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- آپتایم -->
-            <div class="col-md-3">
-                <div class="health-card p-4 text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-clock fa-3x text-info"></i>
+            <div class="metric-card glass-card">
+                <div class="metric-icon">🧠</div>
+                <div class="metric-info">
+                    <div class="metric-value" id="memoryUsage">۶۷٪</div>
+                    <div class="metric-label">مصرف حافظه</div>
+                </div>
+                <div class="metric-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 67%"></div>
                     </div>
-                    <h4>مدت فعالیت</h4>
-                    <div class="metric-value" id="uptime">-</div>
-                    <small class="text-muted">از آخرین راه‌اندازی</small>
                 </div>
             </div>
+
+            <div class="metric-card glass-card">
+                <div class="metric-icon">⚡</div>
+                <div class="metric-info">
+                    <div class="metric-value" id="apiLatency">۱۴۲ms</div>
+                    <div class="metric-label">تأخیر API</div>
+                </div>
+                <div class="metric-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 28%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-card glass-card">
+                <div class="metric-icon">🤖</div>
+                <div class="metric-info">
+                    <div class="metric-value" id="aiAccuracy">۸۷٪</div>
+                    <div class="metric-label">دقت AI</div>
+                </div>
+                <div class="metric-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 87%"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- بخش‌های اصلی سلامت -->
+        <div class="health-grid grid-system grid-2">
+            <!-- وضعیت سرویس‌ها -->
+            <section class="services-status glass-card">
+                <div class="section-header">
+                    <h2>🛠️ وضعیت سرویس‌ها</h2>
+                    <div class="status-filter">
+                        <button class="filter-btn active" data-filter="all">همه</button>
+                        <button class="filter-btn" data-filter="critical">بحرانی</button>
+                    </div>
+                </div>
+                <div class="services-list" id="servicesList">
+                    <!-- از JavaScript پر میشود -->
+                </div>
+            </section>
 
             <!-- هشدارهای فعال -->
-            <div class="col-md-3">
-                <div class="health-card p-4 text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-bell fa-3x text-warning"></i>
-                    </div>
-                    <h4>هشدارهای فعال</h4>
-                    <div class="metric-value" id="activeAlerts">0</div>
-                    <small class="text-muted">نیازمند توجه</small>
+            <section class="active-alerts glass-card">
+                <div class="section-header">
+                    <h2>⚠️ هشدارهای فعال</h2>
+                    <span class="alerts-count" id="alertsCount">۳</span>
                 </div>
-            </div>
-
-            <!-- درخواست‌های API -->
-            <div class="col-md-3">
-                <div class="health-card p-4 text-center">
-                    <div class="mb-3">
-                        <i class="fas fa-exchange-alt fa-3x text-primary"></i>
-                    </div>
-                    <h4>درخواست API</h4>
-                    <div class="metric-value" id="apiCalls">-</div>
-                    <small class="text-muted">در ۵ دقیقه گذشته</small>
+                <div class="alerts-list" id="healthAlertsList">
+                    <!-- از JavaScript پر میشود -->
                 </div>
-            </div>
-        </div>
+            </section>
 
-        <!-- وضعیت منابع سیستم -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="health-card p-4">
-                    <h4 class="mb-4">
-                        <i class="fas fa-microchip me-2"></i>
-                        وضعیت منابع سیستم
-                    </h4>
-                    <div class="row">
-                        <!-- CPU -->
-                        <div class="col-md-3 mb-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span>پردازنده (CPU)</span>
-                                <span id="cpuPercent">-</span>
-                            </div>
-                            <div class="progress" style="height: 10px;">
-                                <div id="cpuProgress" class="progress-bar" role="progressbar"></div>
-                            </div>
-                        </div>
-
-                        <!-- حافظه -->
-                        <div class="col-md-3 mb-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span>حافظه (RAM)</span>
-                                <span id="memoryPercent">-</span>
-                            </div>
-                            <div class="progress" style="height: 10px;">
-                                <div id="memoryProgress" class="progress-bar" role="progressbar"></div>
-                            </div>
-                        </div>
-
-                        <!-- دیسک -->
-                        <div class="col-md-3 mb-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span>فضای ذخیره‌سازی</span>
-                                <span id="diskPercent">-</span>
-                            </div>
-                            <div class="progress" style="height: 10px;">
-                                <div id="diskProgress" class="progress-bar" role="progressbar"></div>
-                            </div>
-                        </div>
-
-                        <!-- شبکه -->
-                        <div class="col-md-3 mb-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <span>شبکه</span>
-                                <span id="networkStatus">-</span>
-                            </div>
-                            <div class="progress" style="height: 10px;">
-                                <div id="networkProgress" class="progress-bar" role="progressbar"></div>
-                            </div>
-                        </div>
+            <!-- نمودارهای سلامت -->
+            <section class="health-charts glass-card">
+                <div class="section-header">
+                    <h2>📊 نمودارهای سلامت</h2>
+                    <div class="chart-controls">
+                        <select id="chartRange">
+                            <option value="1h">۱ ساعت</option>
+                            <option value="6h">۶ ساعت</option>
+                            <option value="24h" selected>۲۴ ساعت</option>
+                        </select>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- وضعیت APIها و سرویس‌ها -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="health-card p-4 h-100">
-                    <h4 class="mb-4">
-                        <i class="fas fa-plug me-2"></i>
-                        وضعیت اتصالات API
-                    </h4>
-                    <div id="apiStatusList">
-                        <div class="text-center py-4">
-                            <div class="loading-spinner"></div>
-                            <p class="text-muted mt-2">در حال بارگذاری...</p>
-                        </div>
+                <div class="charts-container">
+                    <div class="chart-item">
+                        <div class="chart-title">مصرف CPU</div>
+                        <div class="chart" id="cpuChart"></div>
+                    </div>
+                    <div class="chart-item">
+                        <div class="chart-title">مصرف حافظه</div>
+                        <div class="chart" id="memoryChart"></div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="col-md-6">
-                <div class="health-card p-4 h-100">
-                    <h4 class="mb-4">
-                        <i class="fas fa-robot me-2"></i>
-                        وضعیت هوش مصنوعی
-                    </h4>
-                    <div id="aiStatus">
-                        <div class="text-center py-4">
-                            <div class="loading-spinner"></div>
-                            <p class="text-muted mt-2">در حال بارگذاری...</p>
-                        </div>
+            <!-- لاگ‌های سیستم -->
+            <section class="system-logs glass-card">
+                <div class="section-header">
+                    <h2>📝 لاگ‌های سیستم</h2>
+                    <div class="log-controls">
+                        <button class="btn btn-secondary" id="refreshLogs">بروزرسانی</button>
+                        <button class="btn btn-secondary" id="clearLogs">پاک کردن</button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- نمودار سلامت -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="health-card p-4">
-                    <h4 class="mb-4">
-                        <i class="fas fa-chart-line me-2"></i>
-                        نمودار سلامت سیستم
-                    </h4>
-                    <div class="chart-container">
-                        <canvas id="healthChart"></canvas>
+                <div class="logs-container">
+                    <div class="logs-list" id="systemLogs">
+                        <!-- از JavaScript پر میشود -->
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- لاگ‌های اخیر -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="health-card p-4">
-                    <h4 class="mb-4">
-                        <i class="fas fa-list-alt me-2"></i>
-                        رویدادهای اخیر
-                    </h4>
-                    <div id="recentLogs" style="max-height: 300px; overflow-y: auto;">
-                        <div class="text-center py-4">
-                            <div class="loading-spinner"></div>
-                            <p class="text-muted mt-2">در حال بارگذاری رویدادها...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
 
-    <script>
-        let healthChart;
-        let healthHistory = [];
-        
-        // بارگذاری اولیه داده‌ها
-        document.addEventListener('DOMContentLoaded', function() {
-            refreshData();
-            setInterval(refreshData, 30000); // بروزرسانی هر 30 ثانیه
-        });
+    <!-- FAB مایع -->
+    {% include 'components/smart_fab.html' %}
 
-        async function refreshData() {
-            try {
-                showLoadingState();
-                const response = await fetch('/system/dashboard');
-                const data = await response.json();
-                
-                updateDashboard(data);
-                updateLastUpdateTime();
-                
-            } catch (error) {
-                console.error('Error fetching health data:', error);
-                showError('خطا در دریافت داده‌های سلامت');
-            }
-        }
-
-        function showLoadingState() {
-            // نمایش حالت لودینگ در المان‌های مختلف
-            document.getElementById('overallHealth').textContent = '...';
-            document.getElementById('uptime').textContent = '...';
-            document.getElementById('activeAlerts').textContent = '...';
-            document.getElementById('apiCalls').textContent = '...';
-        }
-
-        function updateDashboard(data) {
-            // سلامت کلی
-            const healthScore = data.health_score || 0;
-            document.getElementById('overallHealth').textContent = healthScore + '%';
-            document.getElementById('overallStatus').className = `status-indicator status-${getStatusClass(healthScore)}`;
-            document.getElementById('overallStatusText').textContent = getStatusText(healthScore);
-            
-            // آپتایم
-            document.getElementById('uptime').textContent = formatUptime(data.system?.uptime_seconds);
-            
-            // هشدارها
-            document.getElementById('activeAlerts').textContent = data.active_alerts || 0;
-            if (data.active_alerts > 0) {
-                document.getElementById('activeAlerts').classList.add('alert-badge');
-            } else {
-                document.getElementById('activeAlerts').classList.remove('alert-badge');
-            }
-            
-            // منابع سیستم
-            updateSystemResources(data.system);
-            
-            // وضعیت APIها
-            updateApiStatus(data.api);
-            
-            // وضعیت AI
-            updateAiStatus(data.ai);
-            
-            // نمودار
-            updateHealthChart(data);
-            
-            // لاگ‌ها
-            updateRecentLogs(data.live_logs);
-        }
-
-        function updateSystemResources(system) {
-            if (!system) return;
-            
-            // CPU
-            const cpuPercent = system.cpu?.percent || 0;
-            document.getElementById('cpuPercent').textContent = cpuPercent + '%';
-            const cpuProgress = document.getElementById('cpuProgress');
-            cpuProgress.style.width = cpuPercent + '%';
-            cpuProgress.className = `progress-bar ${getProgressBarClass(cpuPercent)}`;
-            
-            // Memory
-            const memoryPercent = system.memory?.percent || 0;
-            document.getElementById('memoryPercent').textContent = memoryPercent + '%';
-            const memoryProgress = document.getElementById('memoryProgress');
-            memoryProgress.style.width = memoryPercent + '%';
-            memoryProgress.className = `progress-bar ${getProgressBarClass(memoryPercent)}`;
-            
-            // Disk
-            const diskPercent = system.disk?.percent || 0;
-            document.getElementById('diskPercent').textContent = diskPercent + '%';
-            const diskProgress = document.getElementById('diskProgress');
-            diskProgress.style.width = diskPercent + '%';
-            diskProgress.className = `progress-bar ${getProgressBarClass(diskPercent)}`;
-            
-            // Network
-            const networkStatus = system.network ? 'فعال' : 'غیرفعال';
-            document.getElementById('networkStatus').textContent = networkStatus;
-            const networkProgress = document.getElementById('networkProgress');
-            networkProgress.style.width = system.network ? '100%' : '0%';
-            networkProgress.className = `progress-bar ${system.network ? 'bg-success' : 'bg-danger'}`;
-        }
-
-        function updateApiStatus(api) {
-            const apiStatusList = document.getElementById('apiStatusList');
-            if (!api || !api.details) {
-                apiStatusList.innerHTML = '<p class="text-muted text-center py-3">داده‌ای موجود نیست</p>';
-                return;
-            }
-            
-            let html = '';
-            Object.entries(api.details).forEach(([name, status]) => {
-                const statusClass = status.status === 'healthy' ? 'api-healthy' : 
-                                  status.status === 'degraded' ? 'api-degraded' : 'api-unhealthy';
-                
-                html += `
-                    <div class="api-status ${statusClass} mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <strong>${farsiApiName(name)}</strong>
-                            <span class="badge ${getStatusBadgeClass(status.status)}">
-                                ${getStatusText(status.status)}
-                            </span>
-                        </div>
-                        <small class="text-muted">
-                            <i class="fas fa-clock me-1"></i>
-                            زمان پاسخ: ${status.response_time_ms || 0}ms
-                            ${status.data_received ? '• <i class="fas fa-check text-success me-1"></i>داده دریافت شد' : '• <i class="fas fa-times text-danger me-1"></i>بدون داده'}
-                        </small>
-                    </div>
-                `;
-            });
-            
-            apiStatusList.innerHTML = html;
-            document.getElementById('apiCalls').textContent = api.total_calls || 0;
-        }
-
-        function updateAiStatus(ai) {
-            const aiStatus = document.getElementById('aiStatus');
-            if (!ai) {
-                aiStatus.innerHTML = '<p class="text-muted text-center py-3">داده‌ای موجود نیست</p>';
-                return;
-            }
-            
-            const techStatus = ai.technical_engine?.status || 'unknown';
-            const aiServiceStatus = ai.ai_service?.status || 'unknown';
-            const accuracy = ai.accuracy?.avg_confidence || 0;
-            
-            aiStatus.innerHTML = `
-                <div class="api-status ${getApiStatusClass(techStatus)} mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span>موتور تکنیکال</span>
-                        <span class="badge ${getStatusBadgeClass(techStatus)}">
-                            ${getStatusText(techStatus)}
-                        </span>
-                    </div>
-                    <small class="text-muted">
-                        ${ai.technical_engine?.config_loaded ? 'پیکربندی بارگذاری شد' : 'پیکربندی بارگذاری نشد'}
-                    </small>
-                </div>
-                <div class="api-status ${getApiStatusClass(aiServiceStatus)} mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span>سرویس AI</span>
-                        <span class="badge ${getStatusBadgeClass(aiServiceStatus)}">
-                            ${getStatusText(aiServiceStatus)}
-                        </span>
-                    </div>
-                    <small class="text-muted">
-                        ${ai.ai_service?.signal_predictor_ready ? 'پیش‌بینی‌کننده آماده' : 'پیش‌بینی‌کننده آماده نیست'}
-                    </small>
-                </div>
-                <div class="api-status api-healthy">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span>میانگین دقت</span>
-                        <span class="metric-value" style="font-size: 1.2rem;">${(accuracy * 100).toFixed(1)}%</span>
-                    </div>
-                    <small class="text-muted">
-                        ${ai.accuracy?.total_predictions_last_hour || 0} پیش‌بینی در ساعت گذشته
-                    </small>
-                </div>
-            `;
-        }
-
-        function updateHealthChart(data) {
-            const ctx = document.getElementById('healthChart').getContext('2d');
-            
-            // اضافه کردن داده جدید به تاریخچه
-            healthHistory.push(data.health_score || 0);
-            if (healthHistory.length > 10) {
-                healthHistory.shift();
-            }
-            
-            if (healthChart) {
-                healthChart.destroy();
-            }
-            
-            healthChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: healthHistory.map((_, i) => (i + 1).toString()),
-                    datasets: [{
-                        label: 'سلامت سیستم',
-                        data: healthHistory,
-                        borderColor: '#27ae60',
-                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                        borderWidth: 3,
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            rtl: true,
-                            callbacks: {
-                                label: function(context) {
-                                    return `سلامت: ${context.parsed.y}%`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                rtl: true
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateRecentLogs(logs) {
-            const recentLogs = document.getElementById('recentLogs');
-            if (!logs || logs.length === 0) {
-                recentLogs.innerHTML = '<p class="text-muted text-center py-3">رویدادی ثبت نشده است</p>';
-                return;
-            }
-            
-            let html = '';
-            logs.slice(0, 10).forEach(log => {
-                const logClass = log.status === 'error' ? 'text-danger' : 
-                               log.status === 'warning' ? 'text-warning' : 'text-success';
-                
-                const icon = log.status === 'error' ? 'fa-exclamation-circle' :
-                           log.status === 'warning' ? 'fa-exclamation-triangle' : 'fa-check-circle';
-                
-                html += `
-                    <div class="log-entry">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <small class="${logClass}">
-                                    <i class="fas ${icon} me-2"></i>
-                                    ${log.message || log.endpoint || log.operation || 'رویداد ناشناخته'}
-                                </small>
-                            </div>
-                            <small class="text-muted ms-3" style="white-space: nowrap;">
-                                ${formatTime(log.timestamp)}
-                            </small>
-                        </div>
-                        ${log.error ? `<small class="text-danger d-block mt-1">${log.error}</small>` : ''}
-                    </div>
-                `;
-            });
-            
-            recentLogs.innerHTML = html;
-        }
-
-        // توابع کمکی
-        function getStatusClass(score) {
-            if (score >= 80) return 'healthy';
-            if (score >= 60) return 'degraded';
-            return 'unhealthy';
-        }
-
-        function getStatusText(status) {
-            const statusMap = {
-                'healthy': 'سالم',
-                'degraded': 'کاهش عملکرد',
-                'unhealthy': 'مشکل دار',
-                'error': 'خطا',
-                'unknown': 'ناشناخته'
-            };
-            return statusMap[status] || status;
-        }
-
-        function getStatusBadgeClass(status) {
-            const classMap = {
-                'healthy': 'bg-success',
-                'degraded': 'bg-warning',
-                'unhealthy': 'bg-danger',
-                'error': 'bg-danger'
-            };
-            return classMap[status] || 'bg-secondary';
-        }
-
-        function getApiStatusClass(status) {
-            const classMap = {
-                'healthy': 'api-healthy',
-                'degraded': 'api-degraded', 
-                'unhealthy': 'api-unhealthy',
-                'error': 'api-unhealthy'
-            };
-            return classMap[status] || 'api-unhealthy';
-        }
-
-        function getProgressBarClass(percent) {
-            if (percent < 70) return 'bg-success';
-            if (percent < 85) return 'bg-warning';
-            return 'bg-danger';
-        }
-
-        function farsiApiName(englishName) {
-            const nameMap = {
-                'coins_list': 'لیست کوین‌ها',
-                'coin_details': 'جزئیات کوین',
-                'fear_greed': 'شاخص ترس و طمع',
-                'news': 'اخبار',
-                'coin_charts': 'نمودار کوین',
-                'coins_charts': 'نمودار چندکوینه',
-                'tickers_exchanges': 'صرافی‌ها',
-                'tickers_markets': 'مارکت‌ها',
-                'markets': 'بازارها',
-                'fiats': 'ارزهای فیات',
-                'currencies': 'ارزها',
-                'news_sources': 'منابع خبری',
-                'news_handpicked': 'اخبار منتخب',
-                'btc_dominance': 'سلطه بیت‌کوین',
-                'fear_greed_chart': 'نمودار ترس و طمع',
-                'rainbow_chart': 'نمودار رنگین‌کمان'
-            };
-            return nameMap[englishName] || englishName;
-        }
-
-        function formatUptime(seconds) {
-            if (!seconds) return '-';
-            const hours = Math.floor(seconds / 3600);
-            const minutes = Math.floor((seconds % 3600) / 60);
-            return `${hours} ساعت ${minutes} دقیقه`;
-        }
-
-        function formatTime(timestamp) {
-            if (!timestamp) return '-';
-            return new Date(timestamp).toLocaleTimeString('fa-IR');
-        }
-
-        function updateLastUpdateTime() {
-            document.getElementById('lastUpdate').textContent = 
-                `آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')}`;
-        }
-
-        function showError(message) {
-            // نمایش خطا به کاربر
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-danger alert-dismissible fade show';
-            alertDiv.innerHTML = `
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.container-fluid').prepend(alertDiv);
-            
-            // حذف خودکار پس از 5 ثانیه
-            setTimeout(() => {
-                alertDiv.remove();
-            }, 5000);
-        }
-    </script>
-    
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- اسکریپت‌ها -->
+    <script src="/static/js/health.js"></script>
+    <script src="/static/js/smart_fab.js"></script>
 </body>
 </html>
