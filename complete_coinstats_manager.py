@@ -6,7 +6,7 @@ import os
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 import glob
 from pathlib import Path
 
