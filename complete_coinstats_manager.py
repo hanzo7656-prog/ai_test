@@ -384,22 +384,73 @@ class CompleteCoinStatsManager:
             }
         return {}
 
+    def _date_to_timestamp(self, date_str: str) -> int:
+        """تبدیل تاریخ به تایم‌استمپ عددی"""
+        try:
+            # اگر قبلاً timestamp عددی است
+            if isinstance(date_str, int):
+                return date_str
+            if date_str.isdigit():
+                return int(date_str)
+        
+            # فرمت‌های مختلف تاریخ
+            date_formats = [
+                "%Y-%m-%d",           # 2024-01-01
+                "%Y-%m-%d %H:%M:%S",  # 2024-01-01 12:00:00
+                "%d/%m/%Y",           # 01/01/2024
+                "%m/%d/%Y"            # 01/01/2024
+            ]
+        
+            for date_format in date_formats:
+                try:
+                    dt = datetime.strptime(date_str, date_format)
+                    timestamp = int(dt.timestamp())
+                    logger.info(f"✅ تاریخ {date_str} به تایم‌استمپ {timestamp} تبدیل شد")
+                    return timestamp
+                except ValueError:
+                    continue
+                
+            # اگر هیچکدام کار نکرد، از زمان فعلی استفاده کن
+            logger.warning(f"⚠️ فرمت تاریخ نامعتبر: {date_str} - استفاده از تایم‌استمپ فعلی")
+            return int(datetime.now().timestamp())
+        
+        except Exception as e:
+            logger.error(f"❌ خطا در تبدیل تاریخ {date_str}: {e}")
+            return int(datetime.now().timestamp())
+            
     def _load_raw_data(self) -> Dict[str, Any]:
         """بارگذاری داده‌های خام از کش - سازگاری با AI"""
-        # این متد داده‌های کش شده رو به AI می‌دهد
-        cache_files = list(Path(self.cache_dir).glob("*.json"))
-        raw_data = {}
+        try:
+            cache_files = list(Path(self.cache_dir).glob("*.json"))
+            raw_data = {}
         
-        for file_path in cache_files:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    cache_content = json.load(f)
-                filename = file_path.name
-                raw_data[filename] = cache_content.get('data', {})
-            except Exception as e:
-                logger.error(f"Error loading cache file {file_path}: {e}")
+            for file_path in cache_files:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        cache_content = json.load(f)
+                
+                    filename = file_path.stem  # فقط نام فایل بدون پسوند
+                    data_content = cache_content.get('data', {})
+                
+                    # اطمینان از ساختار مناسب برای system_health_debug
+                    if isinstance(data_content, list):
+                        raw_data[filename] = {
+                            "data": data_content,
+                            "count": len(data_content),
+                            "type": "list"
+                        }
+                    else:
+                        raw_data[filename] = data_content
+                    
+                except Exception as e:
+                    logger.error(f"Error loading cache file {file_path}: {e}")
         
-        return raw_data
+            logger.info(f"📊 داده‌های خام بارگذاری شد: {len(raw_data)} فایل")
+            return raw_data
+        
+        except Exception as e:
+            logger.error(f"❌ خطا در بارگذاری داده‌های خام: {e}")
+            return {}
 
     def get_all_coins(self, limit: int = 100) -> List[Dict]:
         """دریافت تمام کوین‌ها - سازگاری با AI - داده خام"""
