@@ -6,6 +6,7 @@ from system_health_debug import router as system_router
 from ai_analysis_routes import router as ai_router
 from lbank_websocket import router as websocket_router
 import logging
+import os
 from datetime import datetime
 
 # ایجاد اپلیکیشن اصلی
@@ -13,11 +14,17 @@ app = FastAPI(
     title="Crypto AI Trading API",
     description="Advanced Cryptocurrency Analysis and Trading System with Sparse Neural Network",
     version="3.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
-# 🔥 اضافه کردن این دو خط:
+# ایجاد پوشه‌های مورد نیاز
+os.makedirs("templates", exist_ok=True)
+os.makedirs("templates/components", exist_ok=True)
+os.makedirs("static/css", exist_ok=True)
+os.makedirs("static/js", exist_ok=True)
+
+# تنظیمات templating و static files
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -26,50 +33,49 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # اضافه کردن routes سیستم
-app.include_router(system_router, tags=["system"])
+app.include_router(system_router, prefix="/api/system", tags=["system"])
+app.include_router(ai_router, prefix="/api/ai", tags=["ai-analysis"])
+app.include_router(websocket_router, prefix="/api/websocket", tags=["websocket"])
 
-# اضافه کردن routes تحلیل AI
-app.include_router(ai_router, tags=["ai-analysis"])
+# ============================ روت‌های HTML جدید ============================
 
-# اضافه کردن routes WebSocket
-app.include_router(websocket_router, tags=["websocket"])
+@app.get("/", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    """صفحه اصلی داشبورد"""
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
-# 🔥 اضافه کردن این روت جدید:
-@app.get("/health/dashboard", response_class=HTMLResponse)
-async def health_dashboard(request: Request):
-    """صفحه داشبورد سلامت HTML"""
+@app.get("/health", response_class=HTMLResponse)
+async def health_page(request: Request):
+    """صفحه سلامت سیستم"""
     return templates.TemplateResponse("health.html", {"request": request})
 
-# Route اصلی
-@app.get("/")
-def root():
-    return {
-        "message": "🚀 Crypto AI Trading API is Running",
-        "status": "success",
-        "version": "3.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "docs": "/docs",
-        "health": "/health/detailed",
-        "dashboard": "/health/dashboard",  # 🔥 اضافه کردن لینک داشبورد
-        "features": [
-            "Real-time WebSocket Data",
-            "AI Technical Analysis", 
-            "Sparse Neural Network",
-            "Market Scanning",
-            "Advanced Indicators"
-        ]
-    }
+@app.get("/analysis", response_class=HTMLResponse)
+async def analysis_page(request: Request):
+    """صفحه تحلیل تکنیکال"""
+    return templates.TemplateResponse("analysis.html", {"request": request})
 
-@app.get("/health")
+@app.get("/scan", response_class=HTMLResponse)
+async def scan_page(request: Request):
+    """صفحه اسکن بازار"""
+    return templates.TemplateResponse("scan.html", {"request": request})
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """صفحه تنظیمات کاربر"""
+    return templates.TemplateResponse("settings.html", {"request": request})
+
+# ============================ روت‌های API اصلی ============================
+
+@app.get("/api/health")
 def health_check():
     return {
         "status": "healthy", 
         "service": "crypto-ai-api",
         "timestamp": datetime.now().isoformat(),
-        "dashboard": "/health/dashboard"  # 🔥 اضافه کردن لینک داشبورد
+        "version": "3.0.0"
     }
 
-@app.get("/status")
+@app.get("/api/status")
 def api_status():
     return {
         "api": "running",
@@ -79,8 +85,7 @@ def api_status():
         "timestamp": datetime.now().isoformat()
     }
 
-# Route برای اطلاعات سیستم
-@app.get("/info")
+@app.get("/api/info")
 def system_info():
     return {
         "name": "Crypto AI Trading System",
@@ -96,6 +101,33 @@ def system_info():
             "Risk management"
         ],
         "timestamp": datetime.now().isoformat()
+    }
+
+# ============================ روت‌های کمکی ============================
+
+@app.get("/api/")
+def root_api():
+    return {
+        "message": "🚀 Crypto AI Trading API is Running",
+        "status": "success",
+        "version": "3.0.0",
+        "timestamp": datetime.now().isoformat(),
+        "endpoints": {
+            "dashboard": "/",
+            "health": "/health",
+            "analysis": "/analysis", 
+            "scan": "/scan",
+            "settings": "/settings",
+            "api_docs": "/api/docs",
+            "api_health": "/api/health"
+        },
+        "features": [
+            "Real-time WebSocket Data",
+            "AI Technical Analysis", 
+            "Sparse Neural Network",
+            "Market Scanning",
+            "Advanced Indicators"
+        ]
     }
 
 if __name__ == "__main__":
