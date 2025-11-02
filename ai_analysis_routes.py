@@ -505,44 +505,55 @@ async def advanced_scan(request: ScanRequest):
 
 @router.post("/technical/analysis")
 async def technical_analysis(request: AnalysisRequest):
-    """تحلیل تکنیکال پیشرفته با داده‌های خام"""
-    
+    """تحلیل تکنیکال پیشرفته با داده‌های خام - نسخه اصلاح شده"""
     try:
-        
         analysis_results = {}
 
-        valid_period = self._convert_to_valid_peroid(request.period)
+        # استفاده از instance ai_service به جای self
+        valid_period = ai_service._convert_to_valid_period(request.period)
 
         for symbol in request.symbols:
-            # دریافت داده‌های تاریخی خام
-            historical_raw_data = ai_service.get_historical_data(symbol, request.period)
-            
-            if historical_raw_data and 'result' in historical_raw_data:
-                # پردازش داده‌های خام
-                raw_prices = []
-                for item in historical_raw_data['result']:
-                    if 'price' in item:
-                        try:
-                            raw_prices.append(float(item['price']))
-                        except (ValueError, TypeError):
-                            continue
+            try:
+                # دریافت داده‌های تاریخی خام
+                historical_raw_data = ai_service.get_historical_data(symbol, request.period)
+                
+                if historical_raw_data and 'result' in historical_raw_data:
+                    # پردازش داده‌های خام
+                    raw_prices = []
+                    for item in historical_raw_data['result']:
+                        if 'price' in item:
+                            try:
+                                raw_prices.append(float(item['price']))
+                            except (ValueError, TypeError):
+                                continue
 
-                # محاسبه اندیکاتورهای تکنیکال از داده‌های خام
-                technical_indicators = ai_service._calculate_technical_indicators(raw_prices)
+                    # محاسبه اندیکاتورهای تکنیکال از داده‌های خام
+                    technical_indicators = ai_service._calculate_technical_indicators(raw_prices)
 
-                analysis_results[symbol] = {
-                    "prices": raw_prices,
-                    "technical_indicators": technical_indicators,
-                    "analysis": {
-                        "trend": "bullish" if len(raw_prices) > 1 and raw_prices[-1] > raw_prices[-2] else "bearish",
-                        "volatility": ai_service._calculate_volatility(raw_prices),
-                        "support_level": min(raw_prices) if raw_prices else 0,
-                        "resistance_level": max(raw_prices) if raw_prices else 0
-                    },
-                    "raw_data_metrics": {
-                        "data_points": len(raw_prices),
-                        "data_quality": "high" if len(raw_prices) > 50 else "medium"
+                    analysis_results[symbol] = {
+                        "prices": raw_prices,
+                        "technical_indicators": technical_indicators,
+                        "analysis": {
+                            "trend": "bullish" if len(raw_prices) > 1 and raw_prices[-1] > raw_prices[-2] else "bearish",
+                            "volatility": ai_service._calculate_volatility(raw_prices),
+                            "support_level": min(raw_prices) if raw_prices else 0,
+                            "resistance_level": max(raw_prices) if raw_prices else 0
+                        },
+                        "raw_data_metrics": {
+                            "data_points": len(raw_prices),
+                            "data_quality": "high" if len(raw_prices) > 50 else "medium"
+                        }
                     }
+                else:
+                    analysis_results[symbol] = {
+                        "error": "no_historical_data",
+                        "message": f"No historical data available for {symbol}"
+                    }
+                    
+            except Exception as e:
+                analysis_results[symbol] = {
+                    "error": "processing_error",
+                    "message": f"Error processing {symbol}: {str(e)}"
                 }
 
         return {
@@ -550,13 +561,14 @@ async def technical_analysis(request: AnalysisRequest):
             "technical_analysis": analysis_results,
             "timeframe": request.period,
             "total_symbols_analyzed": len(analysis_results),
+            "symbols_with_errors": len([r for r in analysis_results.values() if 'error' in r]),
             "raw_data_processing": True
         }
 
     except Exception as e:
         logger.error(f"Error in technical analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @router.post("/ai/train")
 async def train_ai_model(request: AITrainingRequest):
     """آموزش مدل هوش مصنوعی با داده‌های خام"""
