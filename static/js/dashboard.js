@@ -1,4 +1,4 @@
-// static/js/dashboard.js - کاملاً اصلاح شده و یکپارچه
+// static/js/dashboard.js - کاملاً اصلاح شده
 class Dashboard {
     constructor() {
         this.systemStatus = {};
@@ -12,7 +12,10 @@ class Dashboard {
     }
 
     async initializeDashboard() {
-        if (this.isInitialized) return;
+        if (this.isInitialized) {
+            console.warn('⚠️ Dashboard already initialized');
+            return;
+        }
         
         console.log('🚀 راه‌اندازی داشبورد...');
         
@@ -27,8 +30,9 @@ class Dashboard {
 
             // بررسی نتایج
             results.forEach((result, index) => {
+                const componentNames = ['System Status', 'Market Data', 'Active Alerts', 'System Metrics'];
                 if (result.status === 'rejected') {
-                    console.error(`خطا در کامپوننت ${index}:`, result.reason);
+                    console.error(`❌ خطا در ${componentNames[index]}:`, result.reason);
                 }
             });
 
@@ -50,7 +54,9 @@ class Dashboard {
             console.log('🔄 دریافت وضعیت سیستم...');
             const response = await fetch('/api/system/status');
             
-            if (!response.ok) throw new Error(`خطای API: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
+            }
             
             const data = await response.json();
             console.log('📊 وضعیت سیستم:', data);
@@ -83,7 +89,10 @@ class Dashboard {
                 }
             });
 
-            if (!response.ok) throw new Error(`خطای اسکن: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`خطای اسکن: ${response.status} - ${errorText}`);
+            }
             
             const data = await response.json();
             console.log('📊 داده‌های بازار:', data);
@@ -166,31 +175,27 @@ class Dashboard {
             { 
                 label: 'API CoinStats', 
                 value: this.systemStatus.api_health?.coinstats === 'connected' ? 'متصل' : 'قطع',
-                status: this.systemStatus.api_health?.coinstats === 'connected' ? 'connected' : 'disconnected',
-                data: this.systemStatus.api_health?.coinstats
+                status: this.systemStatus.api_health?.coinstats === 'connected' ? 'connected' : 'disconnected'
             },
             { 
                 label: 'مدل AI', 
                 value: this.systemStatus.ai_health?.status === 'active' ? 'فعال' : 'غیرفعال',
-                status: this.systemStatus.ai_health?.status === 'active' ? 'active' : 'disconnected',
-                data: this.systemStatus.ai_health?.status
+                status: this.systemStatus.ai_health?.status === 'active' ? 'active' : 'disconnected'
             },
             { 
                 label: 'WebSocket', 
                 value: this.systemStatus.api_health?.websocket === 'connected' ? 'متصل' : 'قطع',
-                status: this.systemStatus.api_health?.websocket === 'connected' ? 'connected' : 'disconnected',
-                data: this.systemStatus.api_health?.websocket
+                status: this.systemStatus.api_health?.websocket === 'connected' ? 'connected' : 'disconnected'
             },
             { 
                 label: 'دقت پیش‌بینی', 
                 value: this.systemStatus.ai_health?.accuracy ? `${Math.round(this.systemStatus.ai_health.accuracy * 100)}%` : 'درحال محاسبه',
-                status: 'normal',
-                data: this.systemStatus.ai_health?.accuracy
+                status: 'normal'
             }
         ];
 
         container.innerHTML = statusItems.map(item => `
-            <div class="status-item" data-status="${item.data}">
+            <div class="status-item">
                 <div class="status-label">${item.label}</div>
                 <div class="status-value ${item.status}">${item.value}</div>
             </div>
