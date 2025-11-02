@@ -179,44 +179,10 @@ async def system_status():
         }
 
 
-@app.post("/api/ai/scan")
-async def quick_scan():
-    """اسکن سریع بازار - نسخه ساده"""
-    try:
-        symbols = ["BTC", "ETH", "SOL", "ADA", "DOT", "LINK", "BNB", "XRP", "DOGE", "MATIC"]
-        
-        scan_results = []
-        for symbol in symbols:
-            base_price = 40000 + (hash(symbol) % 20000)
-            change = (hash(symbol) % 15) - 7
-            
-            scan_results.append({
-                "symbol": symbol,
-                "current_price": base_price,
-                "change": change,
-                "volume": 1000000 + (hash(symbol) % 5000000),
-                "market_cap": base_price * 1000000,
-                "ai_signal": {
-                    "primary_signal": "BUY" if change > 0 else "SELL",
-                    "confidence": 0.6 + (abs(change) / 50),
-                    "reasoning": "تحلیل AI نمونه"
-                }
-            })
-        
-        return {
-            "status": "success",
-            "scan_results": scan_results,
-            "total_scanned": len(symbols),
-            "symbols_found": len(scan_results),
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Scan error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+#@app.post("/api/ai/scan")
+#async def quick_scan():
+    #"""اسکن سریع بازار - نسخه ساده"""
+
         
 async def quick_scan_fallback():
     """Fallback وقتی ai_service کار نمی‌کنه"""
