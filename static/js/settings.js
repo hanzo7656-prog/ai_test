@@ -1,4 +1,4 @@
-// static/js/settings.js
+// static/js/settings.js - کاملاً اصلاح شده
 class UserSettings {
     constructor() {
         this.currentTab = 'profile';
@@ -50,6 +50,8 @@ class UserSettings {
 
         // ذخیره خودکار تنظیمات
         this.setupAutoSave();
+
+        console.log('✅ event listenerهای تنظیمات راه‌اندازی شدند');
     }
 
     showTab(tabName) {
@@ -108,10 +110,14 @@ class UserSettings {
                 soundNotifications: false
             },
             trading: {
-                // تنظیمات معاملاتی
+                riskLevel: 'medium',
+                autoTrading: false,
+                maxPositionSize: 1000
             },
             aiModels: {
-                // تنظیمات مدل‌های AI
+                modelVersion: 'v2.1',
+                trainingData: 'extended',
+                predictionHorizon: 'short'
             }
         };
     }
@@ -127,6 +133,8 @@ class UserSettings {
         this.loadProfileSettings();
         this.loadAppearanceSettings();
         this.loadNotificationSettings();
+        this.loadTradingSettings();
+        this.loadAIModelSettings();
     }
 
     loadProfileSettings() {
@@ -171,6 +179,22 @@ class UserSettings {
         document.getElementById('browserNotificationsToggle').checked = notifications.browserNotifications;
         document.getElementById('emailNotificationsToggle').checked = notifications.emailNotifications;
         document.getElementById('soundNotificationsToggle').checked = notifications.soundNotifications;
+    }
+
+    loadTradingSettings() {
+        const trading = this.settings.trading;
+        
+        document.getElementById('riskLevel').value = trading.riskLevel;
+        document.getElementById('autoTradingToggle').checked = trading.autoTrading;
+        document.getElementById('maxPositionSize').value = trading.maxPositionSize;
+    }
+
+    loadAIModelSettings() {
+        const aiModels = this.settings.aiModels;
+        
+        document.getElementById('modelVersion').value = aiModels.modelVersion;
+        document.getElementById('trainingData').value = aiModels.trainingData;
+        document.getElementById('predictionHorizon').value = aiModels.predictionHorizon;
     }
 
     saveProfileSettings() {
@@ -236,7 +260,8 @@ class UserSettings {
         // ذخیره خودکار هنگام تغییر تنظیمات
         const autoSaveElements = [
             'chartStyle', 'dataDensity', 'fontFamily', 'language', 
-            'timezone', 'currency'
+            'timezone', 'currency', 'riskLevel', 'maxPositionSize',
+            'modelVersion', 'trainingData', 'predictionHorizon'
         ];
 
         autoSaveElements.forEach(id => {
@@ -251,7 +276,8 @@ class UserSettings {
         // برای toggleها
         const toggleElements = [
             'animationsToggle', 'priceAlertsToggle', 'aiSignalsToggle',
-            'browserNotificationsToggle', 'emailNotificationsToggle', 'soundNotificationsToggle'
+            'browserNotificationsToggle', 'emailNotificationsToggle', 
+            'soundNotificationsToggle', 'autoTradingToggle'
         ];
 
         toggleElements.forEach(id => {
@@ -335,13 +361,23 @@ class UserSettings {
     }
 
     saveTradingSettings() {
-        // ذخیره تنظیمات معاملاتی
-        console.log('تنظیمات معاملاتی ذخیره شد');
+        this.settings.trading = {
+            riskLevel: document.getElementById('riskLevel').value,
+            autoTrading: document.getElementById('autoTradingToggle').checked,
+            maxPositionSize: parseInt(document.getElementById('maxPositionSize').value)
+        };
+
+        this.saveSettings();
     }
 
     saveAIModelSettings() {
-        // ذخیره تنظیمات مدل‌های AI
-        console.log('تنظیمات AI ذخیره شد');
+        this.settings.aiModels = {
+            modelVersion: document.getElementById('modelVersion').value,
+            trainingData: document.getElementById('trainingData').value,
+            predictionHorizon: document.getElementById('predictionHorizon').value
+        };
+
+        this.saveSettings();
     }
 
     showNotification(message) {
