@@ -1,5 +1,6 @@
 // static/js/analysis.js - کاملاً اصلاح شده
-const API_BASE_URL = window.location.origin; // اینطور بهترینه - خودکار آدرس سرور رو می‌گیره
+// خط اول هر فایل JS
+const API_BASE_URL = 'https://ai-test-grzf.onrender.com';
 class TechnicalAnalysis {
     constructor() {
         this.currentSymbol = 'BTCUSDT';
