@@ -42,7 +42,7 @@ class HealthMonitor {
     async loadServicesStatus() {
         try {
             console.log('🔄 دریافت وضعیت سرویس‌ها...');
-            const response = await fetch('/api/health');
+            const response = await fetch(`${API_BASE_URL}/api/health`);
             
             if (!response.ok) {
                 throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
@@ -169,7 +169,7 @@ class HealthMonitor {
     async loadAlerts() {
         try {
             console.log('🔄 دریافت هشدارها...');
-            const response = await fetch('/api/system/alerts');
+            const response = await fetch(`${API_BASE_URL}/api/system/alerts`);
             
             if (response.ok) {
                 const data = await response.json();
@@ -231,7 +231,7 @@ class HealthMonitor {
     async loadSystemLogs() {
         try {
             console.log('🔄 دریافت لاگ‌های سیستم...');
-            const response = await fetch('/api/system/logs');
+            const response = await fetch(`${API_BASE_URL}/api/system/logs`);
             
             if (response.ok) {
                 const data = await response.json();
@@ -283,7 +283,7 @@ class HealthMonitor {
     async loadSystemMetrics() {
         try {
             console.log('🔄 دریافت متریک‌های سیستم...');
-            const response = await fetch('/api/system/metrics');
+            const response = await fetch(`${API_BASE_URL}/api/system/metrics`);
             
             if (response.ok) {
                 const data = await response.json();
