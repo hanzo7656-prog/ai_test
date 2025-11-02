@@ -1,4 +1,4 @@
-// static/js/scan.js - کاملاً اصلاح شده و یکپارچه
+// static/js/scan.js - کاملاً اصلاح شده
 class MarketScanner {
     constructor() {
         this.scanResults = [];
@@ -69,7 +69,8 @@ class MarketScanner {
         });
 
         if (!response.ok) {
-            throw new Error(`Scan API error: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Scan API error: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
