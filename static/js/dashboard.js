@@ -85,7 +85,7 @@ class Dashboard {
         try {
             console.log('🔄 دریافت داده‌های بازار...');
             const response = await fetch(`${API_BASE_URL/api/ai/scan`, { 
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 }
