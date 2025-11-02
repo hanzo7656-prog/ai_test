@@ -35,7 +35,7 @@ class TechnicalAnalysis {
         
         try {
             console.log('🔄 دریافت داده‌های تحلیل...');
-            const response = await fetch('/api/ai/analysis/quick', {
+            const response = await fetch(`${API_BASE_URL}/api/ai/analysis/quick`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
