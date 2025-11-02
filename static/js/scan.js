@@ -59,7 +59,7 @@ class MarketScanner {
         console.log('🔍 شروع اسکن واقعی...');
         
         const response = await fetch(`${API_BASE_URL}/api/ai/scan`, {
-            method: 'GET',
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
