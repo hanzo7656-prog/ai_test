@@ -120,7 +120,7 @@ class Dashboard {
     async loadActiveAlerts() {
         try {
             console.log('🔄 دریافت هشدارها...');
-            const response = await fetch('/api/system/alerts');
+            const response = await fetch(`${API_BASE_URL}/api/system/alerts`);
             
             if (response.ok) {
                 const data = await response.json();
@@ -143,7 +143,7 @@ class Dashboard {
     async loadSystemMetrics() {
         try {
             console.log('🔄 دریافت متریک‌های سیستم...');
-            const response = await fetch('/api/system/metrics');
+            const response = await fetch(`${API_BASE_URL}/api/system/metrics`);
             
             if (response.ok) {
                 const data = await response.json();
