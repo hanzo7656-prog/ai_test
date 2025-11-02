@@ -69,7 +69,7 @@ class AIAnalysisService:
         self.raw_data_cache = {}
 
     def _convert_to_valid_period(self, period: str) -> str:
-        """تبدیل تایم‌فریم به فرمت معتبر CoinStats"""
+        """تبدیل تایم‌فریم به فرمت معتبر CoinStats - نسخه اصلاح شده"""
         period_map = {
             "1d": "24h",
             "7d": "1w", 
@@ -79,15 +79,49 @@ class AIAnalysisService:
             "365d": "1y"
         }
         return period_map.get(period, period)
+        
     def get_coin_data(self, symbol: str) -> Dict[str, Any]:
-        """دریافت داده‌های خام کوین"""
+        """دریافت داده‌های خام کوین با مدیریت خطای پیشرفته - نسخه اصلاح شده"""
         try:
-            coin_data = coin_stats_manager.get_coin_details(symbol, "USD")
-            # بازگشت داده خام بدون پردازش
-            return coin_data if coin_data else {}
+            if not hasattr(self, 'coin_stats_manager') or not self.coin_stats_manager:
+                logger.error("coin_stats_manager not available")
+                return {
+                    'error': 'coin_stats_manager_not_available',
+                    'symbol': symbol,
+                    'message': 'CoinStats manager is not initialized'
+                }
+            
+            coin_data = self.coin_stats_manager.get_coin_details(symbol, "USD")
+        
+            # بررسی ساختار داده برگشتی
+            if not coin_data:
+                logger.warning(f"No data returned for {symbol}")
+                return {
+                    'error': 'no_data',
+                    'symbol': symbol,
+                    'message': 'No data received from API'
+                }
+        
+            # بررسی خطا در پاسخ
+            if isinstance(coin_data, dict) and coin_data.get('error'):
+                logger.warning(f"API error for {symbol}: {coin_data.get('error')}")
+                return coin_data
+             
+            # لاگ ساختار داده برای دیباگ
+            logger.info(f"Raw coin data structure for {symbol}: {type(coin_data)}")
+            if isinstance(coin_data, dict):
+                logger.info(f"Data keys: {list(coin_data.keys())}")
+        
+            return coin_data
+        
         except Exception as e:
             logger.error(f"Error getting raw coin data for {symbol}: {e}")
-            return {}
+            return {
+                'error': 'exception',
+                'symbol': symbol,
+                'message': str(e),
+                'exception_type': type(e).__name__
+            }
 
     def get_historical_data(self, symbol: str, period: str) -> Dict[str, Any]:
         """دریافت داده‌های تاریخی خام"""
@@ -155,53 +189,117 @@ class AIAnalysisService:
             return {}
 
     def prepare_ai_input(self, symbols: List[str], period: str) -> Dict[str, Any]:
-        """آماده سازی داده‌های خام برای AI"""
+        """آماده سازی داده‌های خام برای AI با fallback کامل - نسخه اصلاح شده"""
+        try:
+            valid_period = self._convert_to_valid_period(period)
+        
+            ai_input = {
+                "timestamp": int(datetime.now().timestamp()),
+                "symbols": symbols,
+                "period": period,
+                "valid_period": valid_period,
+                "raw_data_sources": {
+                    "coin_data": {},
+                    "historical_data": {},
+                    "market_insights": {},
+                    "news_data": {},
+                    "market_infrastructure": {},
+                    "websocket_data": {}
+                },
+                "symbols_raw_data": {},
+                "data_quality_metrics": {
+                    "total_symbols": len(symbols),
+                    "symbols_with_data": 0,
+                    "symbols_with_errors": 0
+                }
+            }
 
-        valid_period = self._convert_to_valid_peroid(request.period)
-   
-        ai_input = {
-            "timestamp": int(datetime.now().timestamp()),
-            "symbols": symbols,
-            "period": period,
-            "raw_data_sources": {
-                "coin_data": {},
-                "historical_data": {},
-                "market_insights": {},
-                "news_data": {},
-                "market_infrastructure": {},
-                "websocket_data": {}
-            },
-            "symbols_raw_data": {}
-        }
+            symbols_with_data = 0
+            symbols_with_errors = 0
 
-        # جمع‌آوری داده‌های خام برای هر نماد
-        for symbol in symbols:
-            symbol_raw_data = {}
+            # جمع‌آوری داده‌های خام برای هر نماد
+            for symbol in symbols:
+                try:
+                    symbol_raw_data = {}
+                    has_data = False
 
-            # داده‌های پایه خام
-            coin_raw_data = self.get_coin_data(symbol)
-            if coin_raw_data:
-                symbol_raw_data["coin_info"] = coin_raw_data
+                    # داده‌های پایه خام
+                    coin_raw_data = self.get_coin_data(symbol)
+                    if coin_raw_data and not coin_raw_data.get('error'):
+                        symbol_raw_data["coin_info"] = coin_raw_data
+                        has_data = True
 
-            # داده‌های تاریخی خام
-            historical_raw_data = self.get_historical_data(symbol, period)
-            if historical_raw_data:
-                symbol_raw_data["historical_data"] = historical_raw_data
+                    # داده‌های تاریخی خام
+                    historical_raw_data = self.get_historical_data(symbol, period)
+                    if historical_raw_data and not historical_raw_data.get('error'):
+                        symbol_raw_data["historical_data"] = historical_raw_data
+                        has_data = True
 
-            # داده‌های لحظه‌ای خام از WebSocket
-            ws_raw_data = self.ws_manager.get_realtime_data(symbol)
-            if ws_raw_data:
-                symbol_raw_data["websocket_data"] = ws_raw_data
+                    # داده‌های لحظه‌ای خام از WebSocket
+                    ws_raw_data = self.ws_manager.get_realtime_data(symbol)
+                    if ws_raw_data:
+                        symbol_raw_data["websocket_data"] = ws_raw_data
+                        has_data = True
 
-            ai_input["symbols_raw_data"][symbol] = symbol_raw_data
+                    if has_data:
+                        ai_input["symbols_raw_data"][symbol] = symbol_raw_data
+                        symbols_with_data += 1
+                    else:
+                        symbols_with_errors += 1
+                        logger.warning(f"No data available for symbol: {symbol}")
+                    
+                except Exception as e:
+                    symbols_with_errors += 1
+                    logger.error(f"Error processing symbol {symbol}: {e}")
 
-        # جمع‌آوری داده‌های کلی بازار خام
-        ai_input["raw_data_sources"]["market_insights"] = self.get_market_insights()
-        ai_input["raw_data_sources"]["news_data"] = self.get_news_data()
-        ai_input["raw_data_sources"]["market_infrastructure"] = self.get_market_infrastructure()
+            # جمع‌آوری داده‌های کلی بازار خام
+            try:
+                market_insights = self.get_market_insights()
+                if market_insights:
+                    ai_input["raw_data_sources"]["market_insights"] = market_insights
+            except Exception as e:
+                logger.error(f"Error getting market insights: {e}")
 
-        logger.info(f"✅ Raw data prepared for AI analysis: {len(symbols)} symbols")
-        return ai_input
+            try:
+                news_data = self.get_news_data()
+                if news_data:
+                    ai_input["raw_data_sources"]["news_data"] = news_data
+            except Exception as e:
+                logger.error(f"Error getting news data: {e}")
+
+            try:
+                market_infrastructure = self.get_market_infrastructure()
+                if market_infrastructure:
+                    ai_input["raw_data_sources"]["market_infrastructure"] = market_infrastructure
+            except Exception as e:
+                logger.error(f"Error getting market infrastructure: {e}")
+
+            # آپدیت متریک‌های کیفیت داده
+            ai_input["data_quality_metrics"]["symbols_with_data"] = symbols_with_data
+            ai_input["data_quality_metrics"]["symbols_with_errors"] = symbols_with_errors
+            ai_input["data_quality_metrics"]["success_rate"] = symbols_with_data / len(symbols) if symbols else 0
+
+            logger.info(f"✅ Raw data prepared for AI analysis: {symbols_with_data}/{len(symbols)} symbols successful")
+        
+            return ai_input
+        
+        except Exception as e:
+            logger.error(f"Error preparing AI input: {e}")
+            return {
+                "timestamp": int(datetime.now().timestamp()),
+                "symbols": symbols,
+                "period": period,
+                "raw_data_sources": {},
+                "symbols_raw_data": {},
+                "data_quality_metrics": {
+                    "total_symbols": len(symbols),
+                    "symbols_with_data": 0,
+                    "symbols_with_errors": len(symbols),
+                    "success_rate": 0,
+                    "error": str(e)
+                },
+                "error": str(e)
+            }
 
     def generate_analysis_report(self, ai_input: Dict) -> Dict[str, Any]:
         """تولید گزارش تحلیل با داده‌های خام"""
@@ -488,10 +586,28 @@ async def train_ai_model(request: AITrainingRequest):
 
 # ========================== متدهای کمکی ==========================
 
-def _check_conditions(self, symbol_raw_data: Dict, conditions: Dict) -> bool:
-    """بررسی شرایط اسکن با داده‌های خام"""
-    # پیاده‌سازی ساده - می‌تواند گسترش یابد
-    return True
+def _check_conditions(symbol_raw_data: Dict, conditions: Dict) -> bool:
+    """بررسی شرایط اسکن با داده‌های خام - نسخه اصلاح شده"""
+    try:
+        if not symbol_raw_data:
+            return False
+            
+        # بررسی حداقل confidence
+        min_confidence = conditions.get('min_confidence', 0.6)
+        
+        # بررسی تغییرات قیمت
+        max_change = conditions.get('max_change', 15)
+        
+        # بررسی وجود داده کافی
+        has_historical_data = bool(symbol_raw_data.get('historical_data'))
+        has_coin_info = bool(symbol_raw_data.get('coin_info'))
+        
+        # شرایط ساده: اگر داده تاریخی یا اطلاعات کوین موجود باشد
+        return has_historical_data or has_coin_info
+        
+    except Exception as e:
+        logger.error(f"Error checking conditions: {e}")
+        return False
 
 def _calculate_technical_indicators(self, prices: List[float]) -> Dict[str, Any]:
     """محاسبه اندیکاتورهای تکنیکال از داده‌های خام"""
