@@ -2,7 +2,7 @@
 class TechnicalAnalysis {
     constructor() {
         this.currentSymbol = 'BTCUSDT';
-        this.currentTimeframe = '1h';
+        this.currentTimeframe = '1d';
         this.analysisData = {};
         this.isLoading = false;
         this.updateInterval = null;
@@ -34,8 +34,8 @@ class TechnicalAnalysis {
         
         try {
             console.log('🔄 دریافت داده‌های تحلیل...');
-            const response = await fetch('/api/ai/analysis', {
-                method: 'POST',
+            const response = await fetch('/api/ai/analysis/quick', {
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
                 },
