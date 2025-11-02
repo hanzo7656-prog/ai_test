@@ -1,4 +1,4 @@
-// static/js/health.js - کاملاً اصلاح شده و یکپارچه
+// static/js/health.js - کاملاً اصلاح شده
 class HealthMonitor {
     constructor() {
         this.services = [];
@@ -43,7 +43,9 @@ class HealthMonitor {
             console.log('🔄 دریافت وضعیت سرویس‌ها...');
             const response = await fetch('/api/system/health');
             
-            if (!response.ok) throw new Error(`خطای API: ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
+            }
             
             const data = await response.json();
             console.log('📊 وضعیت سرویس‌ها:', data);
@@ -522,7 +524,7 @@ class HealthMonitor {
                 
                 const filter = this.dataset.filter;
                 this.applyFilter(filter);
-            });
+            }.bind(this));
         });
 
         // مدیریت کنترل‌های لاگ
