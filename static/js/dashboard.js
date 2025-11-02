@@ -54,7 +54,7 @@ class Dashboard {
     async loadSystemStatus() {
         try {
             console.log('🔄 دریافت وضعیت سیستم...');
-            const response = await fetch('/api/status');
+            const response = await fetch(`${API_BASE_URL/api/status`);
             
             if (!response.ok) {
                 throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
@@ -84,8 +84,8 @@ class Dashboard {
     async loadMarketData() {
         try {
             console.log('🔄 دریافت داده‌های بازار...');
-            const response = await fetch('/api/ai/scan', { 
-                method: 'POST',
+            const response = await fetch(`${API_BASE_URL/api/ai/scan`, { 
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
                 }
