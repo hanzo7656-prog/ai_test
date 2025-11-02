@@ -1,28 +1,48 @@
-// static/js/dashboard.js - کاملاً اصلاح شده
+// static/js/dashboard.js - کاملاً اصلاح شده و یکپارچه
 class Dashboard {
     constructor() {
         this.systemStatus = {};
         this.marketData = [];
         this.activeAlerts = [];
         this.systemMetrics = {};
+        this.updateInterval = null;
+        this.isInitialized = false;
+        
         this.initializeDashboard();
     }
 
     async initializeDashboard() {
+        if (this.isInitialized) return;
+        
         console.log('🚀 راه‌اندازی داشبورد...');
         
-        // لود همزمان همه داده‌ها
-        await Promise.all([
-            this.loadSystemStatus(),
-            this.loadMarketData(),
-            this.loadActiveAlerts(),
-            this.loadSystemMetrics()
-        ]);
-        
-        this.setupEventListeners();
-        this.startRealTimeUpdates();
-        
-        console.log('✅ داشبورد با موفقیت راه‌اندازی شد');
+        try {
+            // لود همزمان با مدیریت خطا
+            const results = await Promise.allSettled([
+                this.loadSystemStatus(),
+                this.loadMarketData(),
+                this.loadActiveAlerts(),
+                this.loadSystemMetrics()
+            ]);
+
+            // بررسی نتایج
+            results.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    console.error(`خطا در کامپوننت ${index}:`, result.reason);
+                }
+            });
+
+            this.setupEventListeners();
+            this.setupChart();
+            this.startRealTimeUpdates();
+            
+            this.isInitialized = true;
+            console.log('✅ داشبورد با موفقیت راه‌اندازی شد');
+            
+        } catch (error) {
+            console.error('❌ خطا در راه‌اندازی داشبورد:', error);
+            this.showGlobalError('خطا در راه‌اندازی داشبورد');
+        }
     }
 
     async loadSystemStatus() {
@@ -38,20 +58,30 @@ class Dashboard {
             if (data.status === 'success') {
                 this.systemStatus = data;
                 this.renderSystemStatus();
+                
+                // به روزرسانی state全局
+                window.appState = window.appState || {};
+                window.appState.systemStatus = data;
+                
             } else {
                 throw new Error('داده معتبر دریافت نشد');
             }
             
         } catch (error) {
             console.error('❌ خطا در دریافت وضعیت سیستم:', error);
-            this.renderSystemStatusError();
+            this.renderSystemStatusError('خطا در دریافت وضعیت سیستم');
         }
     }
 
     async loadMarketData() {
         try {
             console.log('🔄 دریافت داده‌های بازار...');
-            const response = await fetch('/api/ai/scan', { method: 'POST' });
+            const response = await fetch('/api/ai/scan', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
             if (!response.ok) throw new Error(`خطای اسکن: ${response.status}`);
             
@@ -61,13 +91,19 @@ class Dashboard {
             if (data.status === 'success' && data.scan_results) {
                 this.marketData = data.scan_results;
                 this.renderMarketData();
+                
+                // به روزرسانی state全局
+                window.appState = window.appState || {};
+                window.appState.marketData = data.scan_results;
+                window.appState.lastScanTime = new Date().toISOString();
+                
             } else {
                 throw new Error('داده معتبر از اسکن دریافت نشد');
             }
 
         } catch (error) {
             console.error('❌ خطا در دریافت داده بازار:', error);
-            this.renderMarketDataError();
+            this.renderMarketDataError('خطا در دریافت داده‌های بازار');
         }
     }
 
@@ -80,6 +116,13 @@ class Dashboard {
                 const data = await response.json();
                 this.activeAlerts = data.alerts || [];
                 this.renderActiveAlerts();
+                
+                // به روزرسانی state全局
+                window.appState = window.appState || {};
+                window.appState.activeAlerts = data.alerts || [];
+                
+            } else {
+                throw new Error(`خطای API: ${response.status}`);
             }
         } catch (error) {
             console.error('❌ خطا در دریافت هشدارها:', error);
@@ -96,6 +139,13 @@ class Dashboard {
                 const data = await response.json();
                 this.systemMetrics = data.current_metrics || {};
                 this.renderSystemMetrics();
+                
+                // به روزرسانی state全局
+                window.appState = window.appState || {};
+                window.appState.systemMetrics = data.current_metrics || {};
+                
+            } else {
+                throw new Error(`خطای API: ${response.status}`);
             }
         } catch (error) {
             console.error('❌ خطا در دریافت متریک‌ها:', error);
@@ -105,7 +155,10 @@ class Dashboard {
 
     renderSystemStatus() {
         const container = document.querySelector('.status-grid');
-        if (!container) return;
+        if (!container) {
+            console.warn('❌ container وضعیت سیستم یافت نشد');
+            return;
+        }
 
         container.style.cursor = 'pointer';
 
@@ -113,27 +166,31 @@ class Dashboard {
             { 
                 label: 'API CoinStats', 
                 value: this.systemStatus.api_health?.coinstats === 'connected' ? 'متصل' : 'قطع',
-                status: this.systemStatus.api_health?.coinstats === 'connected' ? 'connected' : 'disconnected'
+                status: this.systemStatus.api_health?.coinstats === 'connected' ? 'connected' : 'disconnected',
+                data: this.systemStatus.api_health?.coinstats
             },
             { 
                 label: 'مدل AI', 
                 value: this.systemStatus.ai_health?.status === 'active' ? 'فعال' : 'غیرفعال',
-                status: this.systemStatus.ai_health?.status === 'active' ? 'active' : 'disconnected'
+                status: this.systemStatus.ai_health?.status === 'active' ? 'active' : 'disconnected',
+                data: this.systemStatus.ai_health?.status
             },
             { 
                 label: 'WebSocket', 
                 value: this.systemStatus.api_health?.websocket === 'connected' ? 'متصل' : 'قطع',
-                status: this.systemStatus.api_health?.websocket === 'connected' ? 'connected' : 'disconnected'
+                status: this.systemStatus.api_health?.websocket === 'connected' ? 'connected' : 'disconnected',
+                data: this.systemStatus.api_health?.websocket
             },
             { 
                 label: 'دقت پیش‌بینی', 
                 value: this.systemStatus.ai_health?.accuracy ? `${Math.round(this.systemStatus.ai_health.accuracy * 100)}%` : 'درحال محاسبه',
-                status: 'normal'
+                status: 'normal',
+                data: this.systemStatus.ai_health?.accuracy
             }
         ];
 
         container.innerHTML = statusItems.map(item => `
-            <div class="status-item">
+            <div class="status-item" data-status="${item.data}">
                 <div class="status-label">${item.label}</div>
                 <div class="status-value ${item.status}">${item.value}</div>
             </div>
@@ -150,11 +207,16 @@ class Dashboard {
         const changeElement = document.querySelector('.quick-chart .price-change');
         const chartContainer = document.querySelector('.quick-chart');
         
+        if (!priceElement || !changeElement) {
+            console.warn('❌ المنت‌های قیمت یافت نشدند');
+            return;
+        }
+        
         if (chartContainer) chartContainer.style.cursor = 'pointer';
         
-        if (this.marketData.length > 0) {
+        if (this.marketData && this.marketData.length > 0) {
             const btcData = this.marketData.find(item => item.symbol === 'BTC');
-            if (btcData) {
+            if (btcData && btcData.current_price) {
                 priceElement.textContent = `$${btcData.current_price.toLocaleString()}`;
                 
                 const change = btcData.change || 0;
@@ -168,18 +230,22 @@ class Dashboard {
             }
         }
         
+        // حالت خطا یا داده ناموجود
         priceElement.textContent = '---';
-        changeElement.textContent = 'داده موجود نیست';
-        changeElement.className = 'price-change error';
+        changeElement.textContent = 'در حال دریافت...';
+        changeElement.className = 'price-change loading';
     }
 
     renderActiveSignals() {
         const container = document.getElementById('signalsList');
-        if (!container) return;
+        if (!container) {
+            console.warn('❌ container سیگنال‌ها یافت نشد');
+            return;
+        }
 
         container.style.cursor = 'pointer';
 
-        if (this.marketData.length === 0) {
+        if (!this.marketData || this.marketData.length === 0) {
             container.innerHTML = '<div class="no-data">در حال دریافت داده‌های بازار...</div>';
             return;
         }
@@ -200,22 +266,25 @@ class Dashboard {
                     <div class="signal-symbol">${signal.symbol}</div>
                     <div class="signal-name">${this.getCoinName(signal.symbol)}</div>
                 </div>
-                <div class="signal-price">$${signal.current_price.toLocaleString()}</div>
-                <div class="signal-change ${signal.change >= 0 ? 'positive' : 'negative'}">
-                    ${signal.change >= 0 ? '+' : ''}${signal.change.toFixed(2)}%
+                <div class="signal-price">$${(signal.current_price || 0).toLocaleString()}</div>
+                <div class="signal-change ${(signal.change || 0) >= 0 ? 'positive' : 'negative'}">
+                    ${(signal.change || 0) >= 0 ? '+' : ''}${(signal.change || 0).toFixed(2)}%
                 </div>
-                <div class="signal-confidence">${Math.round(signal.ai_signal.confidence * 100)}%</div>
+                <div class="signal-confidence">${Math.round((signal.ai_signal.confidence || 0) * 100)}%</div>
             </div>
         `).join('');
     }
 
     renderActiveAlerts() {
         const container = document.getElementById('alertsList');
-        if (!container) return;
+        if (!container) {
+            console.warn('❌ container هشدارها یافت نشد');
+            return;
+        }
 
         container.style.cursor = 'pointer';
 
-        if (this.activeAlerts.length === 0) {
+        if (!this.activeAlerts || this.activeAlerts.length === 0) {
             container.innerHTML = '<div class="no-data">هشدار فعالی وجود ندارد</div>';
             return;
         }
@@ -229,42 +298,42 @@ class Dashboard {
             <div class="alert-item ${alert.level}">
                 <div class="alert-icon">${this.getAlertIcon(alert.level)}</div>
                 <div class="alert-content">
-                    <div class="alert-title">${alert.title}</div>
-                    <div class="alert-desc">${alert.message}</div>
+                    <div class="alert-title">${alert.title || 'هشدار سیستم'}</div>
+                    <div class="alert-desc">${alert.message || 'توضیحات موجود نیست'}</div>
                 </div>
             </div>
         `).join('');
     }
 
     renderSystemMetrics() {
-        // نمایش متریک‌های سیستم در کنسول برای دیباگ
         console.log('📈 متریک‌های سیستم:', this.systemMetrics);
+        // می‌توانید اینجا متریک‌ها را در UI نمایش دهید
     }
 
-    renderSystemStatusError() {
+    renderSystemStatusError(message) {
         const container = document.querySelector('.status-grid');
         if (!container) return;
 
         container.innerHTML = `
             <div class="status-item full-width">
                 <div class="status-label">وضعیت سیستم</div>
-                <div class="status-value error">خطا در اتصال به API</div>
+                <div class="status-value error">${message}</div>
             </div>
         `;
     }
 
-    renderMarketDataError() {
+    renderMarketDataError(message) {
         const priceElement = document.querySelector('.quick-chart .current-price');
         const changeElement = document.querySelector('.quick-chart .price-change');
         const signalsContainer = document.getElementById('signalsList');
         
         if (priceElement) priceElement.textContent = '---';
         if (changeElement) {
-            changeElement.textContent = 'خطا در دریافت داده';
+            changeElement.textContent = message;
             changeElement.className = 'price-change error';
         }
         if (signalsContainer) {
-            signalsContainer.innerHTML = '<div class="no-data">خطا در اتصال به API بازار</div>';
+            signalsContainer.innerHTML = `<div class="no-data">${message}</div>`;
         }
     }
 
@@ -272,7 +341,9 @@ class Dashboard {
         const names = {
             'BTC': 'Bitcoin', 'ETH': 'Ethereum', 'SOL': 'Solana', 'ADA': 'Cardano',
             'DOT': 'Polkadot', 'LINK': 'Chainlink', 'BNB': 'Binance Coin', 
-            'XRP': 'Ripple', 'DOGE': 'Dogecoin', 'MATIC': 'Polygon'
+            'XRP': 'Ripple', 'DOGE': 'Dogecoin', 'MATIC': 'Polygon',
+            'LTC': 'Litecoin', 'BCH': 'Bitcoin Cash', 'XLM': 'Stellar',
+            'ATOM': 'Cosmos', 'ETC': 'Ethereum Classic', 'XMR': 'Monero'
         };
         return names[symbol] || symbol;
     }
@@ -328,6 +399,8 @@ class Dashboard {
                 console.log(`🎯 کلیک روی ${description}`);
                 window.location.href = targetUrl;
             });
+        } else {
+            console.warn(`❌ المنت ${elementId} برای کلیک یافت نشد`);
         }
     }
 
@@ -337,13 +410,28 @@ class Dashboard {
 
     renderSampleChart() {
         const container = document.getElementById('btcChart');
-        if (!container) return;
+        if (!container) {
+            console.warn('❌ container نمودار یافت نشد');
+            return;
+        }
 
         container.style.cursor = 'pointer';
 
-        const prices = Array.from({length: 20}, (_, i) => {
-            return 43000 + Math.sin(i * 0.5) * 500 + Math.random() * 300;
-        });
+        // استفاده از داده واقعی اگر موجود باشد
+        let prices;
+        if (this.marketData && this.marketData.length > 0) {
+            const btcData = this.marketData.find(item => item.symbol === 'BTC');
+            if (btcData && btcData.historical_prices) {
+                prices = btcData.historical_prices;
+            }
+        }
+
+        // اگر داده واقعی نبود، از داده نمونه استفاده کن
+        if (!prices) {
+            prices = Array.from({length: 20}, (_, i) => {
+                return 43000 + Math.sin(i * 0.5) * 500 + Math.random() * 300;
+            });
+        }
 
         const maxPrice = Math.max(...prices);
         const minPrice = Math.min(...prices);
@@ -379,15 +467,54 @@ class Dashboard {
     startRealTimeUpdates() {
         console.log('🔄 شروع بروزرسانی‌های Real-time...');
         
+        // پاک‌سازی interval قبلی اگر وجود دارد
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        
         // بروزرسانی هر 30 ثانیه
-        setInterval(async () => {
+        this.updateInterval = setInterval(async () => {
             console.log('🔄 بروزرسانی Real-time داده‌ها...');
-            await Promise.all([
+            await Promise.allSettled([
                 this.loadSystemStatus(),
                 this.loadMarketData(),
                 this.loadActiveAlerts()
             ]);
         }, 30000);
+    }
+
+    showGlobalError(message) {
+        // ایجاد نوتفیکیشن خطای سراسری
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'global-error';
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent-danger);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            z-index: 10000;
+            animation: slideDown 0.3s ease;
+        `;
+        errorDiv.textContent = message;
+        
+        document.body.appendChild(errorDiv);
+        
+        setTimeout(() => {
+            errorDiv.remove();
+        }, 5000);
+    }
+
+    // متد cleanup برای جلوگیری از memory leak
+    destroy() {
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        this.isInitialized = false;
+        console.log('🧹 داشبورد cleanup شد');
     }
 }
 
@@ -395,12 +522,26 @@ class Dashboard {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 DOM Ready - Starting Dashboard System...');
     
+    // اطمینان از عدم راه‌اندازی تکراری
+    if (window.dashboardInstance) {
+        console.warn('⚠️ Dashboard instance already exists');
+        return;
+    }
+    
     setTimeout(() => {
         try {
-            window.dashboard = new Dashboard();
+            window.dashboardInstance = new Dashboard();
+            window.appState = window.appState || {};
             console.log('✅ Dashboard System Successfully Initialized');
         } catch (error) {
             console.error('❌ Dashboard System Initialization Error:', error);
         }
     }, 1000);
+});
+
+// مدیریت unload صفحه
+window.addEventListener('beforeunload', function() {
+    if (window.dashboardInstance) {
+        window.dashboardInstance.destroy();
+    }
 });
