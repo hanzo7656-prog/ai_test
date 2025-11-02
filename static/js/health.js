@@ -41,7 +41,7 @@ class HealthMonitor {
     async loadServicesStatus() {
         try {
             console.log('🔄 دریافت وضعیت سرویس‌ها...');
-            const response = await fetch('/api/system/health');
+            const response = await fetch('/api/health');
             
             if (!response.ok) {
                 throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
