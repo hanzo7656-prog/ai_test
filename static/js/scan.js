@@ -56,7 +56,7 @@ class MarketScanner {
     async performRealScan() {
         console.log('🔍 شروع اسکن واقعی...');
         
-        const response = await fetch('/api/ai/scan/advanced', {
+        const response = await fetch('/api/ai/scan', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
