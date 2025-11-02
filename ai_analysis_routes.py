@@ -459,50 +459,48 @@ async def ai_analysis(
         logger.error(f"Error in AI analysis: {e}")
         raise HTTPException(status_code=500, detail=f"خطا در تحلیل AI: {str(e)}")
 
-@router.post("/scan/advanced")
-async def advanced_scan(request: ScanRequest):
-    """اسکن پیشرفته بازار با داده‌های خام"""
+# در انتهای فایل، این روت رو اضافه کن:
+
+@router.post("/scan")
+async def quick_scan_endpoint(request: ScanRequest):
+    """اسکن سریع بازار - سازگار با فرانت‌اند"""
     try:
+        # استفاده از منطق اسکن پیشرفته با تنظیمات پیش‌فرض
         results = []
         
         for symbol in request.symbols:
             symbol_raw_data = {}
 
-            # دریافت داده‌های پایه خام
+            # دریافت داده‌های پایه
             coin_raw_data = ai_service.get_coin_data(symbol)
             if coin_raw_data:
                 symbol_raw_data["coin_info"] = coin_raw_data
 
-            # دریافت داده‌های تاریخی خام
+            # دریافت داده‌های تاریخی
             historical_raw_data = ai_service.get_historical_data(symbol, request.timeframe)
             if historical_raw_data:
                 symbol_raw_data["historical_data"] = historical_raw_data
 
-            # بررسی شرایط با داده‌های خام
-            if ai_service._check_conditions(symbol_raw_data, request.conditions):
-                ai_prediction = ai_service.signal_predictor.get_ai_prediction(symbol, symbol_raw_data)
-                
-                results.append({
-                    "symbol": symbol,
-                    "conditions_met": True,
-                    "current_price": symbol_raw_data.get('historical_data', {}).get('result', [{}])[-1].get('price', 0) if symbol_raw_data.get('historical_data') else 0,
-                    "ai_signal": ai_prediction,
-                    "raw_data_used": True,
-                    "timestamp": datetime.now().isoformat()
-                })
+            # تحلیل AI
+            ai_prediction = ai_service.signal_predictor.get_ai_prediction(symbol, symbol_raw_data)
+            
+            results.append({
+                "symbol": symbol,
+                "current_price": symbol_raw_data.get('historical_data', {}).get('result', [{}])[-1].get('price', 0) if symbol_raw_data.get('historical_data') else 0,
+                "ai_signal": ai_prediction,
+                "timestamp": datetime.now().isoformat()
+            })
 
         return {
             "status": "success",
             "scan_results": results,
             "total_scanned": len(request.symbols),
-            "symbols_found": len(results),
             "raw_data_mode": True
         }
 
     except Exception as e:
-        logger.error(f"Error in advanced scan: {e}")
+        logger.error(f"Error in quick scan: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/technical/analysis")
 async def technical_analysis(request: AnalysisRequest):
     """تحلیل تکنیکال پیشرفته با داده‌های خام - نسخه اصلاح شده"""
