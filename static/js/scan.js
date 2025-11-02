@@ -1,4 +1,5 @@
 // static/js/scan.js - کاملاً اصلاح شده
+const API_BASE_URL = window.location.origin; // اینطور بهترینه - خودکار آدرس سرور رو می‌گیره
 class MarketScanner {
     constructor() {
         this.scanResults = [];
