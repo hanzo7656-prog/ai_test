@@ -1,4 +1,4 @@
-// static/js/analysis.js - کاملاً اصلاح شده و یکپارچه
+// static/js/analysis.js - کاملاً اصلاح شده
 class TechnicalAnalysis {
     constructor() {
         this.currentSymbol = 'BTCUSDT';
@@ -45,7 +45,10 @@ class TechnicalAnalysis {
                 })
             });
 
-            if (!response.ok) throw new Error(`خطای API: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`خطای API: ${response.status} - ${errorText}`);
+            }
             
             const data = await response.json();
             console.log('📊 داده‌های تحلیل:', data);
