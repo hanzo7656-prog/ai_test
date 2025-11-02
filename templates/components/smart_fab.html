@@ -1,4 +1,4 @@
-<!-- templates/components/smart_fab.html -->
+// templates/components/smart_fab.html - کاملاً اصلاح شده
 <div id="liquidFab" class="liquid-fab">
     <!-- دکمه اصلی مایع -->
     <div class="fab-liquid-core" id="fabCore">
@@ -160,6 +160,31 @@
     text-align: center;
 }
 
+/* وضعیت‌های داینامیک */
+.menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.menu-item.disabled:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+}
+
+.menu-item.alert::after {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-danger);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
 /* انیمیشن‌ها */
 @keyframes liquidFloat {
     0%, 100% { transform: translateY(0px) scale(1); }
@@ -183,6 +208,11 @@
         transform: translateY(-100px) translateX(20px);
         opacity: 0; 
     }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 /* رسپانسیو */
@@ -229,28 +259,38 @@
 </style>
 
 <script>
-// سیستم FAB ساده و کارآمد
+// سیستم FAB کاملاً یکپارچه و هوشمند
 class LiquidFab {
     constructor() {
         this.fab = document.getElementById('liquidFab');
         this.fabCore = document.getElementById('fabCore');
         this.contextMenu = document.getElementById('contextMenu');
         this.menuGrid = document.getElementById('menuGrid');
+        this.isInitialized = false;
+        this.isMenuOpen = false;
         
         console.log('🔄 FAB Initializing...');
         this.init();
     }
 
     init() {
+        if (this.isInitialized) {
+            console.warn('⚠️ FAB already initialized');
+            return;
+        }
+
         this.setupEventListeners();
         this.updateMenu();
-        console.log('✅ FAB Ready');
+        this.startStatusMonitoring();
+        
+        this.isInitialized = true;
+        console.log('✅ FAB Ready - Fully Integrated');
     }
 
     setupEventListeners() {
         // کلیک روی دکمه اصلی
         this.fabCore.addEventListener('click', (e) => {
-            console.log('🎯 FAB Clicked');
+            console.log('🎯 FAB Clicked - State:', this.isMenuOpen);
             e.stopPropagation();
             this.toggleMenu();
         });
@@ -258,27 +298,47 @@ class LiquidFab {
         // کلیک روی آیتم‌های منو
         this.menuGrid.addEventListener('click', (e) => {
             const menuItem = e.target.closest('.menu-item');
-            if (menuItem) {
+            if (menuItem && !menuItem.classList.contains('disabled')) {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('📱 Menu Item Clicked:', menuItem.dataset.action);
-                this.handleMenuItemClick(menuItem);
+                const action = menuItem.dataset.action;
+                console.log('📱 Menu Item Clicked:', action);
+                this.handleMenuItemClick(menuItem, action);
             }
         });
 
         // بستن منو با کلیک خارج
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('#liquidFab')) {
+            if (!e.target.closest('#liquidFab') && this.isMenuOpen) {
                 this.closeMenu();
             }
         });
 
         // بستن منو با کلید ESC
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Escape' && this.isMenuOpen) {
                 this.closeMenu();
             }
         });
+
+        // بررسی تغییرات state全局
+        this.setupStateObserver();
+    }
+
+    setupStateObserver() {
+        // نظارت بر تغییرات state全局 برای به روزرسانی منو
+        const observer = new MutationObserver(() => {
+            this.updateMenu();
+        });
+
+        // نظارت بر تغییرات در appState
+        if (window.appState) {
+            observer.observe(window, { 
+                childList: false,
+                subtree: false,
+                characterData: false
+            });
+        }
     }
 
     detectContext() {
@@ -292,153 +352,473 @@ class LiquidFab {
         return 'dashboard';
     }
 
+    getSystemStatus() {
+        // بررسی وضعیت سیستم از state全局
+        if (window.appState && window.appState.systemStatus) {
+            return window.appState.systemStatus;
+        }
+        return null;
+    }
+
+    getScanStatus() {
+        // بررسی وضعیت اسکن از state全局
+        if (window.appState && window.appState.scanResults) {
+            return {
+                hasResults: window.appState.scanResults.length > 0,
+                lastScanTime: window.appState.lastScanTime
+            };
+        }
+        return { hasResults: false, lastScanTime: null };
+    }
+
+    getAlertStatus() {
+        // بررسی هشدارها از state全局
+        if (window.appState && window.appState.activeAlerts) {
+            const criticalAlerts = window.appState.activeAlerts.filter(
+                alert => alert.level === 'critical'
+            );
+            return {
+                hasAlerts: window.appState.activeAlerts.length > 0,
+                criticalCount: criticalAlerts.length
+            };
+        }
+        return { hasAlerts: false, criticalCount: 0 };
+    }
+
     updateMenu() {
         const context = this.detectContext();
-        console.log('🎨 Updating Menu for Context:', context);
+        const systemStatus = this.getSystemStatus();
+        const scanStatus = this.getScanStatus();
+        const alertStatus = this.getAlertStatus();
         
-        const menuItems = this.getMenuItemsForContext(context);
+        console.log('🎨 Updating Menu - Context:', context, 'Alerts:', alertStatus.criticalCount);
+        
+        const menuItems = this.getMenuItemsForContext(context, {
+            systemStatus,
+            scanStatus,
+            alertStatus
+        });
+        
+        this.renderMenu(menuItems);
+    }
+
+    getMenuItemsForContext(context, status) {
+        const baseMenus = {
+            dashboard: [
+                { 
+                    icon: '📊', 
+                    label: 'تحلیل', 
+                    action: '/analysis',
+                    enabled: true
+                },
+                { 
+                    icon: '🔍', 
+                    label: 'اسکن', 
+                    action: '/scan',
+                    enabled: true
+                },
+                { 
+                    icon: '🩺', 
+                    label: 'سلامت', 
+                    action: '/health',
+                    enabled: true,
+                    alert: status.alertStatus.criticalCount > 0
+                },
+                { 
+                    icon: '⚡', 
+                    label: 'سیگنال', 
+                    action: '/analysis#signals',
+                    enabled: status.scanStatus.hasResults
+                },
+                { 
+                    icon: '📈', 
+                    label: 'نمودار', 
+                    action: '/analysis#charts',
+                    enabled: true
+                },
+                { 
+                    icon: '⚙️', 
+                    label: 'تنظیمات', 
+                    action: '/settings',
+                    enabled: true
+                }
+            ],
+            health: [
+                { 
+                    icon: '📊', 
+                    label: 'متریک', 
+                    action: '/health#metrics',
+                    enabled: true
+                },
+                { 
+                    icon: '⚠️', 
+                    label: 'هشدار', 
+                    action: '/health#alerts',
+                    enabled: true,
+                    alert: status.alertStatus.criticalCount > 0
+                },
+                { 
+                    icon: '📝', 
+                    label: 'لاگ', 
+                    action: '/health#logs',
+                    enabled: true
+                },
+                { 
+                    icon: '🔄', 
+                    label: 'بروزرسانی', 
+                    action: 'refresh',
+                    enabled: true
+                },
+                { 
+                    icon: '🏠', 
+                    label: 'داشبورد', 
+                    action: '/',
+                    enabled: true
+                },
+                { 
+                    icon: '⚙️', 
+                    label: 'تنظیمات', 
+                    action: '/settings',
+                    enabled: true
+                }
+            ],
+            analysis: [
+                { 
+                    icon: '🤖', 
+                    label: 'تحلیل AI', 
+                    action: '/analysis#ai',
+                    enabled: true
+                },
+                { 
+                    icon: '📈', 
+                    label: 'تکنیکال', 
+                    action: '/analysis#technical',
+                    enabled: true
+                },
+                { 
+                    icon: '🎯', 
+                    label: 'پیش‌بینی', 
+                    action: '/analysis#predictions',
+                    enabled: status.systemStatus?.ai_health?.status === 'active'
+                },
+                { 
+                    icon: '📊', 
+                    label: 'اندیکاتور', 
+                    action: '/analysis#indicators',
+                    enabled: true
+                },
+                { 
+                    icon: '🏠', 
+                    label: 'داشبورد', 
+                    action: '/',
+                    enabled: true
+                },
+                { 
+                    icon: '🔍', 
+                    label: 'اسکن', 
+                    action: '/scan',
+                    enabled: true
+                }
+            ],
+            scan: [
+                { 
+                    icon: '🚀', 
+                    label: 'اسکن سریع', 
+                    action: 'quickScan',
+                    enabled: true
+                },
+                { 
+                    icon: '🔬', 
+                    label: 'اسکن پیشرفته', 
+                    action: 'advancedScan',
+                    enabled: true
+                },
+                { 
+                    icon: '⭐', 
+                    label: 'نمادهای برتر', 
+                    action: '/scan#top',
+                    enabled: status.scanStatus.hasResults
+                },
+                { 
+                    icon: '📋', 
+                    label: 'فیلترها', 
+                    action: '/scan#filters',
+                    enabled: true
+                },
+                { 
+                    icon: '🏠', 
+                    label: 'داشبورد', 
+                    action: '/',
+                    enabled: true
+                },
+                { 
+                    icon: '📊', 
+                    label: 'تحلیل', 
+                    action: '/analysis',
+                    enabled: status.scanStatus.hasResults
+                }
+            ],
+            settings: [
+                { 
+                    icon: '👤', 
+                    label: 'پروفایل', 
+                    action: '/settings#profile',
+                    enabled: true
+                },
+                { 
+                    icon: '🎨', 
+                    label: 'ظاهر', 
+                    action: '/settings#appearance',
+                    enabled: true
+                },
+                { 
+                    icon: '🔔', 
+                    label: 'نوتیفیکیشن', 
+                    action: '/settings#notifications',
+                    enabled: true
+                },
+                { 
+                    icon: '🤖', 
+                    label: 'مدل AI', 
+                    action: '/settings#ai',
+                    enabled: true
+                },
+                { 
+                    icon: '🏠', 
+                    label: 'داشبورد', 
+                    action: '/',
+                    enabled: true
+                },
+                { 
+                    icon: '🛡️', 
+                    label: 'امنیت', 
+                    action: '/settings#security',
+                    enabled: true
+                }
+            ]
+        };
+
+        return baseMenus[context] || baseMenus.dashboard;
+    }
+
+    renderMenu(menuItems) {
         this.menuGrid.innerHTML = menuItems.map(item => `
-            <div class="menu-item" data-action="${item.action}">
+            <div class="menu-item ${item.enabled ? '' : 'disabled'} ${item.alert ? 'alert' : ''}" 
+                 data-action="${item.action}">
                 <div class="menu-icon">${item.icon}</div>
                 <div class="menu-label">${item.label}</div>
             </div>
         `).join('');
     }
 
-    getMenuItemsForContext(context) {
-        const menus = {
-            dashboard: [
-                { icon: '📊', label: 'تحلیل', action: '/analysis' },
-                { icon: '🔍', label: 'اسکن', action: '/scan' },
-                { icon: '🩺', label: 'سلامت', action: '/health' },
-                { icon: '⚡', label: 'سیگنال', action: '/analysis#signals' },
-                { icon: '📈', label: 'نمودار', action: '/analysis#charts' },
-                { icon: '⚙️', label: 'تنظیمات', action: '/settings' }
-            ],
-            health: [
-                { icon: '📊', label: 'متریک', action: '/health#metrics' },
-                { icon: '⚠️', label: 'هشدار', action: '/health#alerts' },
-                { icon: '📝', label: 'لاگ', action: '/health#logs' },
-                { icon: '🔄', label: 'بروزرسانی', action: 'refresh' },
-                { icon: '🏠', label: 'داشبورد', action: '/' },
-                { icon: '⚙️', label: 'تنظیمات', action: '/settings' }
-            ],
-            analysis: [
-                { icon: '🤖', label: 'تحلیل AI', action: '/analysis#ai' },
-                { icon: '📈', label: 'تکنیکال', action: '/analysis#technical' },
-                { icon: '🎯', label: 'پیش‌بینی', action: '/analysis#predictions' },
-                { icon: '📊', label: 'اندیکاتور', action: '/analysis#indicators' },
-                { icon: '🏠', label: 'داشبورد', action: '/' },
-                { icon: '🔍', label: 'اسکن', action: '/scan' }
-            ],
-            scan: [
-                { icon: '🚀', label: 'اسکن سریع', action: 'quickScan' },
-                { icon: '🔬', label: 'اسکن پیشرفته', action: 'advancedScan' },
-                { icon: '⭐', label: 'نمادهای برتر', action: '/scan#top' },
-                { icon: '📋', label: 'فیلترها', action: '/scan#filters' },
-                { icon: '🏠', label: 'داشبورد', action: '/' },
-                { icon: '📊', label: 'تحلیل', action: '/analysis' }
-            ],
-            settings: [
-                { icon: '👤', label: 'پروفایل', action: '/settings#profile' },
-                { icon: '🎨', label: 'ظاهر', action: '/settings#appearance' },
-                { icon: '🔔', label: 'نوتیفیکیشن', action: '/settings#notifications' },
-                { icon: '🤖', label: 'مدل AI', action: '/settings#ai' },
-                { icon: '🏠', label: 'داشبورد', action: '/' },
-                { icon: '🛡️', label: 'امنیت', action: '/settings#security' }
-            ]
-        };
-        return menus[context] || menus.dashboard;
-    }
-
-    handleMenuItemClick(menuItem) {
-        const action = menuItem.dataset.action;
-        console.log('🚀 Executing Action:', action);
-        
+    handleMenuItemClick(menuItem, action) {
         // انیمیشن کلیک
-        menuItem.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-            menuItem.style.transform = '';
-        }, 200);
-
-        // اجرای action
+        this.animateClick(menuItem);
+        
+        // اجرای action با تاخیر برای انیمیشن
         setTimeout(() => {
             this.executeAction(action);
             this.closeMenu();
         }, 300);
     }
 
+    animateClick(menuItem) {
+        menuItem.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+            menuItem.style.transform = '';
+        }, 200);
+    }
+
     executeAction(action) {
-        console.log('🎯 Action Type:', action.startsWith('/') ? 'NAVIGATION' : 'FUNCTION');
+        console.log('🎯 Executing Action:', action);
         
         if (action.startsWith('/')) {
             // ناوبری به صفحه
-            console.log('🔗 Navigating to:', action);
-            window.location.href = action;
+            this.navigateTo(action);
         } else {
             // اجرای تابع داخلی
-            console.log('⚡ Executing function:', action);
             this.executeFunction(action);
         }
     }
 
+    navigateTo(url) {
+        console.log('🔗 Navigating to:', url);
+        
+        // افزودن effect انتقال
+        this.addPageTransition();
+        
+        setTimeout(() => {
+            window.location.href = url;
+        }, 300);
+    }
+
     executeFunction(action) {
         const functions = {
-            'refresh': () => window.location.reload(),
-            'quickScan': () => document.getElementById('startScan')?.click(),
-            'advancedScan': () => document.getElementById('advancedScan')?.click(),
+            'refresh': () => {
+                console.log('🔄 Refreshing page...');
+                window.location.reload();
+            },
+            'quickScan': () => {
+                console.log('🚀 Starting quick scan...');
+                if (window.scanner) {
+                    window.scanner.startScan();
+                } else {
+                    this.showNotification('اسکنر در دسترس نیست');
+                }
+            },
+            'advancedScan': () => {
+                console.log('🔬 Starting advanced scan...');
+                if (window.scanner) {
+                    window.scanner.showAdvancedSettings();
+                } else {
+                    this.showNotification('اسکنر در دسترس نیست');
+                }
+            }
         };
 
         if (functions[action]) {
             functions[action]();
         } else {
             console.warn('❌ Unknown function:', action);
+            this.showNotification('این قابلیت به زودی اضافه می‌شود');
         }
     }
 
     toggleMenu() {
-        console.log('🎪 Toggling Menu');
-        this.fab.classList.toggle('active');
-        
-        if (this.fab.classList.contains('active')) {
-            console.log('📱 Menu Opened');
+        if (this.isMenuOpen) {
+            this.closeMenu();
         } else {
-            console.log('📱 Menu Closed');
+            this.openMenu();
         }
+    }
+
+    openMenu() {
+        console.log('📱 Opening Menu');
+        this.fab.classList.add('active');
+        this.isMenuOpen = true;
+        
+        // به روزرسانی منو هنگام باز شدن
+        this.updateMenu();
     }
 
     closeMenu() {
         console.log('📱 Closing Menu');
         this.fab.classList.remove('active');
+        this.isMenuOpen = false;
+    }
+
+    addPageTransition() {
+        // ایجاد effect انتقال صفحه
+        const transition = document.createElement('div');
+        transition.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--accent-primary);
+            z-index: 100000;
+            opacity: 0;
+            animation: fadeInOut 0.6s ease;
+        `;
+        
+        document.body.appendChild(transition);
+        
+        setTimeout(() => {
+            transition.remove();
+        }, 600);
+    }
+
+    startStatusMonitoring() {
+        // مانیتورینگ وضعیت سیستم هر 30 ثانیه
+        setInterval(() => {
+            this.updateMenu();
+        }, 30000);
+    }
+
+    showNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'fab-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--accent-primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            z-index: 10000;
+            animation: slideInRight 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    // متدهای utility
+    destroy() {
+        this.isInitialized = false;
+        this.isMenuOpen = false;
+        console.log('🧹 FAB cleanup شد');
+    }
+}
+
+// راه‌اندازی بهینه و بدون duplicate
+function initializeFAB() {
+    console.log('🚀 Initializing FAB System...');
+    
+    // جلوگیری از راه‌اندازی تکراری
+    if (window.fabInstance) {
+        console.warn('⚠️ FAB instance already exists');
+        return window.fabInstance;
+    }
+    
+    try {
+        window.fabInstance = new LiquidFab();
+        console.log('✅ FAB System Successfully Initialized');
+        return window.fabInstance;
+    } catch (error) {
+        console.error('❌ FAB Initialization Error:', error);
+        return null;
     }
 }
 
 // راه‌اندازی وقتی DOM آماده شد
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 DOM Ready - Initializing FAB');
-    try {
-        new LiquidFab();
-        console.log('✅ FAB Successfully Initialized');
-    } catch (error) {
-        console.error('❌ FAB Initialization Error:', error);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeFAB);
+} else {
+    setTimeout(initializeFAB, 1000);
+}
+
+// همچنین برای SPAها یا صفحات داینامیک
+if (typeof window !== 'undefined') {
+    window.reinitializeFAB = initializeFAB;
+}
+
+// مدیریت unload صفحه
+window.addEventListener('beforeunload', function() {
+    if (window.fabInstance) {
+        window.fabInstance.destroy();
     }
 });
 
-// همچنین برای صفحاتی که بعداً لود می‌شن
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initFAB);
-} else {
-    initFAB();
-}
-
-function initFAB() {
-    setTimeout(() => {
-        try {
-            new LiquidFab();
-            console.log('✅ FAB Initialized (Fallback)');
-        } catch (error) {
-            console.error('❌ FAB Fallback Error:', error);
-        }
-    }, 1000);
-}
+// اضافه کردن استایل‌های انیمیشن
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeInOut {
+        0% { opacity: 0; }
+        50% { opacity: 0.3; }
+        100% { opacity: 0; }
+    }
+    
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+`;
+document.head.appendChild(style);
 </script>
