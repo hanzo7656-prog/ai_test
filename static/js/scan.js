@@ -1,6 +1,6 @@
 // static/js/scan.js - کاملاً اصلاح شده
-// خط اول هر فایل JS
 const API_BASE_URL = 'https://ai-test-grzf.onrender.com';
+
 class MarketScanner {
     constructor() {
         this.scanResults = [];
@@ -45,6 +45,7 @@ class MarketScanner {
         try {
             await this.performRealScan();
             this.addToScanHistory();
+            this.showNotification('اسکن با موفقیت انجام شد');
             
         } catch (error) {
             console.error('Scan error:', error);
@@ -96,7 +97,6 @@ class MarketScanner {
     }
 
     getScanSymbols() {
-        // لیست کامل نمادها برای اسکن - هماهنگ با دیگر فایل‌ها
         return [
             "BTC", "ETH", "SOL", "ADA", "DOT", "LINK", "BNB", "XRP", 
             "DOGE", "MATIC", "LTC", "BCH", "XLM", "ATOM", "ETC", "XMR",
@@ -213,7 +213,8 @@ class MarketScanner {
             'BTC': '₿', 'ETH': 'Ξ', 'SOL': '◎', 'ADA': 'A',
             'DOT': '●', 'LINK': '🔗', 'BNB': 'B', 'XRP': 'X',
             'DOGE': 'Ð', 'MATIC': 'M', 'LTC': 'Ł', 'BCH': 'B',
-            'XLM': 'X', 'ATOM': '⚛', 'ETC': 'ξ', 'XMR': 'ɱ'
+            'XLM': 'X', 'ATOM': '⚛', 'ETC': 'ξ', 'XMR': 'ɱ',
+            'AVAX': 'A', 'TRX': 'T', 'ALGO': 'A', 'FTM': 'F'
         };
         return icons[symbol] || symbol.charAt(0);
     }
@@ -285,7 +286,6 @@ class MarketScanner {
     }
 
     getScanDuration() {
-        // شبیه‌سازی زمان اسکن - در واقعیت از API بگیرید
         return (1.5 + Math.random()).toFixed(1) + 's';
     }
 
@@ -370,7 +370,6 @@ class MarketScanner {
     addToWatchlist(symbol) {
         console.log(`⭐ افزودن به واچلیست: ${symbol}`);
         
-        // ذخیره در localStorage
         const watchlist = JSON.parse(localStorage.getItem('vortex-watchlist') || '[]');
         if (!watchlist.includes(symbol)) {
             watchlist.push(symbol);
@@ -418,6 +417,11 @@ class MarketScanner {
         // بازنشانی فیلترها
         document.getElementById('resetFilters')?.addEventListener('click', () => {
             this.resetFilters();
+        });
+
+        // دکمه استفاده از داده نمونه
+        document.getElementById('useSampleData')?.addEventListener('click', () => {
+            this.useSampleData();
         });
 
         console.log('✅ event listenerهای اسکنر راه‌اندازی شدند');
@@ -490,7 +494,7 @@ class MarketScanner {
     loadScanHistory() {
         const history = localStorage.getItem('vortex-scan-history');
         if (history) {
-            this.scanHistory = JSON.parse(history).slice(0, 10); // آخرین 10 اسکن
+            this.scanHistory = JSON.parse(history).slice(0, 10);
         }
     }
 
@@ -502,7 +506,7 @@ class MarketScanner {
         };
         
         this.scanHistory.unshift(scanRecord);
-        this.scanHistory = this.scanHistory.slice(0, 10); // حفظ آخرین 10 رکورد
+        this.scanHistory = this.scanHistory.slice(0, 10);
         
         localStorage.setItem('vortex-scan-history', JSON.stringify(this.scanHistory));
     }
@@ -517,7 +521,6 @@ class MarketScanner {
             progressBar.style.width = '0%';
             status.classList.add('active');
             
-            // انیمیشن progress bar
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 2;
@@ -558,11 +561,9 @@ class MarketScanner {
     useSampleData() {
         console.log('🔄 استفاده از داده‌های نمونه...');
         
-        // استفاده از داده‌های global state اگر موجود باشد
         if (window.appState && window.appState.marketData) {
             this.scanResults = window.appState.marketData;
         } else {
-            // داده‌های نمونه
             this.scanResults = this.generateSampleData();
         }
         
@@ -610,7 +611,6 @@ class MarketScanner {
         }, 3000);
     }
 
-    // متد cleanup
     destroy() {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
