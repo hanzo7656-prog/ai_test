@@ -52,7 +52,7 @@ class Dashboard {
     async loadSystemStatus() {
         try {
             console.log('🔄 دریافت وضعیت سیستم...');
-            const response = await fetch('/api/system/status');
+            const response = await fetch('/api/status');
             
             if (!response.ok) {
                 throw new Error(`خطای API: ${response.status} - ${response.statusText}`);
