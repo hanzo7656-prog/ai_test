@@ -1,4 +1,5 @@
 // static/js/health.js - کاملاً اصلاح شده
+const API_BASE_URL = window.location.origin; // اینطور بهترینه - خودکار آدرس سرور رو می‌گیره
 class HealthMonitor {
     constructor() {
         this.services = [];
