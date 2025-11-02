@@ -84,7 +84,7 @@ class Dashboard {
     async loadMarketData() {
         try {
             console.log('🔄 دریافت داده‌های بازار...');
-            const response = await fetch(`${API_BASE_URL/api/ai/scan`, { 
+            const response = await fetch(`${API_BASE_URL/api/ai/scan/advanced`, { 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
