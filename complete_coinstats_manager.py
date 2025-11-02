@@ -72,7 +72,7 @@ class CompleteCoinStatsManager:
             return None
 
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Union[Dict, List]:
-        """ساخت درخواست به API با کش - نسخه اصلاح شده"""
+        """ساخت درخواست به API با کش و دیباگ پیشرفته - نسخه اصلاح شده"""
         cache_path = self._get_cache_path(endpoint, params)
 
         # بررسی کش
@@ -85,33 +85,48 @@ class CompleteCoinStatsManager:
         # درخواست به API
         url = f"{self.base_url}/{endpoint}"
         try:
-            logger.info(f"🔍 API Raw Data Request: {endpoint}")
-        
-            # تنظیم timeout منطقی
-            timeout = 10  # افزایش timeout عمومی
-            if "news" in endpoint:
-                timeout = 60  # افزایش timeout برای اخبار
-            elif "charts" in endpoint:
-                timeout = 20  # افزایش timeout برای چارت‌ها
+            logger.info(f"🔍 API Request: {endpoint}, Params: {params}")
         
             response = self.session.get(
                 url,
                 headers=self.headers,
                 params=params,
-                timeout=timeout
+                timeout=15
             )
+        
+            # 🔍 دیباگ پیشرفته
+            logger.info(f"📡 API Response Status: {response.status_code}")
         
             if response.status_code == 200:
                 data = response.json()
+            
+                # 🔍 لاگ ساختار داده برگشتی
+                logger.info(f"📊 API Response Structure for {endpoint}:")
+                logger.info(f"   Type: {type(data)}")
+                if isinstance(data, dict):
+                    logger.info(f"   Keys: {list(data.keys())}")
+                    if 'result' in data:
+                        result_data = data['result']
+                        logger.info(f"   Result Type: {type(result_data)}")
+                        if isinstance(result_data, list) and len(result_data) > 0:
+                            logger.info(f"   List Length: {len(result_data)}")
+                            if isinstance(result_data[0], dict):
+                                logger.info(f"   First Item Keys: {list(result_data[0].keys())}")
+                elif isinstance(data, list):
+                    logger.info(f"   List Length: {len(data)}")
+                    if len(data) > 0:
+                        logger.info(f"   First Item Type: {type(data[0])}")
             
                 # ذخیره در کش
                 if use_cache:
                     self._save_to_cache(cache_path, data)
             
-                logger.info(f"✅ Raw data received from {endpoint}")
+                logger.info(f"✅ Data received from {endpoint}")
                 return data
+             
             else:
-                logger.warning(f"⚠️ API Error {response.status_code} for {endpoint}")
+                logger.error(f"❌ API Error {response.status_code} for {endpoint}")
+                logger.error(f"❌ Response Text: {response.text[:500]}...")
             
                 # استفاده از کش قدیمی در صورت خطا
                 if use_cache and os.path.exists(cache_path):
@@ -120,42 +135,27 @@ class CompleteCoinStatsManager:
                     if cached_data is not None:
                         return cached_data
             
-                # بازگشت ساختار داده مناسب بر اساس endpoint
-                if "news" in endpoint:
-                    return {"data": [], "count": 0}
-                else:
-                    return {}
-                  
+                # بازگشت ساختار داده مناسب
+                return self._get_fallback_structure(endpoint)
+            
         except requests.exceptions.Timeout:
-            logger.error(f"⏰ Timeout برای {endpoint}")
-            # استفاده از کش در صورت timeout
+            logger.error(f"⏰ Timeout for {endpoint}")
             if use_cache and os.path.exists(cache_path):
                 logger.info("🔍 Using cache due to timeout")
                 cached_data = self._load_from_cache(cache_path)
                 if cached_data is not None:
                     return cached_data
+            return self._get_fallback_structure(endpoint)
         
-            # بازگشت ساختار مناسب
-            if "news" in endpoint:
-                return {"data": [], "count": 0, "error": "timeout"}
-            else:
-                return {"error": "timeout"}
-    
         except Exception as e:
-            logger.error(f"🚨 خطا در {endpoint}: {e}")
-            # استفاده از کش در صورت خطا
+            logger.error(f"🚨 Error in {endpoint}: {e}")
             if use_cache and os.path.exists(cache_path):
                 logger.info("🔍 Using cache due to connection error")
                 cached_data = self._load_from_cache(cache_path)
                 if cached_data is not None:
                     return cached_data
-        
-            # بازگشت ساختار مناسب
-            if "news" in endpoint:
-                return {"data": [], "count": 0, "error": str(e)}
-            else:
-                return {"error": str(e)}
-                
+            return self._get_fallback_structure(endpoint)
+    
     def clear_cache(self, endpoint: str = None):
         """پاک کردن کش"""
         try:
