@@ -428,7 +428,7 @@ async def clear_cache():
         raise HTTPException(status_code=500, detail=str(e))
 
 # سرو کردن فایل‌های استاتیک frontend
-app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
+#app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
 
 # مدیریت روت‌های SPA برای frontend
 @app.get("/{full_path:path}")
