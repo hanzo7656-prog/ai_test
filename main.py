@@ -1,8 +1,6 @@
-# main.py - کاملاً اصلاح شده
+# main.py - کاملاً اصلاح شده با ادغام فرانت‌اند
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from system_health_debug import router as system_router, system_manager
 from ai_analysis_routes import router as ai_router, ai_service
@@ -30,15 +28,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ایجاد پوشه‌های مورد نیاز
-os.makedirs("templates", exist_ok=True)
-os.makedirs("templates/components", exist_ok=True)
-os.makedirs("static/css", exist_ok=True)
-os.makedirs("static/js", exist_ok=True)
-
-# تنظیمات templating و static files
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# ایجاد پوشه frontend اگر وجود ندارد
+os.makedirs("frontend", exist_ok=True)
 
 # تنظیمات logging
 logging.basicConfig(level=logging.INFO)
@@ -47,35 +38,46 @@ logger = logging.getLogger(__name__)
 # ============================ روت‌های API ============================
 
 # اضافه کردن routes سیستم
-app.include_router(system_router, prefix="api/system", tags=["system"])
-app.include_router(ai_router, prefix="api/ai", tags=["ai-analysis"])
+app.include_router(system_router, prefix="/api/system", tags=["system"])
+app.include_router(ai_router, prefix="/api/ai", tags=["ai-analysis"])
 
-# ============================ روت‌های HTML ============================
+# ============================ روت‌های فرانت‌اند ============================
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard_page(request: Request):
-    """صفحه اصلی داشبورد"""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+async def serve_frontend():
+    """سرویس فایل اصلی فرانت‌اند"""
+    try:
+        return FileResponse("frontend/index.html")
+    except Exception as e:
+        logger.error(f"Error serving frontend: {e}")
+        return HTMLResponse("""
+            <html>
+                <head><title>خطا در بارگذاری</title></head>
+                <body>
+                    <h1>خطا در بارگذاری رابط کاربری</h1>
+                    <p>فایل frontend/index.html یافت نشد.</p>
+                    <p>لطفاً از صحت مسیر فایل‌ها اطمینان حاصل کنید.</p>
+                </body>
+            </html>
+        """)
 
-@app.get("/health", response_class=HTMLResponse)
-async def health_page(request: Request):
-    """صفحه سلامت سیستم"""
-    return templates.TemplateResponse("health.html", {"request": request})
-
-@app.get("/analysis", response_class=HTMLResponse)
-async def analysis_page(request: Request):
-    """صفحه تحلیل تکنیکال"""
-    return templates.TemplateResponse("analysis.html", {"request": request})
-
-@app.get("/scan", response_class=HTMLResponse)
-async def scan_page(request: Request):
-    """صفحه اسکن بازار"""
-    return templates.TemplateResponse("scan.html", {"request": request})
-
-@app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request):
-    """صفحه تنظیمات کاربر"""
-    return templates.TemplateResponse("settings.html", {"request": request})
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def serve_frontend_routes(full_path: str):
+    """سرویس تمام مسیرهای فرانت‌اند برای SPA"""
+    try:
+        return FileResponse("frontend/index.html")
+    except Exception as e:
+        logger.error(f"Error serving frontend route {full_path}: {e}")
+        return HTMLResponse(f"""
+            <html>
+                <head><title>خطا در بارگذاری</title></head>
+                <body>
+                    <h1>خطا در بارگذاری صفحه</h1>
+                    <p>مسیر {full_path} یافت نشد.</p>
+                    <p><a href="/">بازگشت به صفحه اصلی</a></p>
+                </body>
+            </html>
+        """)
 
 # ============================ روت‌های API اصلی برای Frontend ============================
 
@@ -178,42 +180,55 @@ async def system_status():
             "error": str(e)
         }
 
-
-#@app.post("/api/ai/scan")
-#async def quick_scan():
-    #"""اسکن سریع بازار - نسخه ساده"""
-
+@app.post("/api/ai/scan")
+async def quick_scan():
+    """اسکن سریع بازار - نسخه ساده برای فرانت‌اند"""
+    try:
+        # استفاده از سرویس AI برای اسکن
+        symbols = ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"]
         
-async def quick_scan_fallback():
-    """Fallback وقتی ai_service کار نمی‌کنه"""
-    symbols = ["BTC", "ETH", "SOL", "ADA", "DOT", "LINK", "BNB", "XRP", "DOGE", "MATIC"]
-    
-    scan_results = []
-    for symbol in symbols:
-        base_price = 40000 + (hash(symbol) % 20000)
-        change = (hash(symbol) % 15) - 7
-        
-        scan_results.append({
-            "symbol": symbol,
-            "current_price": base_price,
-            "change": change,
-            "volume": 1000000 + (hash(symbol) % 5000000),
-            "market_cap": base_price * (1000000 + (hash(symbol) % 5000000)),
-            "ai_signal": {
-                "primary_signal": "BUY" if change > 0 else "SELL",
-                "confidence": 0.6 + (abs(change) / 50),
-                "reasoning": "تحلیل AI (Fallback Mode)"
-            }
-        })
-    
-    return {
-        "status": "success",
-        "scan_results": scan_results,
-        "total_scanned": len(symbols),
-        "symbols_found": len(scan_results),
-        "timestamp": datetime.now().isoformat(),
-        "note": "Using fallback data - AI service unavailable"
-    }
+        scan_results = []
+        for symbol in symbols:
+            try:
+                # دریافت داده‌های خام
+                raw_data = ai_service.prepare_ai_input([symbol], "1h")
+                
+                # تحلیل AI
+                analysis_report = ai_service.generate_analysis_report(raw_data)
+                symbol_analysis = analysis_report.get("symbol_analysis", {}).get(symbol, {})
+                
+                scan_results.append({
+                    "symbol": symbol,
+                    "current_price": symbol_analysis.get("current_price", 0),
+                    "change": symbol_analysis.get("technical_score", 0.5) * 100 - 50,
+                    "volume": 1000000 + (hash(symbol) % 5000000),
+                    "market_cap": symbol_analysis.get("current_price", 0) * (1000000 + (hash(symbol) % 5000000)),
+                    "ai_signal": symbol_analysis.get("ai_signal", {})
+                })
+                
+            except Exception as e:
+                logger.error(f"Error scanning {symbol}: {e}")
+                scan_results.append({
+                    "symbol": symbol,
+                    "error": str(e),
+                    "ai_signal": {"primary_signal": "ERROR", "signal_confidence": 0}
+                })
+
+        return {
+            "status": "success",
+            "scan_results": scan_results,
+            "total_scanned": len(symbols),
+            "symbols_found": len([r for r in scan_results if "error" not in r]),
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Quick scan error: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.get("/api/ai/analysis/quick")
 async def quick_analysis(symbols: str = "BTC,ETH"):
@@ -349,10 +364,6 @@ async def root_api():
         "timestamp": datetime.now().isoformat(),
         "endpoints": {
             "dashboard": "/",
-            "health": "/health",
-            "analysis": "/analysis",
-            "scan": "/scan", 
-            "settings": "/settings",
             "api_docs": "/api/docs",
             "api_health": "/api/health",
             "system_status": "/api/system/status",
