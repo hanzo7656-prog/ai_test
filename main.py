@@ -47,8 +47,8 @@ logger = logging.getLogger(__name__)
 # ============================ روت‌های API ============================
 
 # اضافه کردن routes سیستم
-app.include_router(system_router, prefix="/system", tags=["system"])
-app.include_router(ai_router, prefix="/ai", tags=["ai-analysis"])
+app.include_router(system_router, prefix="api/system", tags=["system"])
+app.include_router(ai_router, prefix="api/ai", tags=["ai-analysis"])
 
 # ============================ روت‌های HTML ============================
 
