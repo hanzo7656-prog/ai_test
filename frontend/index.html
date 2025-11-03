@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoAI - سیستم تحلیل ارز دیجیتال</title>
+    <style>
+        /* Reset و متغیرها */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f1f5f9;
+            --text-light: #94a3b8;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* هدر کشویی */
+        .header {
+            background: var(--surface);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .header.hidden {
+            transform: translateY(-100%);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            height: 70px;
+        }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .menu-toggle:hover {
+            background: var(--border);
+        }
+        
+        .nav-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        /* منوی کشویی */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -300px;
+            width: 300px;
+            height: 100vh;
+            background: var(--surface);
+            z-index: 2000;
+            transition: right 0.3s ease;
+            box-shadow: var(--shadow-lg);
+            overflow-y: auto;
+        }
+        
+        .sidebar.open {
+            right: 0;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-close {
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        
+        .sidebar-close:hover {
+            background: var(--border);
+        }
+        
+        .sidebar-menu {
+            list-style: none;
+            padding: 1rem 0;
+        }
+        
+        .sidebar-item {
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .sidebar-btn {
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--text);
+            padding: 1rem 1.5rem;
+            text-align: right;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-btn:hover {
+            background: var(--border);
+            color: var(--primary);
+        }
+        
+        .sidebar-btn:after {
+            content: '◀';
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .submenu-items {
+            background: var(--bg);
+            display: none;
+        }
+        
+        .submenu-items.open {
+            display: block;
+        }
+        
+        .submenu-item {
+            display: block;
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            padding: 0.75rem 2rem;
+            text-align: right;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .submenu-item:hover {
+            background: var(--border);
+            color: var(--primary);
+        }
+        
+        .submenu-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* محتوای اصلی */
+        .main-content {
+            max-width: 1200px;
+            margin: 70px auto 0;
+            padding: 2rem 1rem;
+            min-height: calc(100vh - 70px);
+        }
+        
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+        
+        .card h2 {
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            font-size: 1.5rem;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 0.5rem;
+        }
+        
+        /* وضعیت‌ها */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-light);
+        }
+        
+        .loading-spinner {
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 12px;
+        }
+        
+        .success {
+            text-align: center;
+            padding: 2rem;
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--success);
+            border-radius: 12px;
+        }
+        
+        .warning {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+        
+        /* نتایج اسکن */
+        .scan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .scan-mode-selector {
+            display: flex;
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 6px;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+        }
+        
+        .scan-mode-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        
+        .scan-mode-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .scan-results {
+            margin-top: 1rem;
+        }
+        
+        .scan-item {
+            display: grid;
+            grid-template-columns: 80px 1fr auto auto;
+            gap: 1rem;
+            align-items: center;
+            padding: 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            background: var(--surface);
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .scan-item:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+            border-left-color: var(--primary);
+        }
+        
+        .symbol {
+            font-weight: bold;
+            color: var(--text);
+            font-size: 1.1rem;
+            font-family: monospace;
+        }
+        
+        .price-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .price {
+            color: var(--text);
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .change {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .change.positive {
+            color: var(--success);
+        }
+        
+        .change.negative {
+            color: var(--error);
+        }
+        
+        .volume {
+            color: var(--text-light);
+            font-size: 0.85rem;
+        }
+        
+        .signal {
+            padding: 0.75rem 1.25rem;
+            border-radius: 25px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            text-align: center;
+            min-width: 90px;
+            border: 2px solid transparent;
+        }
+        
+        .signal.buy {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border-color: #10b981;
+        }
+        
+        .signal.sell {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border-color: #ef4444;
+        }
+        
+        .signal.hold {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border-color: #f59e0b;
+        }
+        
+        /* کارت‌های سلامت */
+        .health-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .health-card {
+            background: linear-gradient(135deg, var(--surface), #1a2438);
+            padding: 2rem;
+            border-radius: 16px;
+            border-left: 6px solid var(--secondary);
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border);
+        }
+        
+        .health-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .health-card.healthy {
+            border-left-color: var(--success);
+        }
+        
+        .health-card.warning {
+            border-left-color: var(--warning);
+        }
+        
+        .health-card.error {
+            border-left-color: var(--error);
+        }
+        
+        .health-card h3 {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        .health-score {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .health-details {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            line-height: 1.8;
+        }
+        
+        /* دکمه‌ها */
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* رسپانسیو */
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 0.75rem;
+            }
+            
+            .main-content {
+                margin: 70px auto 0;
+                padding: 1rem;
+            }
+            
+            .card {
+                padding: 1.5rem;
+            }
+            
+            .scan-item {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+                text-align: center;
+                padding: 1rem;
+            }
+            
+            .health-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .scan-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .sidebar {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .sidebar.open {
+                right: 0;
+            }
+            
+            .health-card {
+                padding: 1.5rem;
+            }
+        }
+        
+        /* Overlay برای منو */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1500;
+            display: none;
+        }
+        
+        .overlay.show {
+            display: block;
+        }
+        
+        .api-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+        
+        .api-status.live {
+            background: var(--success);
+            color: white;
+        }
+        
+        .api-status.demo {
+            background: var(--warning);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay برای منو -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- هدر کشویی -->
+    <header class="header" id="header">
+        <div class="header-content">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <a href="#" class="nav-brand" onclick="loadSection('system-dashboard'); return false;">CryptoAI</a>
+            <div></div> <!-- برای فضای خالی -->
+        </div>
+    </header>
+
+    <!-- منوی کشویی -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3 style="color: var(--primary); margin: 0;">منوی اصلی</h3>
+            <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+        </div>
+        
+        <ul class="sidebar-menu">
+            <!-- هوش مصنوعی -->
+            <li class="sidebar-item">
+                <button class="sidebar-btn" onclick="toggleSubmenu('ai-menu')">
+                    🤖 هوش مصنوعی
+                </button>
+                <div class="submenu-items" id="ai-menu">
+                    <button class="submenu-item" onclick="loadSection('ai-scan')">🔍 اسکن هوشمند</button>
+                    <button class="submenu-item" onclick="loadSection('ai-technical')">📈 تحلیل تکنیکال</button>
+                    <button class="submenu-item" onclick="loadSection('ai-predict')">🧠 پیش‌بینی AI</button>
+                    <button class="submenu-item" onclick="loadSection('ai-quick')">⚡ تحلیل سریع</button>
+                </div>
+            </li>
+            
+            <!-- اسکن بازار -->
+            <li class="sidebar-item">
+                <button class="sidebar-btn" onclick="toggleSubmenu('scan-menu')">
+                    🔍 اسکن بازار
+                </button>
+                <div class="submenu-items" id="scan-menu">
+                    <button class="submenu-item" onclick="loadSection('scan-ai')">🤖 حالت هوشمند</button>
+                    <button class="submenu-item" onclick="loadSection('scan-manual')">🛠️ حالت دستی</button>
+                    <button class="submenu-item" onclick="loadSection('scan-advanced')">⚙️ تنظیمات پیشرفته</button>
+                </div>
+            </li>
+            
+            <!-- سلامت سیستم -->
+            <li class="sidebar-item">
+                <button class="sidebar-btn" onclick="toggleSubmenu('system-menu')">
+                    ❤️ سلامت سیستم
+                </button>
+                <div class="submenu-items" id="system-menu">
+                    <button class="submenu-item" onclick="loadSection('system-dashboard')">🏠 داشبورد اصلی</button>
+                    <button class="submenu-item" onclick="loadSection('system-health')">❤️ وضعیت سلامت</button>
+                    <button class="submenu-item" onclick="loadSection('system-alerts')">⚠️ هشدارها</button>
+                    <button class="submenu-item" onclick="loadSection('system-metrics')">📊 عملکرد سیستم</button>
+                    <button class="submenu-item" onclick="loadSection('system-logs')">📋 لاگ‌های سیستم</button>
+                </div>
+            </li>
+            
+            <!-- تنظیمات -->
+            <li class="sidebar-item">
+                <button class="sidebar-btn" onclick="toggleSubmenu('settings-menu')">
+                    ⚙️ تنظیمات
+                </button>
+                <div class="submenu-items" id="settings-menu">
+                    <button class="submenu-item" onclick="loadSection('settings-cache')">🧹 پاکسازی کش</button>
+                    <button class="submenu-item" onclick="loadSection('settings-ai')">🎓 آموزش مدل AI</button>
+                    <button class="submenu-item" onclick="loadSection('settings-debug')">🐛 اطلاعات دیباگ</button>
+                </div>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- محتوای اصلی -->
+    <main class="main-content">
+        <div id="content" class="card">
+            <div class="loading">
+                <h2>خوش آمدید به CryptoAI</h2>
+                <p>سیستم پیشرفته تحلیل ارز دیجیتال</p>
+                <div class="loading-spinner"></div>
+                <p>در حال راه‌اندازی...</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // مدیریت حالت‌ها
+        let currentScanMode = 'ai';
+        let lastScrollTop = 0;
+        let sidebarOpen = false;
+        let useRealAPI = false; // ابتدا از داده تستی استفاده کن
+        
+        // تست اتصال API
+        async function testAPI() {
+            try {
+                const response = await fetch('/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    timeout: 5000
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    useRealAPI = true;
+                    console.log('✅ API متصل است - استفاده از داده واقعی');
+                    return true;
+                }
+            } catch (error) {
+                console.log('❌ API قطع است - استفاده از داده تستی');
+                useRealAPI = false;
+            }
+            return false;
+        }
+        
+        // مدیریت اسکرول هدر
+        window.addEventListener('scroll', function() {
+            const st = window.pageYOffset || document.documentElement.scrollTop;
+            const header = document.getElementById('header');
+            
+            if (st > lastScrollTop && st > 100) {
+                // اسکرول به پایین
+                header.classList.add('hidden');
+            } else {
+                // اسکرول به بالا
+                header.classList.remove('hidden');
+            }
+            lastScrollTop = st <= 0 ? 0 : st;
+        }, false);
+        
+        // مدیریت منوی کشویی
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            
+            sidebarOpen = !sidebarOpen;
+            sidebar.classList.toggle('open', sidebarOpen);
+            overlay.classList.toggle('show', sidebarOpen);
+            
+            // بستن همه زیرمنوها هنگام باز کردن منوی اصلی
+            if (sidebarOpen) {
+                document.querySelectorAll('.submenu-items').forEach(menu => {
+                    menu.classList.remove('open');
+                });
+            }
+        }
+        
+        // بستن منو با کلیک روی overlay
+        document.getElementById('overlay').addEventListener('click', toggleSidebar);
+        
+        // مدیریت زیرمنوها
+        function toggleSubmenu(menuId) {
+            const menu = document.getElementById(menuId);
+            menu.classList.toggle('open');
+        }
+        
+        // تغییر حالت اسکن
+        function setScanMode(mode, event) {
+            currentScanMode = mode;
+            document.querySelectorAll('.scan-mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            loadSection('ai-scan');
+        }
+        
+        // تولید داده تستی واقعی
+        function generateRealisticTestData(section) {
+            const now = new Date().toISOString();
+            const symbols = ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"];
+            
+            if (section.includes('scan')) {
+                const scanResults = symbols.map(symbol => {
+                    const basePrices = {
+                        'BTC': 45000, 'ETH': 2500, 'ADA': 0.45, 'SOL': 100,
+                        'DOT': 6.5, 'LINK': 14, 'BNB': 320, 'XRP': 0.6
+                    };
+                    const price = basePrices[symbol] + (Math.random() * basePrices[symbol] * 0.1);
+                    const change = (Math.random() * 15 - 5);
+                    const signal = change > 3 ? 'BUY' : change < -3 ? 'SELL' : 'HOLD';
+                    const confidence = 0.6 + Math.random() * 0.3;
+                    
+                    return {
+                        symbol: symbol,
+                        current_price: parseFloat(price.toFixed(2)),
+                        price: parseFloat(price.toFixed(2)),
+                        change: parseFloat(change.toFixed(2)),
+                        volume: (Math.random() * 5 + 0.5).toFixed(1) + 'B',
+                        market_cap: (price * (Math.random() * 10 + 5)).toFixed(1) + 'B',
+                        ai_signal: {
+                            primary_signal: signal,
+                            signal_confidence: parseFloat(confidence.toFixed(2)),
+                            reasoning: getSignalReasoning(signal),
+                            all_probabilities: {
+                                BUY: signal === 'BUY' ? confidence : (1 - confidence) / 2,
+                                SELL: signal === 'SELL' ? confidence : (1 - confidence) / 2,
+                                HOLD: signal === 'HOLD' ? confidence : (1 - confidence) / 2
+                            }
+                        }
+                    };
+                });
+                
+                return {
+                    status: "success",
+                    scan_results: scanResults,
+                    timestamp: now,
+                    total_scanned: scanResults.length,
+                    symbols_found: scanResults.length,
+                    scan_mode: currentScanMode
+                };
+                
+            } else if (section.includes('system')) {
+                return {
+                    status: "running",
+                    timestamp: now,
+                    version: "3.0.0",
+                    system_health: {
+                        status: "healthy",
+                        health_score: 95,
+                        active_alerts: 1,
+                        performance: "optimal"
+                    },
+                    api_health: {
+                        status: useRealAPI ? "connected" : "demo",
+                        healthy_endpoints: useRealAPI ? 18 : 0,
+                        total_endpoints: 19,
+                        response_time: "142ms"
+                    }
+                };
+                
+            } else {
+                return {
+                    status: "success",
+                    message: `داده ${getSectionTitle(section)}`,
+                    timestamp: now,
+                    data_quality: useRealAPI ? "real" : "demo"
+                };
+            }
+        }
+        
+        function getSignalReasoning(signal) {
+            const reasons = {
+                BUY: ["روند صعودی قوی", "شکست مقاومت", "الگوی مثبت"],
+                SELL: ["ضعف در حجم", "شکست حمایت", "الگوی نزولی"],
+                HOLD: ["ثبات قیمتی", "انتظار برای شکست", "سیگنال‌های متناقض"]
+            };
+            return reasons[signal][Math.floor(Math.random() * reasons[signal].length)];
+        }
+        
+        // بارگذاری بخش‌ها - راه‌حل هیبریدی
+        async function loadSection(section) {
+            console.log('بارگذاری بخش:', section);
+            
+            // بستن منو
+            if (sidebarOpen) {
+                toggleSidebar();
+            }
+            
+            // نمایش لودینگ
+            document.getElementById('content').innerHTML = `
+                <div class="loading">
+                    <h2>${getSectionTitle(section)}</h2>
+                    <div class="loading-spinner"></div>
+                    <p>در حال بارگذاری...</p>
+                </div>
+            `;
+            
+            // ابتدا تست کن ببین API کار می‌کنه
+            const apiWorking = await testAPI();
+            
+            if (apiWorking && useRealAPI) {
+                // استفاده از API واقعی
+                try {
+                    const endpoint = getEndpoint(section);
+                    
+                    if (!endpoint) {
+                        throw new Error('این قابلیت در حال توسعه است');
+                    }
+                    
+                    const apiUrl = `/api/${endpoint}`;
+                    console.log('📡 دریافت از API:', apiUrl);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    
+                    const options = {
+                        method: endpoint.includes('scan') ? 'POST' : 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        signal: controller.signal
+                    };
+                    
+                    if (options.method === 'POST') {
+                        options.body = JSON.stringify({
+                            symbols: ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"],
+                            timeframe: "1h",
+                            scan_mode: currentScanMode
+                        });
+                    }
+                    
+                    const response = await fetch(apiUrl, options);
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`خطای ${response.status}`);
+                    }
+                    
+                    // بررسی که پاسخ JSON هست
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('پاسخ غیرمعتبر از سرور');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('✅ داده واقعی دریافت شد:', data);
+                    showContent(section, data, true);
+                    
+                } catch (error) {
+                    console.log('❌ خطای API:', error.message);
+                    // fallback به داده تستی
+                    const testData = generateRealisticTestData(section);
+                    showContent(section, testData, false);
+                }
+            } else {
+                // استفاده از داده تستی
+                console.log('🔄 استفاده از داده تستی');
+                setTimeout(() => {
+                    const testData = generateRealisticTestData(section);
+                    showContent(section, testData, false);
+                }, 800);
+            }
+        }
+        
+        function getSectionTitle(section) {
+            const titles = {
+                'system-dashboard': 'داشبورد سیستم',
+                'system-health': 'وضعیت سلامت',
+                'system-alerts': 'هشدارهای سیستم',
+                'system-metrics': 'عملکرد سیستم',
+                'system-logs': 'لاگ‌های سیستم',
+                'ai-scan': 'اسکن هوشمند بازار',
+                'scan-ai': 'اسکن هوشمند بازار',
+                'scan-manual': 'اسکن دستی بازار',
+                'scan-advanced': 'تنظیمات پیشرفته اسکن',
+                'ai-technical': 'تحلیل تکنیکال پیشرفته',
+                'ai-predict': 'پیش‌بینی هوش مصنوعی',
+                'ai-quick': 'تحلیل سریع بازار',
+                'settings-cache': 'پاکسازی کش سیستم',
+                'settings-ai': 'آموزش مدل هوش مصنوعی',
+                'settings-debug': 'اطلاعات دیباگ سیستم'
+            };
+            return titles[section] || section;
+        }
+        
+        function getEndpoint(section) {
+            const endpoints = {
+                'system-dashboard': 'system/status',
+                'system-health': 'health',
+                'system-alerts': 'system/alerts',
+                'system-metrics': 'system/metrics',
+                'system-logs': 'system/logs',
+                'ai-scan': 'ai/scan',
+                'scan-ai': 'ai/scan',
+                'scan-manual': 'ai/scan',
+                'ai-technical': 'ai/technical/analysis',
+                'ai-predict': 'ai/analysis',
+                'ai-quick': 'ai/analysis/quick',
+                'settings-cache': 'system/cache/clear',
+                'settings-debug': 'system/debug'
+            };
+            return endpoints[section];
+        }
+        
+        function showContent(section, data, isRealData = false) {
+            const apiStatus = isRealData ? 
+                '<span class="api-status live">LIVE</span>' : 
+                '<span class="api-status demo">DEMO</span>';
+            
+            let content = '';
+            
+            if (section.includes('scan')) {
+                content = renderScanContent(section, data, apiStatus);
+            } else if (section.includes('system-dashboard')) {
+                content = renderDashboardContent(section, data, apiStatus);
+            } else if (section.includes('system-health')) {
+                content = renderHealthContent(section, data, apiStatus);
+            } else if (section.includes('system-alerts')) {
+                content = renderAlertsContent(section, data, apiStatus);
+            } else {
+                content = renderDefaultContent(section, data, apiStatus);
+            }
+            
+            document.getElementById('content').innerHTML = content;
+        }
+        
+        function renderScanContent(section, data, apiStatus) {
+            if (!data.scan_results || data.scan_results.length === 0) {
+                return `
+                    <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                    <div class="error">
+                        <p>داده‌ای برای نمایش وجود ندارد</p>
+                    </div>
+                `;
+            }
+            
+            const modeSelector = `
+                <div class="scan-mode-selector">
+                    <button class="scan-mode-btn ${currentScanMode === 'ai' ? 'active' : ''}" onclick="setScanMode('ai', event)">حالت هوشمند</button>
+                    <button class="scan-mode-btn ${currentScanMode === 'manual' ? 'active' : ''}" onclick="setScanMode('manual', event)">حالت دستی</button>
+                </div>
+            `;
+            
+            const scanResults = data.scan_results.map(item => {
+                const change = item.change || 0;
+                const changeClass = change > 0 ? 'positive' : 'negative';
+                const changeSymbol = change > 0 ? '▲' : '▼';
+                const signal = item.ai_signal?.primary_signal || item.signal || 'HOLD';
+                const confidence = item.ai_signal?.signal_confidence || 0.5;
+                
+                return `
+                    <div class="scan-item">
+                        <div class="symbol">${item.symbol}</div>
+                        <div class="price-info">
+                            <div class="price">$${(item.current_price || item.price || 0).toLocaleString()}</div>
+                            <div class="change ${changeClass}">${changeSymbol} ${Math.abs(change).toFixed(2)}%</div>
+                            <div class="volume">حجم: ${item.volume || 'N/A'}</div>
+                        </div>
+                        <div class="volume">${item.market_cap || 'N/A'}</div>
+                        <div class="signal ${signal.toLowerCase()}">
+                            ${signal}
+                            <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 2px;">
+                                ${Math.round(confidence * 100)}%
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            return `
+                <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                ${!apiStatus.includes('LIVE') ? '<div class="warning">💡 در حال استفاده از داده‌های نمونه - API در دسترس نیست</div>' : ''}
+                ${modeSelector}
+                <div class="scan-header">
+                    <div>
+                        <strong>تعداد نمادها:</strong> ${data.total_scanned || data.scan_results.length}
+                    </div>
+                    <div>
+                        <strong>زمان اسکن:</strong> ${new Date(data.timestamp || new Date()).toLocaleString('fa-IR')}
+                    </div>
+                </div>
+                <div class="scan-results">
+                    ${scanResults}
+                </div>
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button class="btn" onclick="loadSection('${section}')">
+                        🔄 بروزرسانی داده‌ها
+                    </button>
+                </div>
+            `;
+        }
+        
+        function renderDashboardContent(section, data, apiStatus) {
+            const healthScore = data.system_health?.health_score || data.health_score || 95;
+            
+            return `
+                <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                ${!apiStatus.includes('LIVE') ? '<div class="warning">💡 در حال استفاده از داده‌های نمونه - API در دسترس نیست</div>' : ''}
+                
+                <div class="health-cards">
+                    <div class="health-card ${healthScore > 80 ? 'healthy' : healthScore > 60 ? 'warning' : 'error'}">
+                        <h3>سلامت سیستم</h3>
+                        <div class="health-score">${healthScore}%</div>
+                        <div class="health-details">
+                            وضعیت: <strong>${data.system_health?.status || 'فعال'}</strong><br>
+                            هشدارهای فعال: <strong>${data.system_health?.active_alerts || 0}</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="health-card ${apiStatus.includes('LIVE') ? 'healthy' : 'warning'}">
+                        <h3>وضعیت API</h3>
+                        <div class="health-score">${apiStatus.includes('LIVE') ? 'LIVE' : 'DEMO'}</div>
+                        <div class="health-details">
+                            وضعیت: <strong>${apiStatus.includes('LIVE') ? 'متصل' : 'قطع'}</strong><br>
+                            داده: <strong>${apiStatus.includes('LIVE') ? 'واقعی' : 'نمونه'}</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="health-card healthy">
+                        <h3>سیستم تحلیل</h3>
+                        <div class="health-score">${data.version || '3.0.0'}</div>
+                        <div class="health-details">
+                            وضعیت: <strong>فعال</strong><br>
+                            مدل‌های AI: <strong>2</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderHealthContent(section, data, apiStatus) {
+            return `
+                <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                ${!apiStatus.includes('LIVE') ? '<div class="warning">💡 در حال استفاده از داده‌های نمونه</div>' : ''}
+                
+                <div class="success">
+                    <h3>✅ سیستم سالم است</h3>
+                    <p>${data.message || 'همه سرویس‌ها به درستی کار می‌کنند'}</p>
+                </div>
+                
+                <div class="card">
+                    <h3>اطلاعات سیستم</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <div><strong>ورژن:</strong> ${data.version || '3.0.0'}</div>
+                        <div><strong>وضعیت API:</strong> ${apiStatus.includes('LIVE') ? 'متصل' : 'قطع'}</div>
+                        <div><strong>داده:</strong> ${apiStatus.includes('LIVE') ? 'واقعی' : 'نمونه'}</div>
+                        <div><strong>زمان:</strong> ${new Date(data.timestamp || new Date()).toLocaleString('fa-IR')}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderAlertsContent(section, data, apiStatus) {
+            return `
+                <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                ${!apiStatus.includes('LIVE') ? '<div class="warning">💡 در حال استفاده از داده‌های نمونه</div>' : ''}
+                
+                <div class="success">
+                    <h3>✅ هیچ هشداری وجود ندارد</h3>
+                    <p>همه سیستم‌ها به درستی کار می‌کنند</p>
+                </div>
+            `;
+        }
+        
+        function renderDefaultContent(section, data, apiStatus) {
+            return `
+                <h2>${getSectionTitle(section)} ${apiStatus}</h2>
+                ${!apiStatus.includes('LIVE') ? '<div class="warning">💡 در حال استفاده از داده‌های نمونه</div>' : ''}
+                
+                <div class="success">
+                    <p>${data.message || 'عملیات با موفقیت انجام شد'}</p>
+                </div>
+            `;
+        }
+        
+        // بارگذاری اولیه
+        window.addEventListener('load', function() {
+            console.log('CryptoAI System Ready - Hybrid Mode');
+            loadSection('system-dashboard');
+        });
+    </script>
+</body>
+</html>
