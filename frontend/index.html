@@ -5,44 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CryptoAI - سیستم تحلیل ارز دیجیتال</title>
     <style>
-        /* استایل‌های پایه - همون navigation.css */
+        /* Reset و متغیرها */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
         :root {
-            --primary-color: #2563eb;
-            --secondary-color: #64748b;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --error-color: #ef4444;
-            --bg-color: #f8fafc;
-            --surface-color: #ffffff;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --border-color: #e2e8f0;
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
             --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
         }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-primary);
+            background: var(--bg);
+            color: var(--text);
             line-height: 1.6;
         }
-
+        
         /* نویگیشن بار */
-        .main-navigation {
-            background: var(--surface-color);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
+        .navbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: fixed;
             top: 0;
-            z-index: 100;
+            width: 100%;
+            z-index: 1000;
             box-shadow: var(--shadow);
         }
-
+        
         .nav-container {
             max-width: 1200px;
             margin: 0 auto;
@@ -52,68 +53,67 @@
             padding: 0 1rem;
             height: 60px;
         }
-
+        
         .nav-brand {
             font-size: 1.25rem;
             font-weight: bold;
-            color: var(--primary-color);
+            color: var(--primary);
         }
-
+        
         .nav-menu {
             display: flex;
             list-style: none;
             gap: 0.5rem;
         }
-
+        
         .nav-item {
             position: relative;
         }
-
-        .nav-item > button {
+        
+        .nav-btn {
             background: none;
             border: none;
             padding: 0.75rem 1rem;
             cursor: pointer;
-            color: var(--text-secondary);
+            color: var(--text);
             font-size: 0.875rem;
             border-radius: 6px;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
         }
-
-        .nav-item > button:hover {
-            background: var(--bg-color);
-            color: var(--text-primary);
+        
+        .nav-btn:hover {
+            background: var(--bg);
+            color: var(--primary);
         }
-
-        .nav-item.active > button {
-            background: var(--primary-color);
-            color: white;
+        
+        .nav-btn:after {
+            content: '▼';
+            font-size: 0.7rem;
+            opacity: 0.7;
         }
-
+        
         /* زیرمنوها */
         .submenu {
             position: absolute;
             top: 100%;
             right: 0;
-            background: var(--surface-color);
-            border: 1px solid var(--border-color);
+            background: var(--surface);
+            border: 1px solid var(--border);
             border-radius: 8px;
             box-shadow: var(--shadow);
             min-width: 200px;
-            opacity: 0;
-            visibility: hidden;
-            transform: translateY(-10px);
-            transition: all 0.2s;
-            z-index: 101;
+            display: none;
+            z-index: 1001;
         }
-
-        .nav-item:hover .submenu {
-            opacity: 1;
-            visibility: visible;
-            transform: translateY(0);
+        
+        .submenu.show {
+            display: block;
         }
-
-        .submenu-item {
+        
+        .submenu-btn {
             display: block;
             width: 100%;
             background: none;
@@ -121,116 +121,231 @@
             padding: 0.75rem 1rem;
             text-align: right;
             cursor: pointer;
-            color: var(--text-primary);
+            color: var(--text);
             font-size: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border);
             transition: background-color 0.2s;
         }
-
-        .submenu-item:last-child {
+        
+        .submenu-btn:last-child {
             border-bottom: none;
         }
-
-        .submenu-item:hover {
-            background: var(--bg-color);
+        
+        .submenu-btn:hover {
+            background: var(--bg);
+            color: var(--primary);
         }
-
+        
         /* محتوای اصلی */
-        .main-container {
+        .main-content {
             max-width: 1200px;
-            margin: 0 auto;
+            margin: 80px auto 0;
             padding: 2rem 1rem;
+            min-height: calc(100vh - 80px);
         }
-
-        .section-content {
-            background: var(--surface-color);
+        
+        .card {
+            background: var(--surface);
             border-radius: 12px;
             padding: 2rem;
             box-shadow: var(--shadow);
         }
-
-        .loading-placeholder {
+        
+        .card h2 {
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            font-size: 1.5rem;
+        }
+        
+        /* وضعیت‌ها */
+        .loading {
             text-align: center;
             padding: 3rem;
-            color: var(--text-secondary);
+            color: var(--text-light);
         }
-
+        
+        .error {
+            text-align: center;
+            padding: 2rem;
+            color: var(--error);
+        }
+        
+        .success {
+            text-align: center;
+            padding: 2rem;
+            color: var(--success);
+        }
+        
+        /* نتایج اسکن */
+        .scan-results {
+            margin-top: 1rem;
+        }
+        
+        .scan-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            background: var(--surface);
+        }
+        
+        .symbol {
+            font-weight: bold;
+            color: var(--text);
+        }
+        
+        .price {
+            color: var(--text);
+            font-family: monospace;
+        }
+        
+        .signal {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .signal.buy {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .signal.sell {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .signal.hold {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        /* دکمه‌ها */
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background: #1d4ed8;
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
         /* رسپانسیو */
         @media (max-width: 768px) {
             .nav-container {
                 flex-direction: column;
                 height: auto;
                 padding: 1rem;
+                gap: 1rem;
             }
-
+            
             .nav-menu {
                 flex-wrap: wrap;
                 justify-content: center;
-                margin-top: 1rem;
             }
-
-            .nav-item > button {
+            
+            .nav-btn {
                 padding: 0.5rem 0.75rem;
                 font-size: 0.8rem;
+            }
+            
+            .main-content {
+                margin: 120px auto 0;
+                padding: 1rem;
+            }
+            
+            .card {
+                padding: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .nav-menu {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .nav-item {
+                width: 100%;
+            }
+            
+            .nav-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .submenu {
+                position: static;
+                width: 100%;
+                margin-top: 0.5rem;
             }
         }
     </style>
 </head>
 <body>
-    <!-- نویگیشن بار اصلی -->
-    <nav class="main-navigation">
+    <!-- نویگیشن بار -->
+    <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">CryptoAI</div>
             <ul class="nav-menu">
                 <!-- هوش مصنوعی -->
-                <li class="nav-item" data-section="ai-analysis">
-                    <button type="button">
-                        <span>هوش مصنوعی</span>
-                    </button>
-                    <div class="submenu">
-                        <button class="submenu-item" data-route="ai-scan">اسکن هوشمند</button>
-                        <button class="submenu-item" data-route="ai-technical">تحلیل تکنیکال</button>
-                        <button class="submenu-item" data-route="ai-analysis">پیش‌بینی AI</button>
-                        <button class="submenu-item" data-route="ai-quick">تحلیل سریع</button>
+                <li class="nav-item">
+                    <button class="nav-btn" onclick="toggleSubmenu('ai-menu')">هوش مصنوعی</button>
+                    <div id="ai-menu" class="submenu">
+                        <button class="submenu-btn" onclick="loadSection('ai-scan')">اسکن هوشمند</button>
+                        <button class="submenu-btn" onclick="loadSection('ai-technical')">تحلیل تکنیکال</button>
+                        <button class="submenu-btn" onclick="loadSection('ai-predict')">پیش‌بینی AI</button>
+                        <button class="submenu-btn" onclick="loadSection('ai-quick')">تحلیل سریع</button>
                     </div>
                 </li>
-
+                
                 <!-- اسکن بازار -->
-                <li class="nav-item" data-section="ai-scan">
-                    <button type="button">
-                        <span>اسکن بازار</span>
-                    </button>
-                    <div class="submenu">
-                        <button class="submenu-item" data-route="ai-scan">اسکن با فیلتر AI</button>
-                        <button class="submenu-item" data-route="ai-scan-manual">اسکن با فیلتر دستی</button>
-                        <button class="submenu-item" data-route="ai-scan-advanced">تنظیمات پیشرفته</button>
+                <li class="nav-item">
+                    <button class="nav-btn" onclick="toggleSubmenu('scan-menu')">اسکن بازار</button>
+                    <div id="scan-menu" class="submenu">
+                        <button class="submenu-btn" onclick="loadSection('scan-ai')">حالت هوشمند</button>
+                        <button class="submenu-btn" onclick="loadSection('scan-manual')">حالت دستی</button>
+                        <button class="submenu-btn" onclick="loadSection('scan-advanced')">تنظیمات پیشرفته</button>
                     </div>
                 </li>
-
+                
                 <!-- سلامت سیستم -->
-                <li class="nav-item" data-section="system-health">
-                    <button type="button">
-                        <span>سلامت سیستم</span>
-                    </button>
-                    <div class="submenu">
-                        <button class="submenu-item" data-route="system-dashboard">داشبورد اصلی</button>
-                        <button class="submenu-item" data-route="system-health">وضعیت سلامت</button>
-                        <button class="submenu-item" data-route="system-alerts">هشدارها</button>
-                        <button class="submenu-item" data-route="system-metrics">عملکرد سیستم</button>
-                        <button class="submenu-item" data-route="system-tests">تست خودکار</button>
-                        <button class="submenu-item" data-route="system-logs">لاگ‌های سیستم</button>
+                <li class="nav-item">
+                    <button class="nav-btn" onclick="toggleSubmenu('system-menu')">سلامت سیستم</button>
+                    <div id="system-menu" class="submenu">
+                        <button class="submenu-btn" onclick="loadSection('system-dashboard')">داشبورد اصلی</button>
+                        <button class="submenu-btn" onclick="loadSection('system-health')">وضعیت سلامت</button>
+                        <button class="submenu-btn" onclick="loadSection('system-alerts')">هشدارها</button>
+                        <button class="submenu-btn" onclick="loadSection('system-metrics')">عملکرد سیستم</button>
+                        <button class="submenu-btn" onclick="loadSection('system-logs')">لاگ‌های سیستم</button>
                     </div>
                 </li>
-
+                
                 <!-- تنظیمات -->
-                <li class="nav-item" data-section="settings">
-                    <button type="button">
-                        <span>تنظیمات</span>
-                    </button>
-                    <div class="submenu">
-                        <button class="submenu-item" data-route="settings-cache">پاکسازی کش</button>
-                        <button class="submenu-item" data-route="settings-ai">آموزش مدل AI</button>
-                        <button class="submenu-item" data-route="settings-debug">اطلاعات دیباگ</button>
+                <li class="nav-item">
+                    <button class="nav-btn" onclick="toggleSubmenu('settings-menu')">تنظیمات</button>
+                    <div id="settings-menu" class="submenu">
+                        <button class="submenu-btn" onclick="loadSection('settings-cache')">پاکسازی کش</button>
+                        <button class="submenu-btn" onclick="loadSection('settings-ai')">آموزش مدل AI</button>
+                        <button class="submenu-btn" onclick="loadSection('settings-debug')">اطلاعات دیباگ</button>
                     </div>
                 </li>
             </ul>
@@ -238,189 +353,190 @@
     </nav>
 
     <!-- محتوای اصلی -->
-    <main class="main-container">
-        <div id="main-content">
-            <div class="loading-placeholder">
-                <p>در حال بارگذاری...</p>
+    <main class="main-content">
+        <div id="content" class="card">
+            <div class="loading">
+                <h2>خوش آمدید به CryptoAI</h2>
+                <p>سیستم پیشرفته تحلیل ارز دیجیتال</p>
+                <p>در حال راه‌اندازی...</p>
             </div>
         </div>
     </main>
 
     <script>
-        // navigation.js - ساده‌شده
-        class NavigationManager {
-            constructor() {
-                this.currentSection = 'dashboard';
-                this.init();
+        // مدیریت منوها
+        let currentMenu = null;
+        
+        function toggleSubmenu(menuId) {
+            const menu = document.getElementById(menuId);
+            
+            // بستن منوی قبلی اگر باز است
+            if (currentMenu && currentMenu !== menu) {
+                currentMenu.classList.remove('show');
             }
-
-            init() {
-                this.bindEvents();
-                this.loadInitialSection();
-            }
-
-            bindEvents() {
-                // رویدادهای کلیک برای زیرمنوها
-                document.querySelectorAll('.submenu-item').forEach(item => {
-                    item.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const route = e.target.dataset.route;
-                        this.loadSection(route);
-                    });
-                });
-
-                // رویداد برای منوهای اصلی
-                document.querySelectorAll('.nav-item > button').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const section = e.target.closest('.nav-item').dataset.section;
-                        this.toggleSubmenu(section);
-                    });
-                });
-            }
-
-            toggleSubmenu(section) {
-                // بستن سایر زیرمنوها
-                document.querySelectorAll('.submenu').forEach(menu => {
-                    menu.style.opacity = '0';
-                    menu.style.visibility = 'hidden';
-                });
-
-                // نمایش زیرمنوی جاری
-                const currentSubmenu = document.querySelector(`[data-section="${section}"] .submenu`);
-                if (currentSubmenu) {
-                    const isVisible = currentSubmenu.style.visibility === 'visible';
-                    currentSubmenu.style.opacity = isVisible ? '0' : '1';
-                    currentSubmenu.style.visibility = isVisible ? 'hidden' : 'visible';
-                }
-            }
-
-            async loadSection(section) {
-                try {
-                    this.showLoading();
-                    
-                    const response = await fetch(`/api/${this.getApiEndpoint(section)}`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`خطای ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    this.renderSection(section, data);
-                    this.hideLoading();
-                    
-                } catch (error) {
-                    this.showError(`خطا در بارگذاری: ${error.message}`);
-                    this.hideLoading();
-                }
-            }
-
-            getApiEndpoint(section) {
-                const endpoints = {
-                    'ai-scan': 'ai/scan',
-                    'ai-technical': 'ai/technical/analysis',
-                    'ai-analysis': 'ai/analysis',
-                    'ai-quick': 'ai/analysis/quick',
-                    'system-dashboard': 'system/dashboard',
-                    'system-health': 'system/health',
-                    'system-alerts': 'system/alerts',
-                    'system-metrics': 'system/metrics',
-                    'system-tests': 'system/tests/run',
-                    'system-logs': 'system/logs',
-                    'settings-cache': 'system/cache/clear',
-                    'settings-ai': 'ai/train',
-                    'settings-debug': 'system/debug'
-                };
-
-                return endpoints[section] || 'system/health';
-            }
-
-            renderSection(section, data) {
-                const contentArea = document.getElementById('main-content');
-                
-                let content = '';
-                switch(section) {
-                    case 'system-dashboard':
-                        content = this.renderDashboard(data);
-                        break;
-                    case 'ai-scan':
-                        content = this.renderAIScan(data);
-                        break;
-                    default:
-                        content = this.renderDefault(section, data);
-                }
-                
-                contentArea.innerHTML = content;
-            }
-
-            renderDashboard(data) {
-                return `
-                    <div class="section-content">
-                        <h2>داشبورد سیستم</h2>
-                        <div class="health-info">
-                            <p>وضعیت: <strong>${data.status || 'در حال اجرا'}</strong></p>
-                            <p>زمان: ${new Date().toLocaleString('fa-IR')}</p>
-                        </div>
-                    </div>
-                `;
-            }
-
-            renderAIScan(data) {
-                return `
-                    <div class="section-content">
-                        <h2>اسکن بازار</h2>
-                        <div class="scan-results">
-                            ${data.scan_results ? data.scan_results.map(item => `
-                                <div class="scan-item">
-                                    <span>${item.symbol}</span>
-                                    <span>${item.current_price}</span>
-                                    <span class="signal ${item.ai_signal?.primary_signal}">${item.ai_signal?.primary_signal}</span>
-                                </div>
-                            `).join('') : 'داده‌ای موجود نیست'}
-                        </div>
-                    </div>
-                `;
-            }
-
-            renderDefault(section, data) {
-                return `
-                    <div class="section-content">
-                        <h2>${section.replace('-', ' ')}</h2>
-                        <pre>${JSON.stringify(data, null, 2)}</pre>
-                    </div>
-                `;
-            }
-
-            showLoading() {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="loading-placeholder">
-                        <p>در حال بارگذاری...</p>
-                    </div>
-                `;
-            }
-
-            hideLoading() {
-                // لاگ برای دیباگ
-                console.log('بارگذاری کامل شد');
-            }
-
-            showError(message) {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="section-content">
-                        <h2>خطا</h2>
-                        <p style="color: var(--error-color);">${message}</p>
-                        <button onclick="navigationManager.loadSection('system-dashboard')">بازگشت به داشبورد</button>
-                    </div>
-                `;
-            }
-
-            loadInitialSection() {
-                this.loadSection('system-dashboard');
+            
+            // toggle منوی جاری
+            if (menu.classList.contains('show')) {
+                menu.classList.remove('show');
+                currentMenu = null;
+            } else {
+                menu.classList.add('show');
+                currentMenu = menu;
             }
         }
-
-        // ایجاد نمونه
-        const navigationManager = new NavigationManager();
+        
+        // بستن منوها با کلیک خارج
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.nav-item')) {
+                if (currentMenu) {
+                    currentMenu.classList.remove('show');
+                    currentMenu = null;
+                }
+            }
+        });
+        
+        // بارگذاری بخش‌ها
+        async function loadSection(section) {
+            console.log('بارگذاری بخش:', section);
+            
+            // بستن منو
+            if (currentMenu) {
+                currentMenu.classList.remove('show');
+                currentMenu = null;
+            }
+            
+            // نمایش لودینگ
+            document.getElementById('content').innerHTML = `
+                <div class="loading">
+                    <h2>${getSectionTitle(section)}</h2>
+                    <p>در حال بارگذاری...</p>
+                </div>
+            `;
+            
+            try {
+                const endpoint = getEndpoint(section);
+                console.log('دریافت از:', endpoint);
+                
+                const response = await fetch(`/api/${endpoint}`);
+                
+                if (!response.ok) {
+                    throw new Error(`خطای HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('داده دریافتی:', data);
+                showContent(section, data);
+                
+            } catch (error) {
+                console.error('خطا:', error);
+                showError(section, error.message);
+            }
+        }
+        
+        function getSectionTitle(section) {
+            const titles = {
+                'system-dashboard': 'داشبورد سیستم',
+                'system-health': 'وضعیت سلامت',
+                'system-alerts': 'هشدارهای سیستم',
+                'system-metrics': 'عملکرد سیستم',
+                'system-logs': 'لاگ‌های سیستم',
+                'ai-scan': 'اسکن هوشمند',
+                'scan-ai': 'اسکن هوشمند',
+                'scan-manual': 'اسکن دستی',
+                'scan-advanced': 'تنظیمات پیشرفته اسکن',
+                'ai-technical': 'تحلیل تکنیکال',
+                'ai-predict': 'پیش‌بینی AI',
+                'ai-quick': 'تحلیل سریع',
+                'settings-cache': 'پاکسازی کش',
+                'settings-ai': 'آموزش مدل AI',
+                'settings-debug': 'اطلاعات دیباگ'
+            };
+            return titles[section] || section;
+        }
+        
+        function getEndpoint(section) {
+            const endpoints = {
+                'system-dashboard': 'system/status',
+                'system-health': 'health',
+                'system-alerts': 'system/alerts',
+                'system-metrics': 'system/metrics',
+                'system-logs': 'system/logs',
+                'ai-scan': 'ai/scan',
+                'scan-ai': 'ai/scan',
+                'scan-manual': 'ai/scan',
+                'ai-technical': 'ai/technical/analysis',
+                'ai-predict': 'ai/analysis',
+                'ai-quick': 'ai/analysis/quick',
+                'settings-cache': 'system/cache/clear',
+                'settings-ai': 'ai/train',
+                'settings-debug': 'system/debug'
+            };
+            return endpoints[section] || 'health';
+        }
+        
+        function showContent(section, data) {
+            let content = '';
+            
+            if (section.includes('scan')) {
+                // نمایش نتایج اسکن
+                content = `
+                    <h2>${getSectionTitle(section)}</h2>
+                    <div class="scan-results">
+                        ${data.scan_results ? data.scan_results.map(item => `
+                            <div class="scan-item">
+                                <span class="symbol">${item.symbol || 'N/A'}</span>
+                                <span class="price">$${item.price || item.current_price || '0'}</span>
+                                <span class="signal ${(item.signal || item.ai_signal?.primary_signal || 'hold').toLowerCase()}">
+                                    ${item.signal || item.ai_signal?.primary_signal || 'HOLD'}
+                                </span>
+                            </div>
+                        `).join('') : '<p class="error">داده‌ای برای نمایش وجود ندارد</p>'}
+                    </div>
+                `;
+            } else if (section === 'system-dashboard') {
+                // نمایش داشبورد
+                content = `
+                    <h2>داشبورد سیستم</h2>
+                    <div style="margin-top: 1rem;">
+                        <p><strong>وضعیت:</strong> <span style="color: var(--success)">${data.status || 'فعال'}</span></p>
+                        <p><strong>زمان:</strong> ${new Date().toLocaleString('fa-IR')}</p>
+                        <p><strong>ورژن:</strong> ${data.version || '3.0.0'}</p>
+                    </div>
+                `;
+            } else {
+                // نمایش عمومی
+                content = `
+                    <h2>${getSectionTitle(section)}</h2>
+                    <div style="margin-top: 1rem;">
+                        <pre style="background: var(--bg); padding: 1rem; border-radius: 8px; overflow: auto; font-size: 0.875rem;">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('content').innerHTML = content;
+        }
+        
+        function showError(section, message) {
+            document.getElementById('content').innerHTML = `
+                <div class="error">
+                    <h2>خطا</h2>
+                    <p>در بارگذاری ${getSectionTitle(section)} خطایی رخ داد:</p>
+                    <p><strong>${message}</strong></p>
+                    <button onclick="loadSection('system-dashboard')" class="btn" style="margin-top: 1rem;">بازگشت به داشبورد</button>
+                </div>
+            `;
+        }
+        
+        // بارگذاری اولیه
+        window.addEventListener('load', function() {
+            console.log('صفحه بارگذاری شد');
+            loadSection('system-dashboard');
+        });
+        
+        // هندل خطاهای全局
+        window.addEventListener('error', function(event) {
+            console.error('خطای全局:', event.error);
+        });
     </script>
 </body>
 </html>
