@@ -1,6 +1,8 @@
+# main.py - سرور اصلی VortexAI
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -14,7 +16,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CryptoAI API", version="1.0.0")
+app = FastAPI(title="VortexAI API", version="1.0.0")
 
 # CORS
 app.add_middleware(
@@ -256,17 +258,25 @@ class DataProcessor:
 
 @app.get("/")
 async def root():
-    return {
-        "message": "CryptoAI API Server",
-        "status": "running",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "endpoints": {
-            "ai_scan": "GET /api/scan/ai/{symbol}",
-            "basic_scan": "GET /api/scan/basic/{symbol}", 
-            "system_status": "GET /api/system/status"
-        }
-    }
+    """صفحه اصلی - سرو کردن frontend"""
+    try:
+        return FileResponse("frontend/index.html")
+    except:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "VortexAI API Server",
+                "status": "running",
+                "version": "1.0.0",
+                "timestamp": datetime.now().isoformat(),
+                "endpoints": {
+                    "ai_scan": "GET /api/scan/ai/{symbol}",
+                    "basic_scan": "GET /api/scan/basic/{symbol}", 
+                    "system_status": "GET /api/system/status",
+                    "clear_cache": "GET /api/debug/clear-cache"
+                }
+            }
+        )
 
 @app.get("/api/scan/ai/{symbol}")
 async def ai_scan(
@@ -403,11 +413,34 @@ async def clear_cache():
     try:
         if COINSTATS_AVAILABLE:
             coin_stats_manager.clear_cache()
-            return {"status": "success", "message": "Cache cleared"}
+            return {
+                "status": "success", 
+                "message": "Cache cleared successfully",
+                "timestamp": datetime.now().isoformat()
+            }
         else:
-            return {"status": "error", "message": "CoinStats not available"}
+            return {
+                "status": "error", 
+                "message": "CoinStats not available",
+                "timestamp": datetime.now().isoformat()
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# سرو کردن فایل‌های استاتیک frontend
+app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
+
+# مدیریت روت‌های SPA برای frontend
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """سرو کردن frontend برای تمام مسیرها"""
+    try:
+        return FileResponse("frontend/index.html")
+    except:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Frontend not found"}
+        )
 
 if __name__ == "__main__":
     import uvicorn
