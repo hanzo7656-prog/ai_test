@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import logging
 import time
+import psutil
 from pathlib import Path
 
 # تنظیمات لاگینگ
@@ -329,11 +330,23 @@ async def system_status():
             endpoint_health = coin_stats_manager.test_all_endpoints()
         
         # متریک‌های سیستم
-        system_metrics = coin_stats_manager.get_system_metrics() if COINSTATS_AVAILABLE else {}
+        system_metrics = {}
+        if COINSTATS_AVAILABLE:
+            system_metrics = coin_stats_manager.get_system_metrics()
         
-        # آمار کش
-        cache_files = list(Path("./coinstats_cache").glob("*.json")) if os.path.exists("./coinstats_cache") else []
-        cache_size = sum(f.stat().st_size for f in cache_files)
+        # آمار کش - نسخه اصلاح شده
+        cache_files = []
+        cache_size = 0
+        if os.path.exists("./coinstats_cache"):
+            cache_files = [f for f in os.listdir("./coinstats_cache") if f.endswith('.json')]
+            for file in cache_files:
+                file_path = os.path.join("./coinstats_cache", file)
+                cache_size += os.path.getsize(file_path)
+        
+        # اطلاعات سیستم
+        memory = psutil.virtual_memory()
+        cpu_percent = psutil.cpu_percent(interval=1)
+        disk = psutil.disk_usage('/')
         
         return {
             "status": "operational",
@@ -348,7 +361,21 @@ async def system_status():
             
             "endpoints_health": endpoint_health,
             
-            "system_metrics": system_metrics,
+            "system_metrics": {
+                "memory": {
+                    "total_gb": round(memory.total / (1024**3), 2),
+                    "used_gb": round(memory.used / (1024**3), 2),
+                    "percent": memory.percent
+                },
+                "cpu": {
+                    "percent": cpu_percent
+                },
+                "disk": {
+                    "total_gb": round(disk.total / (1024**3), 2),
+                    "used_gb": round(disk.used / (1024**3), 2),
+                    "percent": disk.percent
+                }
+            },
             
             "cache": {
                 "total_files": len(cache_files),
@@ -357,8 +384,8 @@ async def system_status():
             },
             
             "usage_stats": {
-                "active_connections": 0,  # می‌تونی بعداً اضافه کنی
-                "uptime_seconds": int(time.time() - psutil.boot_time()) if 'psutil' in globals() else 0
+                "active_connections": 0,
+                "uptime_seconds": int(time.time() - psutil.boot_time())
             }
         }
         
