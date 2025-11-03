@@ -1,5 +1,5 @@
-# main.py - نسخه نهایی و پایدار
-from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
+# main.py - با اتصال واقعی به CoinStats API
+from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks, Query
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -10,6 +10,8 @@ import logging
 import time
 import psutil
 import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
@@ -34,11 +36,13 @@ class ScanRequest(BaseModel):
     symbols: List[str]
     timeframe: str = "1h"
     scan_mode: str = "ai"
+    conditions: Optional[Dict[str, Any]] = None
 
 class AnalysisRequest(BaseModel):
     symbols: List[str]
     period: str = "7d"
     analysis_type: str = "comprehensive"
+    indicators: Optional[List[str]] = None
 
 class TechnicalAnalysisRequest(BaseModel):
     symbols: List[str]
@@ -50,492 +54,528 @@ class AITrainingRequest(BaseModel):
     epochs: int = 30
     training_type: str = "technical"
 
-# ==================== سیستم سلامت و مانیتورینگ ====================
+# ==================== ایمپورت مدیر CoinStats ====================
 
-class SystemMonitor:
-    def __init__(self):
-        self.start_time = time.time()
-        self.api_calls = []
-        self.errors = []
-        self.performance_log = []
-        
-    def log_api_call(self, endpoint: str, method: str, status: str, response_time: float):
-        self.api_calls.append({
-            'timestamp': datetime.now().isoformat(),
-            'endpoint': endpoint,
-            'method': method,
-            'status': status,
-            'response_time': response_time
-        })
-        # حفظ فقط 100 لاگ آخر
-        if len(self.api_calls) > 100:
-            self.api_calls.pop(0)
-    
-    def log_error(self, error_type: str, message: str):
-        self.errors.append({
-            'timestamp': datetime.now().isoformat(),
-            'error_type': error_type,
-            'message': message
-        })
-        if len(self.errors) > 50:
-            self.errors.pop(0)
-    
-    def get_system_health(self):
-        memory = psutil.virtual_memory()
-        cpu = psutil.cpu_percent(interval=1)
-        
-        return {
-            'uptime_seconds': round(time.time() - self.start_time, 2),
-            'memory_usage_percent': memory.percent,
-            'cpu_usage_percent': cpu,
-            'total_api_calls': len(self.api_calls),
-            'total_errors': len(self.errors),
-            'status': 'healthy' if memory.percent < 80 and cpu < 70 else 'degraded'
-        }
+try:
+    from complete_coinstats_manager import coin_stats_manager
+    COINSTATS_AVAILABLE = True
+    logger.info("✅ CoinStats Manager loaded successfully")
+except ImportError as e:
+    COINSTATS_AVAILABLE = False
+    logger.error(f"❌ CoinStats Manager import failed: {e}")
 
-# ایجاد مانیتور سیستم
-system_monitor = SystemMonitor()
+# ==================== سیستم تحلیل هوش مصنوعی با داده واقعی ====================
 
-# ==================== سیستم هوش مصنوعی ====================
-
-class AdvancedAIAnalyzer:
-    """سیستم پیشرفته تحلیل هوش مصنوعی"""
+class RealAIAnalyzer:
+    """سیستم تحلیل هوش مصنوعی با داده‌های واقعی از CoinStats"""
     
     def __init__(self):
         self.analysis_count = 0
-        self.symbol_history = {}
+        self.coin_stats = coin_stats_manager if COINSTATS_AVAILABLE else None
         
-    def analyze_symbol(self, symbol: str, period: str) -> Dict[str, Any]:
-        """تحلیل پیشرفته یک نماد"""
+    async def analyze_symbol(self, symbol: str, period: str = "1w") -> Dict[str, Any]:
+        """تحلیل نماد با داده‌های واقعی"""
         self.analysis_count += 1
         
-        # داده‌های پایه برای نمادهای مختلف
-        base_data = {
-            "BTC": {"base_price": 45231.50, "volatility": 0.12, "trend_strength": 0.8},
-            "ETH": {"base_price": 2534.20, "volatility": 0.08, "trend_strength": 0.6},
-            "ADA": {"base_price": 0.45, "volatility": 0.15, "trend_strength": 0.4},
-            "SOL": {"base_price": 102.50, "volatility": 0.18, "trend_strength": 0.7},
-            "DOT": {"base_price": 6.85, "volatility": 0.10, "trend_strength": 0.5},
-            "LINK": {"base_price": 14.20, "volatility": 0.09, "trend_strength": 0.7},
-            "BNB": {"base_price": 325.80, "volatility": 0.07, "trend_strength": 0.6},
-            "XRP": {"base_price": 0.62, "volatility": 0.13, "trend_strength": 0.3}
-        }
+        try:
+            # دریافت داده‌های واقعی از CoinStats
+            coin_details = self.coin_stats.get_coin_details(symbol, "USD")
+            coin_charts = self.coin_stats.get_coin_charts(symbol, period)
+            
+            # تحلیل داده‌های واقعی
+            analysis_result = self._analyze_real_data(coin_details, coin_charts, symbol, period)
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"خطا در تحلیل {symbol}: {str(e)}")
+            return self._get_fallback_analysis(symbol)
+    
+    def _analyze_real_data(self, coin_details: Dict, coin_charts: Dict, symbol: str, period: str) -> Dict[str, Any]:
+        """تحلیل داده‌های واقعی"""
+        # استخراج اطلاعات از داده‌های واقعی
+        price_info = self._extract_price_info(coin_details)
+        technical_data = self._extract_technical_data(coin_charts, coin_details)
+        market_data = self._extract_market_data(coin_details)
         
-        symbol_data = base_data.get(symbol, {"base_price": 100.0, "volatility": 0.1, "trend_strength": 0.5})
-        
-        # محاسبه قیمت واقعی‌تر با نوسان
-        price_variation = symbol_data["volatility"] * symbol_data["base_price"] * 0.1
-        current_price = symbol_data["base_price"] + (self.analysis_count % 20 - 10) * price_variation
-        
-        # محاسبه سیگنال پیشرفته
-        signal, confidence = self._calculate_advanced_signal(symbol_data, current_price)
-        
-        # محاسبه اندیکاتورهای تکنیکال
-        technical_indicators = self._calculate_technical_indicators(symbol, current_price, symbol_data)
+        # تولید سیگنال بر اساس داده‌های واقعی
+        signal = self._generate_real_signal(price_info, technical_data, market_data)
         
         return {
             "symbol": symbol,
-            "current_price": round(current_price, 4),
-            "price_change_24h": round((current_price - symbol_data["base_price"]) / symbol_data["base_price"] * 100, 2),
-            "volume_24h": f"{round(current_price * (1000000 + (self.analysis_count % 500000)) / 1000000, 1)}M",
-            "market_cap": f"{round(current_price * (100000000 + (self.analysis_count % 10000000)) / 1000000, 2)}B",
-            "ai_signal": {
-                "primary_signal": signal,
-                "signal_confidence": round(confidence, 3),
-                "model_confidence": round(confidence - 0.02, 3),
-                "reasoning": self._get_detailed_reasoning(signal, symbol_data["trend_strength"]),
-                "all_probabilities": self._calculate_probabilities(signal, confidence),
-                "risk_level": self._assess_risk_level(signal, confidence, symbol_data["volatility"])
-            },
-            "technical_analysis": {
-                "trend_strength": round(symbol_data["trend_strength"], 3),
-                "momentum": technical_indicators["momentum"],
-                "volatility": f"{symbol_data['volatility'] * 100:.1f}%",
-                "support_level": round(current_price * 0.95, 2),
-                "resistance_level": round(current_price * 1.05, 2),
-                "rsi": technical_indicators["rsi"],
-                "macd": technical_indicators["macd"]
-            },
-            "market_data": {
-                "liquidity": "high" if current_price > 100 else "medium",
-                "market_sentiment": "bullish" if signal == "BUY" else "bearish" if signal == "SELL" else "neutral",
-                "volume_trend": "increasing" if self.analysis_count % 3 == 0 else "stable"
-            }
+            "real_data": True,
+            "source": "coinstats",
+            "timestamp": datetime.now().isoformat(),
+            "price_info": price_info,
+            "technical_analysis": technical_data,
+            "market_data": market_data,
+            "trading_signal": signal,
+            "risk_assessment": self._assess_risk(price_info, technical_data),
+            "ai_insights": self._generate_ai_insights(price_info, technical_data, market_data)
         }
     
-    def _calculate_advanced_signal(self, symbol_data: Dict, current_price: float) -> tuple:
-        """محاسبه سیگنال پیشرفته"""
-        trend_strength = symbol_data["trend_strength"]
-        volatility = symbol_data["volatility"]
+    def _extract_price_info(self, coin_details: Dict) -> Dict[str, Any]:
+        """استخراج اطلاعات قیمت از داده‌های واقعی"""
+        try:
+            result = coin_details.get('result', {})
+            return {
+                "current_price": result.get('price', 0),
+                "price_change_24h": result.get('priceChange1d', 0),
+                "price_change_percent_24h": result.get('priceChange1d', 0),
+                "high_24h": result.get('high', 0),
+                "low_24h": result.get('low', 0),
+                "volume_24h": result.get('volume', 0),
+                "market_cap": result.get('marketCap', 0),
+                "rank": result.get('rank', 0)
+            }
+        except Exception as e:
+            logger.error(f"خطا در استخراج اطلاعات قیمت: {e}")
+            return {
+                "current_price": 0,
+                "price_change_24h": 0,
+                "price_change_percent_24h": 0,
+                "high_24h": 0,
+                "low_24h": 0,
+                "volume_24h": 0,
+                "market_cap": 0,
+                "rank": 0
+            }
+    
+    def _extract_technical_data(self, coin_charts: Dict, coin_details: Dict) -> Dict[str, Any]:
+        """استخراج داده‌های تکنیکال"""
+        try:
+            # تحلیل داده‌های چارت
+            chart_data = coin_charts.get('result', [])
+            prices = [point.get('price', 0) for point in chart_data if point.get('price')]
+            
+            if prices:
+                current_price = prices[-1]
+                min_price = min(prices)
+                max_price = max(prices)
+                
+                # محاسبه اندیکاتورها
+                rsi = self._calculate_rsi(prices)
+                trend = self._analyze_trend(prices)
+                
+                return {
+                    "rsi": rsi,
+                    "trend": trend,
+                    "support_level": min_price * 0.95,
+                    "resistance_level": max_price * 1.05,
+                    "volatility": self._calculate_volatility(prices),
+                    "momentum": "صعودی" if trend == "up" else "نزولی" if trend == "down" else "خنثی",
+                    "data_points": len(prices)
+                }
+            else:
+                return {
+                    "rsi": 50,
+                    "trend": "unknown",
+                    "support_level": 0,
+                    "resistance_level": 0,
+                    "volatility": 0,
+                    "momentum": "نامشخص",
+                    "data_points": 0
+                }
+                
+        except Exception as e:
+            logger.error(f"خطا در استخراج داده‌های تکنیکال: {e}")
+            return {
+                "rsi": 50,
+                "trend": "unknown",
+                "support_level": 0,
+                "resistance_level": 0,
+                "volatility": 0,
+                "momentum": "نامشخص",
+                "data_points": 0
+            }
+    
+    def _extract_market_data(self, coin_details: Dict) -> Dict[str, Any]:
+        """استخراج داده‌های بازار"""
+        try:
+            result = coin_details.get('result', {})
+            return {
+                "total_supply": result.get('totalSupply', 0),
+                "available_supply": result.get('availableSupply', 0),
+                "website": result.get('websiteUrl', ''),
+                "explorers": result.get('explorers', []),
+                "social_media": {
+                    "twitter": result.get('twitterUrl', ''),
+                    "reddit": result.get('redditUrl', '')
+                }
+            }
+        except Exception as e:
+            logger.error(f"خطا در استخراج داده‌های بازار: {e}")
+            return {
+                "total_supply": 0,
+                "available_supply": 0,
+                "website": "",
+                "explorers": [],
+                "social_media": {}
+            }
+    
+    def _calculate_rsi(self, prices: List[float], period: int = 14) -> float:
+        """محاسبه RSI از داده‌های واقعی"""
+        if len(prices) < period + 1:
+            return 50.0
         
-        # الگوریتم پیشرفته تصمیم‌گیری
-        score = trend_strength * 0.6 - volatility * 0.4 + (self.analysis_count % 10) * 0.02
+        gains = []
+        losses = []
         
-        if score > 0.3:
+        for i in range(1, len(prices)):
+            change = prices[i] - prices[i-1]
+            if change > 0:
+                gains.append(change)
+                losses.append(0)
+            else:
+                gains.append(0)
+                losses.append(abs(change))
+        
+        if len(gains) < period:
+            return 50.0
+        
+        avg_gain = sum(gains[-period:]) / period
+        avg_loss = sum(losses[-period:]) / period
+        
+        if avg_loss == 0:
+            return 100.0
+        
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        
+        return round(rsi, 2)
+    
+    def _analyze_trend(self, prices: List[float]) -> str:
+        """تحلیل روند از داده‌های واقعی"""
+        if len(prices) < 5:
+            return "unknown"
+        
+        recent_prices = prices[-5:]
+        if recent_prices[-1] > recent_prices[0]:
+            return "up"
+        elif recent_prices[-1] < recent_prices[0]:
+            return "down"
+        else:
+            return "sideways"
+    
+    def _calculate_volatility(self, prices: List[float]) -> float:
+        """محاسبه نوسان"""
+        if len(prices) < 2:
+            return 0.0
+        
+        returns = []
+        for i in range(1, len(prices)):
+            if prices[i-1] != 0:
+                returns.append((prices[i] - prices[i-1]) / prices[i-1])
+        
+        if not returns:
+            return 0.0
+        
+        volatility = (sum((r - sum(returns)/len(returns))**2 for r in returns) / len(returns)) ** 0.5
+        return round(volatility * 100, 2)
+    
+    def _generate_real_signal(self, price_info: Dict, technical_data: Dict, market_data: Dict) -> Dict[str, Any]:
+        """تولید سیگنال واقعی"""
+        rsi = technical_data.get('rsi', 50)
+        trend = technical_data.get('trend', 'unknown')
+        price_change = price_info.get('price_change_percent_24h', 0)
+        
+        # منطق سیگنال‌دهی پیشرفته
+        if rsi < 30 and trend == "up" and price_change > -5:
             signal = "BUY"
-            confidence = min(0.95, 0.7 + score)
-        elif score < -0.3:
-            signal = "SELL" 
-            confidence = min(0.95, 0.7 - score)
+            confidence = 0.85
+            reasoning = "اشباع فروش با روند صعودی و ثبات قیمتی"
+        elif rsi > 70 and trend == "down" and price_change < 5:
+            signal = "SELL"
+            confidence = 0.75
+            reasoning = "اشباع خرید با روند نزولی"
+        elif 40 < rsi < 60 and abs(price_change) < 3:
+            signal = "HOLD"
+            confidence = 0.70
+            reasoning = "بازار در حالت تعادل و ثبات"
         else:
             signal = "HOLD"
-            confidence = 0.75
-        
-        return signal, confidence
-    
-    def _calculate_technical_indicators(self, symbol: str, price: float, symbol_data: Dict) -> Dict:
-        """محاسبه اندیکاتورهای تکنیکال"""
-        base_rsi = 40 + (hash(symbol) % 30) + (self.analysis_count % 10)
-        rsi = min(80, max(20, base_rsi))
-        
-        macd_base = -0.5 + (hash(symbol) % 10) * 0.1 + (self.analysis_count % 5) * 0.05
-        macd = round(macd_base, 3)
-        
-        momentum = "strong" if symbol_data["trend_strength"] > 0.7 else "moderate" if symbol_data["trend_strength"] > 0.4 else "weak"
+            confidence = 0.60
+            reasoning = "سیگنال واضحی وجود ندارد - نیاز به تحلیل بیشتر"
         
         return {
-            "rsi": rsi,
-            "macd": macd,
-            "momentum": momentum
+            "signal": signal,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "risk_level": "low" if confidence > 0.8 else "medium" if confidence > 0.6 else "high",
+            "timeframe": "کوتاه مدت" if technical_data.get('volatility', 0) > 10 else "میان مدت"
         }
     
-    def _get_detailed_reasoning(self, signal: str, trend_strength: float) -> str:
-        """دریافت دلیل دقیق سیگنال"""
-        reasoning_map = {
-            "BUY": [
-                f"روند صعودی قوی (قدرت: {trend_strength:.1%}) با تایید حجم",
-                f"شکست مقاومت کلیدی همراه با قدرت خرید بالا",
-                f"الگوی تکنیکال مثبت با تایید چند timeframe",
-                f"همگرایی سیگنال‌های bullish در اندیکاتورهای مختلف"
-            ],
-            "SELL": [
-                f"ضعف در حرکت قیمت با کاهش حجم معاملات",
-                f"شکست حمایت مهم همراه با فشار فروش",
-                f"الگوی نزولی با تایید واگرایی منفی",
-                f"سیگنال‌های bearish همزمان در اندیکاتورهای کلیدی"
-            ],
-            "HOLD": [
-                f"بازار در فاز تثبیت - انتظار برای شکست تعیین‌کننده",
-                f"سیگنال‌های متناقض در اندیکاتورهای مختلف",
-                f"حجم معاملات پایین - نیاز به تایید بیشتر",
-                f"قیمت در محدوده رنج - تصمیم‌گیری پس از شکست"
+    def _assess_risk(self, price_info: Dict, technical_data: Dict) -> Dict[str, Any]:
+        """ارزیابی ریسک"""
+        volatility = technical_data.get('volatility', 0)
+        volume = price_info.get('volume_24h', 0)
+        market_cap = price_info.get('market_cap', 0)
+        
+        risk_score = (volatility * 0.4) + (max(0, 10 - (volume / max(market_cap, 1)) * 1000000) * 0.6)
+        
+        if risk_score < 3:
+            level = "کم"
+            color = "success"
+        elif risk_score < 7:
+            level = "متوسط"
+            color = "warning"
+        else:
+            level = "زیاد"
+            color = "danger"
+        
+        return {
+            "risk_score": round(risk_score, 2),
+            "risk_level": level,
+            "color": color,
+            "factors": [
+                f"نوسان: {volatility}%",
+                f"حجم معاملات: {volume:,.0f}",
+                f"ارزش بازار: {market_cap:,.0f}"
             ]
         }
-        import random
-        return random.choice(reasoning_map[signal])
     
-    def _calculate_probabilities(self, signal: str, confidence: float) -> Dict[str, float]:
-        """محاسبه احتمالات"""
-        remaining = 1.0 - confidence
-        if signal == "BUY":
+    def _generate_ai_insights(self, price_info: Dict, technical_data: Dict, market_data: Dict) -> List[str]:
+        """تولید بینش‌های هوش مصنوعی"""
+        insights = []
+        
+        # تحلیل بنیادی
+        if price_info.get('market_cap', 0) > 1000000000:  # بیش از 1 میلیارد
+            insights.append("💰 ارزش بازار بالا - پایداری بیشتر")
+        
+        if technical_data.get('rsi', 50) < 35:
+            insights.append("📉 شرایط اشباع فروش - فرصت خرید")
+        elif technical_data.get('rsi', 50) > 65:
+            insights.append("📈 شرایط اشباع خرید - احتیاط لازم")
+        
+        if technical_data.get('volatility', 0) > 15:
+            insights.append("⚡ نوسان بالا - ریسک بیشتر")
+        
+        if price_info.get('volume_24h', 0) > 100000000:  # حجم بالا
+            insights.append("🔊 نقدشوندگی عالی")
+        
+        if len(insights) == 0:
+            insights.append("📊 بازار در حالت عادی - نظارت ادامه دار")
+        
+        return insights
+    
+    def _get_fallback_analysis(self, symbol: str) -> Dict[str, Any]:
+        """تحلیل جایگزین در صورت خطا"""
+        return {
+            "symbol": symbol,
+            "real_data": False,
+            "source": "fallback",
+            "timestamp": datetime.now().isoformat(),
+            "price_info": {
+                "current_price": 0,
+                "price_change_24h": 0,
+                "high_24h": 0,
+                "low_24h": 0,
+                "volume_24h": 0,
+                "market_cap": 0
+            },
+            "technical_analysis": {
+                "rsi": 50,
+                "trend": "unknown",
+                "support_level": 0,
+                "resistance_level": 0,
+                "volatility": 0
+            },
+            "trading_signal": {
+                "signal": "HOLD",
+                "confidence": 0.5,
+                "reasoning": "داده در دسترس نیست",
+                "risk_level": "high"
+            },
+            "error": "عدم دسترسی به داده‌های واقعی"
+        }
+
+# ==================== سیستم مدیریت بازار ====================
+
+class MarketManager:
+    """مدیریت داده‌های بازار واقعی"""
+    
+    def __init__(self):
+        self.coin_stats = coin_stats_manager if COINSTATS_AVAILABLE else None
+        self.ai_analyzer = RealAIAnalyzer()
+    
+    async def get_market_overview(self) -> Dict[str, Any]:
+        """دریافت نمای کلی بازار"""
+        try:
+            # دریافت داده‌های مختلف از CoinStats
+            coins_list = self.coin_stats.get_coins_list(limit=50)
+            fear_greed = self.coin_stats.get_fear_greed()
+            btc_dominance = self.coin_stats.get_btc_dominance()
+            
             return {
-                "BUY": round(confidence, 3),
-                "SELL": round(remaining * 0.3, 3),
-                "HOLD": round(remaining * 0.7, 3)
+                "status": "success",
+                "real_data": True,
+                "timestamp": datetime.now().isoformat(),
+                "market_summary": {
+                    "total_coins": len(coins_list.get('result', [])),
+                    "fear_greed_index": fear_greed.get('result', {}),
+                    "btc_dominance": btc_dominance.get('result', {}),
+                    "market_trend": self._analyze_market_trend(coins_list.get('result', []))
+                },
+                "top_performers": self._get_top_performers(coins_list.get('result', [])),
+                "market_health": self._assess_market_health(coins_list.get('result', []))
             }
-        elif signal == "SELL":
+        except Exception as e:
+            logger.error(f"خطا در دریافت نمای بازار: {e}")
             return {
-                "BUY": round(remaining * 0.3, 3),
-                "SELL": round(confidence, 3),
-                "HOLD": round(remaining * 0.7, 3)
-            }
-        else:
-            return {
-                "BUY": round(remaining * 0.4, 3),
-                "SELL": round(remaining * 0.3, 3),
-                "HOLD": round(confidence, 3)
+                "status": "error",
+                "real_data": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
             }
     
-    def _assess_risk_level(self, signal: str, confidence: float, volatility: float) -> str:
-        """ارزیابی سطح ریسک"""
-        risk_score = volatility * (1 - confidence)
-        if risk_score < 0.05:
-            return "low"
-        elif risk_score < 0.1:
-            return "medium"
+    def _analyze_market_trend(self, coins: List[Dict]) -> str:
+        """تحلیل روند کلی بازار"""
+        if not coins:
+            return "unknown"
+        
+        positive_changes = sum(1 for coin in coins if coin.get('priceChange1d', 0) > 0)
+        total_coins = len(coins)
+        
+        if positive_changes / total_coins > 0.7:
+            return "bullish"
+        elif positive_changes / total_coins < 0.3:
+            return "bearish"
         else:
-            return "high"
+            return "neutral"
+    
+    def _get_top_performers(self, coins: List[Dict], count: int = 5) -> List[Dict]:
+        """دریافت بهترین عملکردها"""
+        if not coins:
+            return []
+        
+        sorted_coins = sorted(coins, key=lambda x: x.get('priceChange1d', 0), reverse=True)
+        return [
+            {
+                "symbol": coin.get('id', '').upper(),
+                "price": coin.get('price', 0),
+                "change_24h": coin.get('priceChange1d', 0),
+                "volume": coin.get('volume', 0)
+            }
+            for coin in sorted_coins[:count]
+        ]
+    
+    def _assess_market_health(self, coins: List[Dict]) -> Dict[str, Any]:
+        """ارزیابی سلامت بازار"""
+        if not coins:
+            return {"score": 0, "status": "unknown"}
+        
+        total_volume = sum(coin.get('volume', 0) for coin in coins)
+        avg_volume = total_volume / len(coins)
+        
+        # محاسبه نمره سلامت
+        volume_score = min(100, (avg_volume / 1000000) * 10)  # نرمال‌سازی حجم
+        diversity_score = min(100, len(coins) * 2)  # نمره تنوع
+        
+        health_score = (volume_score + diversity_score) / 2
+        
+        if health_score > 80:
+            status = "عالی"
+        elif health_score > 60:
+            status = "خوب"
+        elif health_score > 40:
+            status = "متوسط"
+        else:
+            status = "ضعیف"
+        
+        return {
+            "score": round(health_score, 2),
+            "status": status,
+            "factors": [
+                f"حجم معاملات: {volume_score:.1f}%",
+                f"تنوع بازار: {diversity_score:.1f}%"
+            ]
+        }
 
-# ایجاد تحلیل‌گر پیشرفته
-ai_analyzer = AdvancedAIAnalyzer()
+# ==================== ایجاد نمونه‌ها ====================
 
-# ==================== روت‌های سیستم ====================
+market_manager = MarketManager()
+real_ai_analyzer = RealAIAnalyzer()
+
+# ==================== روت‌های اصلی ====================
 
 system_router = APIRouter(prefix="/api/system", tags=["system"])
+ai_router = APIRouter(prefix="/api/ai", tags=["ai"])
+market_router = APIRouter(prefix="/api/market", tags=["market"])
 
+# روت‌های سیستم
 @system_router.get("/health")
 async def health_check():
-    """سلامت API"""
-    start_time = time.time()
-    health_data = system_monitor.get_system_health()
-    response_time = (time.time() - start_time) * 1000
-    
-    system_monitor.log_api_call("/api/system/health", "GET", "success", response_time)
-    
+    """سلامت سیستم"""
     return {
         "status": "healthy",
-        "message": "API is working!",
+        "real_data": COINSTATS_AVAILABLE,
         "timestamp": datetime.now().isoformat(),
-        "service": "crypto-ai",
-        "version": "3.0.0",
-        "system_health": health_data
+        "services": {
+            "coinstats_api": "active" if COINSTATS_AVAILABLE else "inactive",
+            "ai_analyzer": "active",
+            "market_manager": "active"
+        }
     }
 
 @system_router.get("/status")
 async def system_status():
     """وضعیت سیستم"""
-    start_time = time.time()
-    
-    status_data = {
+    return {
         "status": "running",
-        "timestamp": datetime.now().isoformat(),
         "version": "3.0.0",
-        "system_health": system_monitor.get_system_health(),
-        "api_health": {
-            "status": "connected",
-            "healthy_endpoints": 18,
-            "total_endpoints": 19,
-            "response_time": "142ms"
-        },
-        "ai_health": {
-            "status": "active",
-            "total_analyses": ai_analyzer.analysis_count,
-            "accuracy": 0.87,
-            "models_loaded": 2
-        }
-    }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/status", "GET", "success", response_time)
-    
-    return status_data
-
-@system_router.get("/alerts")
-async def system_alerts():
-    """هشدارهای سیستم"""
-    start_time = time.time()
-    
-    alerts_data = {
-        "status": "success",
-        "alerts": [
-            {
-                "id": "alert_1",
-                "title": "سیستم فعال است",
-                "message": "همه سرویس‌ها به درستی کار می‌کنند",
-                "level": "info",
-                "timestamp": datetime.now().isoformat(),
-                "source": "system_health"
-            },
-            {
-                "id": "alert_2", 
-                "title": "دقت مدل AI بالا",
-                "message": f"میانگین دقت مدل‌های AI: 87% - تعداد تحلیل‌ها: {ai_analyzer.analysis_count}",
-                "level": "success",
-                "timestamp": datetime.now().isoformat(),
-                "source": "ai_performance"
-            }
-        ],
-        "total_alerts": 2,
-        "critical_alerts": 0,
-        "warning_alerts": 0,
-        "info_alerts": 2
-    }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/alerts", "GET", "success", response_time)
-    
-    return alerts_data
-
-@system_router.get("/metrics")
-async def system_metrics():
-    """متریک‌های سیستم"""
-    start_time = time.time()
-    
-    metrics_data = {
-        "status": "success",
+        "real_data": COINSTATS_AVAILABLE,
         "timestamp": datetime.now().isoformat(),
-        "system_metrics": system_monitor.get_system_health(),
-        "performance_metrics": {
-            "avg_response_time": "156ms",
-            "requests_per_minute": 12,
-            "error_rate": "0.5%",
-            "uptime": f"{system_monitor.get_system_health()['uptime_seconds']:.0f} seconds"
-        },
-        "ai_metrics": {
-            "total_analyses": ai_analyzer.analysis_count,
-            "active_models": 2,
-            "avg_confidence": 0.82,
-            "signal_distribution": {"BUY": 35, "SELL": 25, "HOLD": 40}
-        }
+        "analysis_count": real_ai_analyzer.analysis_count,
+        "features": [
+            "تحلیل واقعی بازار",
+            "داده‌های زنده CoinStats",
+            "سیگنال‌های هوش مصنوعی",
+            "مدیریت ریسک پیشرفته"
+        ]
     }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/metrics", "GET", "success", response_time)
-    
-    return metrics_data
 
-@system_router.get("/logs")
-async def system_logs(limit: int = 50, log_type: str = "all"):
-    """لاگ‌های سیستم"""
-    start_time = time.time()
-    
-    logs_data = {
-        "status": "success",
-        "timestamp": datetime.now().isoformat(),
-        "logs": system_monitor.api_calls[-limit:] if log_type in ["all", "api"] else [],
-        "errors": system_monitor.errors[-limit:] if log_type in ["all", "error"] else [],
-        "total_logs": len(system_monitor.api_calls),
-        "total_errors": len(system_monitor.errors),
-        "limit": limit
-    }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/logs", "GET", "success", response_time)
-    
-    return logs_data
-
-@system_router.post("/cache/clear")
-async def clear_cache():
-    """پاکسازی کش"""
-    start_time = time.time()
-    
-    # شبیه‌سازی پاکسازی کش
-    cleared_items = len(system_monitor.api_calls) + len(system_monitor.errors)
-    system_monitor.api_calls.clear()
-    system_monitor.errors.clear()
-    
-    result = {
-        "status": "success",
-        "message": "کش سیستم با موفقیت پاکسازی شد",
-        "timestamp": datetime.now().isoformat(),
-        "details": {
-            "cleared_api_logs": cleared_items,
-            "memory_freed": "2.1MB",
-            "cache_size": "0MB"
-        }
-    }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/cache/clear", "POST", "success", response_time)
-    
-    return result
-
-@system_router.get("/debug")
-async def system_debug():
-    """اطلاعات دیباگ"""
-    start_time = time.time()
-    
-    debug_info = {
-        "status": "success",
-        "debug_info": {
-            "api_version": "3.0.0",
-            "python_version": "3.11",
-            "server_uptime": f"{system_monitor.get_system_health()['uptime_seconds']:.0f} seconds",
-            "system_resources": system_monitor.get_system_health(),
-            "endpoints_available": [
-                "/api/health",
-                "/api/system/status",
-                "/api/system/alerts",
-                "/api/system/metrics", 
-                "/api/system/logs",
-                "/api/system/debug",
-                "/api/system/cache/clear",
-                "/api/ai/scan",
-                "/api/ai/analysis",
-                "/api/ai/technical/analysis",
-                "/api/ai/analysis/quick",
-                "/api/ai/train",
-                "/api/info"
-            ],
-            "active_services": {
-                "ai_analyzer": "active",
-                "system_monitor": "active",
-                "api_server": "active"
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-    }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/system/debug", "GET", "success", response_time)
-    
-    return debug_info
-
-# ==================== روت‌های هوش مصنوعی ====================
-
-ai_router = APIRouter(prefix="/api/ai", tags=["ai"])
-
+# روت‌های هوش مصنوعی
 @ai_router.post("/scan")
 async def ai_scan(request: ScanRequest):
-    """اسکن هوشمند بازار"""
-    start_time = time.time()
-    
+    """اسکن هوشمند بازار با داده‌های واقعی"""
     try:
-        logger.info(f"اسکن AI برای نمادها: {request.symbols} - حالت: {request.scan_mode}")
-        
         results = []
+        
         for symbol in request.symbols:
-            try:
-                analysis = ai_analyzer.analyze_symbol(symbol, request.timeframe)
-                results.append(analysis)
-            except Exception as e:
-                logger.error(f"خطا در تحلیل {symbol}: {str(e)}")
-                system_monitor.log_error("AnalysisError", f"خطا در تحلیل {symbol}: {str(e)}")
-                results.append({
-                    "symbol": symbol,
-                    "error": f"خطا در تحلیل: {str(e)}",
-                    "current_price": 0,
-                    "ai_signal": {"primary_signal": "ERROR", "signal_confidence": 0}
-                })
+            analysis = await real_ai_analyzer.analyze_symbol(symbol, request.timeframe)
+            results.append(analysis)
         
-        response_data = {
+        return {
             "status": "success",
+            "real_data": True,
             "scan_results": results,
-            "timestamp": datetime.now().isoformat(),
             "total_scanned": len(results),
-            "symbols_found": len([r for r in results if "error" not in r]),
+            "successful_scans": len([r for r in results if r.get('real_data', False)]),
             "scan_mode": request.scan_mode,
-            "timeframe": request.timeframe,
-            "analysis_details": {
-                "ai_model": "AdvancedNeuralNetwork",
-                "version": "3.0.0",
-                "features_used": ["technical_analysis", "market_sentiment", "price_action"]
-            }
+            "timestamp": datetime.now().isoformat()
         }
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/scan", "POST", "success", response_time)
-        
-        return response_data
         
     except Exception as e:
         logger.error(f"خطا در اسکن AI: {str(e)}")
-        system_monitor.log_error("ScanError", f"خطا در اسکن AI: {str(e)}")
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/scan", "POST", "error", response_time)
-        
         raise HTTPException(status_code=500, detail=f"خطا در اسکن: {str(e)}")
 
 @ai_router.get("/analysis")
 async def ai_analysis(
-    symbols: str = "BTC,ETH",
-    period: str = "1w",
-    analysis_type: str = "comprehensive"
+    symbols: str = Query("BTC,ETH", description="نمادها با کاما جدا شده"),
+    period: str = Query("1w", description="بازه زمانی"),
+    analysis_type: str = Query("comprehensive", description="نوع تحلیل")
 ):
     """تحلیل پیشرفته AI"""
-    start_time = time.time()
-    
     try:
         symbols_list = [s.strip().upper() for s in symbols.split(",")]
-        logger.info(f"تحلیل AI برای: {symbols_list} - دوره: {period}")
         
         analysis_results = {}
         for symbol in symbols_list:
-            analysis_results[symbol] = ai_analyzer.analyze_symbol(symbol, period)
+            analysis = await real_ai_analyzer.analyze_symbol(symbol, period)
+            analysis_results[symbol] = analysis
         
-        response_data = {
+        return {
             "status": "success",
+            "real_data": True,
             "analysis_report": {
                 "analysis_id": f"ai_analysis_{int(datetime.now().timestamp())}",
                 "timestamp": datetime.now().isoformat(),
@@ -543,233 +583,174 @@ async def ai_analysis(
                     "total_symbols": len(symbols_list),
                     "analysis_period": period,
                     "analysis_type": analysis_type,
-                    "ai_model_used": "AdvancedNeuralNetwork",
-                    "data_sources_used": ["price_data", "technical_indicators", "market_sentiment", "volume_analysis"],
-                    "processing_time": f"{(time.time() - start_time) * 1000:.2f}ms"
+                    "real_data_ratio": f"{len([a for a in analysis_results.values() if a.get('real_data', False)])}/{len(analysis_results)}"
                 },
                 "symbol_analysis": analysis_results,
-                "market_insights": {
-                    "fear_greed_index": 65,
-                    "btc_dominance": 52.3,
-                    "market_sentiment": "bullish",
-                    "total_market_cap": "1.72T",
-                    "volume_24h": "85.2B"
-                },
-                "risk_assessment": {
-                    "overall_risk": "medium",
-                    "volatility_index": "high",
-                    "liquidity_score": "excellent"
-                }
+                "market_context": await market_manager.get_market_overview()
             }
         }
         
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/analysis", "GET", "success", response_time)
-        
-        return response_data
-        
     except Exception as e:
         logger.error(f"خطا در تحلیل AI: {str(e)}")
-        system_monitor.log_error("AnalysisError", f"خطا در تحلیل AI: {str(e)}")
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/analysis", "GET", "error", response_time)
-        
         raise HTTPException(status_code=500, detail=f"خطا در تحلیل: {str(e)}")
 
 @ai_router.get("/analysis/quick")
 async def quick_analysis(
-    symbols: str = "BTC,ETH,ADA",
-    period: str = "24h"
+    symbols: str = Query("BTC,ETH,ADA", description="نمادها با کاما جدا شده"),
+    period: str = Query("24h", description="بازه زمانی")
 ):
     """تحلیل سریع"""
-    start_time = time.time()
-    
     try:
         symbols_list = [s.strip().upper() for s in symbols.split(",")]
         
         quick_results = []
-        for symbol in symbols_list[:5]:  # حداکثر 5 نماد
-            analysis = ai_analyzer.analyze_symbol(symbol, period)
+        for symbol in symbols_list[:10]:  # حداکثر 10 نماد
+            analysis = await real_ai_analyzer.analyze_symbol(symbol, period)
+            
             quick_results.append({
-                "symbol": analysis["symbol"],
-                "price": analysis["current_price"],
-                "price_change": analysis["price_change_24h"],
-                "signal": analysis["ai_signal"]["primary_signal"],
-                "confidence": analysis["ai_signal"]["signal_confidence"],
-                "trend": "صعودی" if analysis["ai_signal"]["primary_signal"] == "BUY" else "نزولی" if analysis["ai_signal"]["primary_signal"] == "SELL" else "خنثی",
-                "risk": analysis["ai_signal"]["risk_level"]
+                "symbol": symbol,
+                "price": analysis["price_info"]["current_price"],
+                "change_24h": analysis["price_info"]["price_change_24h"],
+                "signal": analysis["trading_signal"]["signal"],
+                "confidence": analysis["trading_signal"]["confidence"],
+                "risk": analysis["trading_signal"]["risk_level"],
+                "real_data": analysis["real_data"]
             })
         
-        response_data = {
+        return {
             "status": "success",
+            "real_data": True,
             "quick_analysis": quick_results,
             "timestamp": datetime.now().isoformat(),
-            "period": period,
-            "symbols_analyzed": len(quick_results),
-            "analysis_time": f"{(time.time() - start_time) * 1000:.2f}ms"
+            "period": period
         }
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/analysis/quick", "GET", "success", response_time)
-        
-        return response_data
         
     except Exception as e:
         logger.error(f"خطا در تحلیل سریع: {str(e)}")
-        system_monitor.log_error("QuickAnalysisError", f"خطا در تحلیل سریع: {str(e)}")
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/analysis/quick", "GET", "error", response_time)
-        
         raise HTTPException(status_code=500, detail=f"خطا در تحلیل سریع: {str(e)}")
 
 @ai_router.post("/technical/analysis")
 async def technical_analysis(request: TechnicalAnalysisRequest):
     """تحلیل تکنیکال پیشرفته"""
-    start_time = time.time()
-    
     try:
-        logger.info(f"تحلیل تکنیکال برای: {request.symbols} - نوع: {request.analysis_type}")
-        
         technical_results = {}
+        
         for symbol in request.symbols:
-            analysis = ai_analyzer.analyze_symbol(symbol, request.period)
+            analysis = await real_ai_analyzer.analyze_symbol(symbol, request.period)
             technical_results[symbol] = {
                 "symbol": symbol,
-                "current_price": analysis["current_price"],
-                "price_action": {
-                    "high_24h": round(analysis["current_price"] * 1.03, 2),
-                    "low_24h": round(analysis["current_price"] * 0.97, 2),
-                    "open_24h": round(analysis["current_price"] * 0.99, 2),
-                    "volume_change": f"+{round((ai_analyzer.analysis_count % 20) - 10, 1)}%",
-                    "volatility": analysis["technical_analysis"]["volatility"]
-                },
                 "technical_indicators": analysis["technical_analysis"],
-                "chart_patterns": [
-                    "Support Test" if analysis["ai_signal"]["primary_signal"] == "BUY" else "Resistance Test",
-                    "Volume Confirmation",
-                    "Trend Line Break" if analysis["technical_analysis"]["trend_strength"] > 0.7 else "Consolidation"
-                ],
-                "timeframe_analysis": {
-                    "1h": "bullish" if analysis["ai_signal"]["primary_signal"] == "BUY" else "bearish",
-                    "4h": "bullish" if analysis["technical_analysis"]["trend_strength"] > 0.6 else "neutral",
-                    "1d": "bullish" if analysis["market_data"]["market_sentiment"] == "bullish" else "neutral"
-                }
+                "price_action": analysis["price_info"],
+                "signal_strength": analysis["trading_signal"]["confidence"],
+                "trend_analysis": analysis["technical_analysis"]["trend"]
             }
         
-        response_data = {
+        return {
             "status": "success",
+            "real_data": True,
             "technical_analysis": technical_results,
             "timestamp": datetime.now().isoformat(),
-            "timeframe": request.period,
-            "analysis_type": request.analysis_type,
-            "indicators_used": ["RSI", "MACD", "Support/Resistance", "Volume", "Trend Strength"]
+            "analysis_type": request.analysis_type
         }
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/technical/analysis", "POST", "success", response_time)
-        
-        return response_data
         
     except Exception as e:
         logger.error(f"خطا در تحلیل تکنیکال: {str(e)}")
-        system_monitor.log_error("TechnicalAnalysisError", f"خطا در تحلیل تکنیکال: {str(e)}")
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/technical/analysis", "POST", "error", response_time)
-        
         raise HTTPException(status_code=500, detail=f"خطا در تحلیل تکنیکال: {str(e)}")
 
-@ai_router.post("/train")
-async def train_ai_model(request: AITrainingRequest, background_tasks: BackgroundTasks):
-    """آموزش مدل هوش مصنوعی"""
-    start_time = time.time()
-    
+# روت‌های بازار
+@market_router.get("/overview")
+async def market_overview():
+    """نمای کلی بازار"""
+    return await market_manager.get_market_overview()
+
+@market_router.get("/prices")
+async def market_prices(
+    symbols: str = Query("BTC,ETH,ADA,SOL,DOT", description="نمادها با کاما جدا شده")
+):
+    """قیمت‌های بازار"""
     try:
-        logger.info(f"شروع آموزش AI برای نمادها: {request.symbols}")
+        symbols_list = [s.strip().upper() for s in symbols.split(",")]
         
-        # شبیه‌سازی فرآیند آموزش
-        training_result = {
-            "status": "training_started",
-            "training_id": f"train_{int(datetime.now().timestamp())}",
-            "symbols": request.symbols,
-            "epochs": request.epochs,
-            "training_type": request.training_type,
-            "timestamp": datetime.now().isoformat(),
-            "estimated_completion_time": "45 minutes",
-            "progress": "0%"
+        prices = {}
+        for symbol in symbols_list:
+            analysis = await real_ai_analyzer.analyze_symbol(symbol, "24h")
+            prices[symbol] = {
+                "price": analysis["price_info"]["current_price"],
+                "change_24h": analysis["price_info"]["price_change_24h"],
+                "volume": analysis["price_info"]["volume_24h"],
+                "real_data": analysis["real_data"],
+                "timestamp": analysis["timestamp"]
+            }
+        
+        return {
+            "status": "success",
+            "real_data": True,
+            "prices": prices,
+            "timestamp": datetime.now().isoformat()
         }
         
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/train", "POST", "success", response_time)
-        
-        return training_result
-        
     except Exception as e:
-        logger.error(f"خطا در آموزش AI: {str(e)}")
-        system_monitor.log_error("TrainingError", f"خطا در آموزش AI: {str(e)}")
-        
-        response_time = (time.time() - start_time) * 1000
-        system_monitor.log_api_call("/api/ai/train", "POST", "error", response_time)
-        
-        raise HTTPException(status_code=500, detail=f"خطا در آموزش: {str(e)}")
+        logger.error(f"خطا در دریافت قیمت‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"خطا در دریافت قیمت‌ها: {str(e)}")
+
+@market_router.get("/fear-greed")
+async def fear_greed_index():
+    """شاخص ترس و طمع"""
+    try:
+        if COINSTATS_AVAILABLE:
+            fear_greed = coin_stats_manager.get_fear_greed()
+            return {
+                "status": "success",
+                "real_data": True,
+                "fear_greed_index": fear_greed.get('result', {}),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "error",
+                "real_data": False,
+                "error": "CoinStats API در دسترس نیست",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"خطا در دریافت شاخص ترس و طمع: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"خطا در دریافت شاخص: {str(e)}")
 
 # ==================== روت‌های عمومی ====================
 
 @app.get("/api/info")
 async def system_info():
     """اطلاعات سیستم"""
-    start_time = time.time()
-    
-    info_data = {
+    return {
         "name": "Crypto AI Trading System",
         "version": "3.0.0",
         "status": "running",
+        "real_data": COINSTATS_AVAILABLE,
         "timestamp": datetime.now().isoformat(),
-        "description": "سیستم پیشرفته تحلیل و پیش‌بینی بازار ارزهای دیجیتال با هوش مصنوعی",
+        "description": "سیستم پیشرفته تحلیل بازار با داده‌های واقعی از CoinStats API",
         "features": [
+            "اتصال مستقیم به CoinStats API",
             "تحلیل تکنیکال پیشرفته",
-            "پیش‌بینی هوش مصنوعی", 
-            "اسکن هوشمند بازار",
-            "مانیتورینگ لحظه‌ای",
-            "گزارش‌گیری کامل"
+            "سیگنال‌های هوش مصنوعی مبتنی بر داده واقعی",
+            "مدیریت ریسک هوشمند",
+            "نمای کلی بازار زنده"
         ],
-        "endpoints_available": [
-            "/api/health",
-            "/api/system/status",
-            "/api/system/alerts",
-            "/api/system/metrics",
-            "/api/system/logs",
-            "/api/system/debug",
-            "/api/system/cache/clear",
-            "/api/ai/scan",
-            "/api/ai/analysis",
-            "/api/ai/technical/analysis",
-            "/api/ai/analysis/quick",
-            "/api/ai/train",
-            "/api/info"
-        ],
-        "performance": {
-            "total_analyses": ai_analyzer.analysis_count,
-            "system_uptime": f"{system_monitor.get_system_health()['uptime_seconds']:.0f} seconds",
-            "api_health": "excellent"
+        "statistics": {
+            "total_analyses": real_ai_analyzer.analysis_count,
+            "real_data_available": COINSTATS_AVAILABLE,
+            "active_services": ["AI Analyzer", "Market Manager", "CoinStats API"]
         }
     }
-    
-    response_time = (time.time() - start_time) * 1000
-    system_monitor.log_api_call("/api/info", "GET", "success", response_time)
-    
-    return info_data
 
 @app.get("/api/health")
-async def root_health_check():
-    """سلامت ریشه API"""
+async def root_health():
+    """سلامت ریشه"""
     return await health_check()
 
-# ثبت routerها
+# ثبت روت‌ها
 app.include_router(system_router)
 app.include_router(ai_router)
+app.include_router(market_router)
 
 # ==================== سرویس فرانت‌اند ====================
 
@@ -801,16 +782,13 @@ async def serve_all_routes(full_path: str):
                 "available_endpoints": [
                     "/api/health",
                     "/api/system/status",
-                    "/api/system/alerts",
-                    "/api/system/metrics", 
-                    "/api/system/logs",
-                    "/api/system/debug",
-                    "/api/system/cache/clear",
                     "/api/ai/scan",
-                    "/api/ai/analysis",
+                    "/api/ai/analysis", 
                     "/api/ai/technical/analysis",
                     "/api/ai/analysis/quick",
-                    "/api/ai/train",
+                    "/api/market/overview",
+                    "/api/market/prices",
+                    "/api/market/fear-greed",
                     "/api/info"
                 ],
                 "timestamp": datetime.now().isoformat()
@@ -830,60 +808,6 @@ async def serve_all_routes(full_path: str):
                 }
             )
 
-# هندلر خطاهای عمومی
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    return JSONResponse(
-        status_code=404,
-        content={
-            "error": "Endpoint not found",
-            "path": str(request.url),
-            "available_endpoints": [
-                "/api/health",
-                "/api/system/status", 
-                "/api/system/alerts",
-                "/api/system/metrics",
-                "/api/system/logs",
-                "/api/system/debug",
-                "/api/system/cache/clear",
-                "/api/ai/scan",
-                "/api/ai/analysis",
-                "/api/ai/technical/analysis",
-                "/api/ai/analysis/quick",
-                "/api/ai/train",
-                "/api/info"
-            ],
-            "timestamp": datetime.now().isoformat()
-        }
-    )
-
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    logger.error(f"خطای سرور: {str(exc)}")
-    system_monitor.log_error("InternalServerError", str(exc))
-    
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "detail": str(exc),
-            "timestamp": datetime.now().isoformat(),
-            "support": "لطفاً لاگ‌های سیستم را بررسی کنید"
-        }
-    )
-
-@app.exception_handler(405)
-async def method_not_allowed_handler(request, exc):
-    return JSONResponse(
-        status_code=405,
-        content={
-            "error": "Method not allowed",
-            "path": str(request.url),
-            "method": request.method,
-            "timestamp": datetime.now().isoformat()
-        }
-    )
-
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=10000)
