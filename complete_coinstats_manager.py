@@ -80,18 +80,16 @@ class CompleteCoinStatsManager:
             return None
 
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Union[Dict, List]:
-        """ساخت درخواست به API - نسخه ساده‌شده"""
+        """ساخت درخواست به API"""
         self._rate_limit()
         cache_path = self._get_cache_path(endpoint, params)
 
-        # بررسی کش
         if use_cache and self._is_cache_valid(cache_path):
             logger.info(f"🔍 Using cache for: {endpoint}")
             cached_data = self._load_from_cache(cache_path)
             if cached_data is not None:
                 return cached_data
 
-        # درخواست به API
         url = f"{self.base_url}/{endpoint}"
         try:
             logger.info(f"🔍 API Request: {endpoint}")
@@ -108,13 +106,11 @@ class CompleteCoinStatsManager:
             if response.status_code == 200:
                 data = response.json()
                 
-                # ذخیره در کش
                 if use_cache:
                     self._save_to_cache(cache_path, data)
                 
                 logger.info(f"✅ Data received from {endpoint}")
                 return data
-                
             else:
                 logger.error(f"❌ API Error {response.status_code} for {endpoint}")
                 return {"error": f"HTTP {response.status_code}", "status": "error"}
@@ -122,7 +118,6 @@ class CompleteCoinStatsManager:
         except requests.exceptions.Timeout:
             logger.error(f"⏰ Timeout for {endpoint}")
             return {"error": "Timeout", "status": "error"}
-            
         except Exception as e:
             logger.error(f"🚨 Error in {endpoint}: {e}")
             return {"error": str(e), "status": "error"}
@@ -131,7 +126,7 @@ class CompleteCoinStatsManager:
 
     def get_coins_list(self, limit: int = 20, page: int = 1, currency: str = "USD",
                       sort_by: str = "rank", sort_dir: str = "asc", **filters) -> Dict:
-        """دریافت لیست کوین‌ها - داده خام"""
+        """دریافت لیست کوین‌ها"""
         params = {
             "limit": limit,
             "page": page,
@@ -146,12 +141,12 @@ class CompleteCoinStatsManager:
         return self._make_api_request("coins", params)
 
     def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
-        """دریافت جزئیات کوین - داده خام"""
+        """دریافت جزئیات کوین"""
         params = {"currency": currency}
         return self._make_api_request(f"coins/{coin_id}", params)
 
     def get_coin_charts(self, coin_id: str, period: str = "1w") -> Dict:
-        """دریافت چارت کوین - داده خام"""
+        """دریافت چارت کوین"""
         valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
         if period not in valid_periods:
             period = "1w"
@@ -159,7 +154,7 @@ class CompleteCoinStatsManager:
         return self._make_api_request(f"coins/{coin_id}/charts", params)
 
     def get_coins_charts(self, coin_ids: str, period: str = "1w") -> Dict:
-        """دریافت چارت چندکوینه - داده خام"""
+        """دریافت چارت چندکوینه"""
         valid_periods = ["24h", "1w", "1m", "3m", "6m", "1y", "all"]
         if period not in valid_periods:
             period = "1w"
@@ -193,33 +188,33 @@ class CompleteCoinStatsManager:
     # ============================= اندپوینت‌های جدید ============================
 
     def get_tickers_exchanges(self) -> Dict:
-        """دریافت لیست صرافی‌ها - داده خام"""
+        """دریافت لیست صرافی‌ها"""
         return self._make_api_request("tickers/exchanges")
 
     def get_tickers_markets(self) -> Dict:
-        """دریافت لیست مارکت‌ها - داده خام"""
+        """دریافت لیست مارکت‌ها"""
         return self._make_api_request("tickers/markets")
 
     def get_markets(self) -> Dict:
-        """دریافت مارکت‌ها - داده خام"""
+        """دریافت مارکت‌ها"""
         return self._make_api_request("markets")
 
     def get_fiats(self) -> Dict:
-        """دریافت ارزهای فیات - داده خام"""
+        """دریافت ارزهای فیات"""
         return self._make_api_request("fiats")
 
     def get_currencies(self) -> Dict:
-        """دریافت ارزها - داده خام"""
+        """دریافت ارزها"""
         return self._make_api_request("currencies")
 
     # ============================= اندپوینت‌های اخبار =========================
 
     def get_news_sources(self) -> Dict:
-        """دریافت منابع خبری - داده خام"""
+        """دریافت منابع خبری"""
         return self._make_api_request("news/sources")
 
     def get_news(self, limit: int = 50) -> Dict:
-        """دریافت اخبار عمومی - داده خام"""
+        """دریافت اخبار عمومی"""
         params = {"limit": limit}
         return self._make_api_request("news", params)
 
@@ -241,7 +236,7 @@ class CompleteCoinStatsManager:
     # ============================= اندپوینت‌های پیش‌بازار =========================
 
     def get_btc_dominance(self, period_type: str = "all") -> Dict:
-        """دریافت دامیننس بیت کوین - داده خام"""
+        """دریافت دامیننس بیت کوین"""
         valid_periods = ["all", "24h", "1w", "1m", "3m", "1y"]
         if period_type not in valid_periods:
             period_type = "all"
@@ -249,15 +244,15 @@ class CompleteCoinStatsManager:
         return self._make_api_request("insights/btc-dominance", params)
 
     def get_fear_greed(self) -> Dict:
-        """دریافت شاخص ترس و طمع - داده خام"""
+        """دریافت شاخص ترس و طمع"""
         return self._make_api_request("insights/fear-and-greed")
 
     def get_fear_greed_chart(self) -> Dict:
-        """دریافت چارت ترس و طمع - داده خام"""
+        """دریافت چارت ترس و طمع"""
         return self._make_api_request("insights/fear-and-greed/chart")
 
     def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Dict:
-        """دریافت چارت رنگین‌کمان - داده خام"""
+        """دریافت چارت رنگین‌کمان"""
         return self._make_api_request(f"insights/rainbow-chart/{coin_id}")
 
     # ============================= متدهای کمکی =============================
@@ -327,7 +322,7 @@ class CompleteCoinStatsManager:
         }
 
     def get_all_coins(self, limit: int = 100) -> List[Dict]:
-        """دریافت تمام کوین‌ها - سازگاری با AI"""
+        """دریافت تمام کوین‌ها"""
         data = self.get_coins_list(limit=limit)
         return data.get('result', [])
 
@@ -352,17 +347,37 @@ class CompleteCoinStatsManager:
     def test_all_endpoints(self) -> Dict[str, Any]:
         """تست سلامت تمام اندپوینت‌های API"""
         endpoints = {
+            
+            # اندپوینت‌های اصلی کوین‌ها
             "coins_list": lambda: self.get_coins_list(limit=1),
             "coin_details_btc": lambda: self.get_coin_details("bitcoin"),
             "coin_details_eth": lambda: self.get_coin_details("ethereum"),
-            "coin_charts": lambda: self.get_coin_charts("bitcoin", "1w"),
+            "coin_charts_btc": lambda: self.get_coin_charts("bitcoin", "1w"),
+            "coins_charts": lambda: self.get_coins_charts("bitcoin,ethereum", "1w"),
+        
+            # اندپوینت‌های قیمت
+            "price_avg": lambda: self.get_coin_price_avg("bitcoin", "1636315200"),
+            "exchange_price": lambda: self.get_exchange_price("Binance", "BTC", "ETH", "1636315200"),
+        
+            # اندپوینت‌های بازار
+            "tickers_exchanges": lambda: self.get_tickers_exchanges(),
+            "tickers_markets": lambda: self.get_tickers_markets(),
+            "markets": lambda: self.get_markets(),
+            "fiats": lambda: self.get_fiats(),
+            "currencies": lambda: self.get_currencies(),
+        
+            # اندپوینت‌های اخبار
+            "news_sources": lambda: self.get_news_sources(),
             "news": lambda: self.get_news(limit=5),
+            "news_trending": lambda: self.get_news_by_type("trending"),
+            "news_detail": lambda: self.get_news_detail("sample"),
+        
+            # اندپوینت‌های تحلیلی
             "btc_dominance": lambda: self.get_btc_dominance(),
             "fear_greed": lambda: self.get_fear_greed(),
-            "tickers_exchanges": lambda: self.get_tickers_exchanges(),
-            "markets": lambda: self.get_markets(),
-            "fiats": lambda: self.get_fiats()
-        }
+            "fear_greed_chart": lambda: self.get_fear_greed_chart(),
+            "rainbow_chart": lambda: self.get_rainbow_chart("bitcoin")
+        }  
         
         results = {}
         for name, endpoint_func in endpoints.items():
@@ -378,7 +393,12 @@ class CompleteCoinStatsManager:
                     
             except Exception as e:
                 results[name] = {"status": "error", "error": str(e), "response_time": 0}
-        
+        # محاسبه آمار
+        total_endpoints = len(endpoints)
+        healthy_endpoints = sum(1 for r in results.values() if r.get('status') == 'success')
+
+        logger.info(f"📊 تست سلامت کامل: {healthy_endpoints}/{total_endpoints} اندپوینت سالم")
+       
         return results
 
     def get_system_metrics(self) -> Dict[str, Any]:
