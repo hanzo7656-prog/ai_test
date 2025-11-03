@@ -1,5 +1,5 @@
-# main.py - با پردازش داده‌های خام CoinStats
-from fastapi import FastAPI, HTTPException, APIRouter
+# main.py - با اندپوینت‌های هیبریدی خام/پردازش شده
+from fastapi import FastAPI, HTTPException, APIRouter, Query
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -7,13 +7,12 @@ from typing import List, Dict, Any, Optional
 import os
 from datetime import datetime
 import logging
-import traceback
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CryptoAI Scan API", version="1.0.0")
+app = FastAPI(title="CryptoAI Hybrid API", version="1.0.0")
 
 # CORS
 app.add_middleware(
@@ -27,309 +26,251 @@ app.add_middleware(
 # ایجاد پوشه frontend
 os.makedirs("frontend", exist_ok=True)
 
-# مدل درخواست اسکن
+# مدل‌های درخواست
 class ScanRequest(BaseModel):
     symbols: List[str]
     timeframe: str = "1h"
     scan_mode: str = "ai"
 
-# ==================== پردازش داده‌های خام CoinStats ====================
+class HybridScanRequest(BaseModel):
+    symbols: List[str]
+    data_type: str = "processed"  # raw, processed, hybrid
+    include_analysis: bool = True
 
-class CoinStatsDataProcessor:
-    """پردازش داده‌های خام CoinStats"""
+# ایمپورت مدیر CoinStats
+try:
+    from complete_coinstats_manager import coin_stats_manager
+    COINSTATS_AVAILABLE = True
+    logger.info("✅ CoinStats Manager loaded successfully")
+except ImportError as e:
+    COINSTATS_AVAILABLE = False
+    logger.error(f"❌ CoinStats Manager import failed: {e}")
+
+# ==================== پردازشگر داده‌های خام ====================
+
+class DataProcessor:
+    """پردازشگر داده‌های خام به فرمت‌های مختلف"""
     
     @staticmethod
-    def process_coin_list(raw_data: Dict) -> List[Dict]:
-        """پردازش لیست کوین‌های خام"""
+    def get_raw_data(symbol: str) -> Dict[str, Any]:
+        """دریافت داده خام برای AI"""
         try:
-            if not raw_data or 'result' not in raw_data:
-                return []
+            # دریافت داده‌های خام از CoinStats
+            raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
+            raw_charts = coin_stats_manager.get_coin_charts(symbol, "1w")
+            raw_market = coin_stats_manager.get_coins_list(limit=100)
             
-            coins = raw_data['result']
-            processed_coins = []
-            
-            for coin in coins:
-                processed_coin = {
-                    'id': coin.get('id', ''),
-                    'symbol': coin.get('symbol', ''),
-                    'name': coin.get('name', ''),
-                    'price': coin.get('price', 0),
-                    'price_change_24h': coin.get('priceChange1d', 0),
-                    'price_change_percent_24h': coin.get('priceChange1d', 0),  # ممکنه فیلد جداگانه داشته باشه
-                    'volume_24h': coin.get('volume', 0),
-                    'market_cap': coin.get('marketCap', 0),
-                    'rank': coin.get('rank', 0),
-                    'high_24h': coin.get('high', 0),
-                    'low_24h': coin.get('low', 0),
-                    'website': coin.get('websiteUrl', ''),
-                    'raw_data': coin  # نگه‌داری داده خام
+            return {
+                "data_type": "raw",
+                "symbol": symbol,
+                "timestamp": datetime.now().isoformat(),
+                "raw_details": raw_details,
+                "raw_charts": raw_charts,
+                "market_context": raw_market,
+                "data_structure": {
+                    "details_keys": list(raw_details.keys()) if raw_details else [],
+                    "charts_keys": list(raw_charts.keys()) if raw_charts else [],
+                    "market_keys": list(raw_market.keys()) if raw_market else []
                 }
-                processed_coins.append(processed_coin)
-            
-            logger.info(f"✅ پردازش {len(processed_coins)} کوین انجام شد")
-            return processed_coins
-            
+            }
         except Exception as e:
-            logger.error(f"❌ خطا در پردازش لیست کوین‌ها: {e}")
-            return []
+            logger.error(f"خطا در دریافت داده خام {symbol}: {e}")
+            return {
+                "data_type": "raw",
+                "symbol": symbol,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
     
     @staticmethod
-    def process_coin_details(raw_data: Dict, symbol: str) -> Dict[str, Any]:
-        """پردازش جزئیات کوین خام"""
+    def get_processed_data(symbol: str) -> Dict[str, Any]:
+        """پردازش داده برای نمایش معمولی"""
         try:
-            if not raw_data or 'result' not in raw_data:
+            raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
+            
+            if not raw_details or 'result' not in raw_details:
                 return {
-                    'success': False,
-                    'error': 'داده‌ای دریافت نشد',
-                    'symbol': symbol
+                    "success": False,
+                    "error": "داده‌ای دریافت نشد",
+                    "symbol": symbol
                 }
             
-            coin_data = raw_data['result']
+            coin_data = raw_details['result']
             
-            # استخراج فیلدهای مهم - با توجه به ساختار واقعی داده‌ها
-            processed_data = {
-                'success': True,
-                'symbol': symbol,
-                'id': coin_data.get('id', ''),
-                'name': coin_data.get('name', ''),
-                'price': float(coin_data.get('price', 0)),
-                'price_change_24h': float(coin_data.get('priceChange1d', 0)),
-                'price_change_percent_24h': float(coin_data.get('priceChange1d', 0)),
-                'volume_24h': float(coin_data.get('volume', 0)),
-                'market_cap': float(coin_data.get('marketCap', 0)),
-                'rank': coin_data.get('rank', 0),
-                'high_24h': float(coin_data.get('high', 0)),
-                'low_24h': float(coin_data.get('low', 0)),
-                'website': coin_data.get('websiteUrl', ''),
-                'explorers': coin_data.get('explorers', []),
-                'social_media': {
-                    'twitter': coin_data.get('twitterUrl', ''),
-                    'reddit': coin_data.get('redditUrl', '')
+            # پردازش برای نمایش کاربرپسند
+            processed = {
+                "data_type": "processed",
+                "success": True,
+                "symbol": symbol,
+                "display_data": {
+                    "name": coin_data.get('name', 'Unknown'),
+                    "price": f"${coin_data.get('price', 0):,.2f}",
+                    "price_change_24h": f"{coin_data.get('priceChange1d', 0):+.2f}%",
+                    "volume_24h": f"${coin_data.get('volume', 0):,.0f}",
+                    "market_cap": f"${coin_data.get('marketCap', 0):,.0f}",
+                    "rank": f"#{coin_data.get('rank', 0)}",
+                    "high_24h": f"${coin_data.get('high', 0):,.2f}",
+                    "low_24h": f"${coin_data.get('low', 0):,.2f}"
                 },
-                'timestamp': datetime.now().isoformat(),
-                'raw_data_structure': list(coin_data.keys())  # برای دیباگ
+                "analysis": {
+                    "signal": DataProcessor._generate_signal(coin_data),
+                    "confidence": DataProcessor._calculate_confidence(coin_data),
+                    "trend": DataProcessor._analyze_trend(coin_data),
+                    "risk_level": DataProcessor._assess_risk(coin_data)
+                },
+                "timestamp": datetime.now().isoformat()
             }
             
-            logger.info(f"✅ پردازش جزئیات {symbol} انجام شد: ${processed_data['price']}")
-            return processed_data
+            return processed
             
         except Exception as e:
-            logger.error(f"❌ خطا در پردازش جزئیات {symbol}: {e}")
+            logger.error(f"خطا در پردازش داده {symbol}: {e}")
             return {
-                'success': False,
-                'error': f'خطا در پردازش داده: {str(e)}',
-                'symbol': symbol,
-                'raw_data': raw_data  # برای دیباگ
+                "data_type": "processed", 
+                "success": False,
+                "error": str(e),
+                "symbol": symbol
             }
     
     @staticmethod
-    def process_chart_data(raw_data: Dict, symbol: str) -> Dict[str, Any]:
-        """پردازش داده‌های چارت خام"""
-        try:
-            if not raw_data or 'result' not in raw_data:
-                return {'success': False, 'error': 'داده چارت دریافت نشد'}
-            
-            chart_points = raw_data['result']
-            processed_chart = {
-                'success': True,
-                'symbol': symbol,
-                'data_points': len(chart_points),
-                'prices': [point.get('price', 0) for point in chart_points],
-                'timestamps': [point.get('timestamp', '') for point in chart_points],
-                'sample_data': chart_points[:3] if chart_points else []  # نمونه‌ای از داده
-            }
-            
-            return processed_chart
-            
-        except Exception as e:
-            logger.error(f"❌ خطا در پردازش چارت {symbol}: {e}")
-            return {'success': False, 'error': str(e)}
-
-# ==================== مدیر CoinStats ====================
-
-class CoinStatsManager:
-    """مدیریت اتصال و پردازش داده‌های CoinStats"""
-    
-    def __init__(self):
-        self.processor = CoinStatsDataProcessor()
-        self.coin_stats_manager = None
-        self.initialized = False
+    def get_hybrid_data(symbol: str) -> Dict[str, Any]:
+        """داده هیبریدی - هم خام هم پردازش شده"""
+        raw_data = DataProcessor.get_raw_data(symbol)
+        processed_data = DataProcessor.get_processed_data(symbol)
         
-        self._initialize()
-    
-    def _initialize(self):
-        """راه‌اندازی"""
-        try:
-            from complete_coinstats_manager import coin_stats_manager
-            self.coin_stats_manager = coin_stats_manager
-            self.initialized = True
-            
-            # تست دریافت داده
-            test_data = self.coin_stats_manager.get_coins_list(limit=1)
-            if test_data and 'result' in test_data and test_data['result']:
-                logger.info("✅ CoinStats API قابل دسترسی است")
-            else:
-                logger.warning("⚠️ CoinStats API داده برنگرداند")
-                
-        except Exception as e:
-            logger.error(f"❌ خطا در راه‌اندازی CoinStats: {e}")
-            self.initialized = False
-    
-    def get_coin_data(self, symbol: str) -> Dict[str, Any]:
-        """دریافت و پردازش داده‌های کوین"""
-        if not self.initialized:
-            return {
-                'success': False,
-                'error': 'CoinStats Manager راه‌اندازی نشده',
-                'symbol': symbol
-            }
-        
-        try:
-            logger.info(f"🔍 دریافت داده‌های {symbol}...")
-            
-            # دریافت داده خام
-            raw_details = self.coin_stats_manager.get_coin_details(symbol, "USD")
-            
-            # پردازش داده خام
-            processed_data = self.processor.process_coin_details(raw_details, symbol)
-            
-            if processed_data['success']:
-                # دریافت داده چارت برای تحلیل بیشتر
-                raw_charts = self.coin_stats_manager.get_coin_charts(symbol, "1w")
-                chart_data = self.processor.process_chart_data(raw_charts, symbol)
-                
-                processed_data['chart_info'] = chart_data
-                processed_data['data_quality'] = 'good' if processed_data['price'] > 0 else 'poor'
-            
-            return processed_data
-            
-        except Exception as e:
-            logger.error(f"❌ خطا در دریافت داده‌های {symbol}: {e}")
-            return {
-                'success': False,
-                'error': f'خطا در دریافت داده: {str(e)}',
-                'symbol': symbol
-            }
-    
-    def get_available_coins(self, limit: int = 50) -> List[Dict]:
-        """دریافت لیست کوین‌های available"""
-        try:
-            raw_data = self.coin_stats_manager.get_coins_list(limit=limit)
-            return self.processor.process_coin_list(raw_data)
-        except Exception as e:
-            logger.error(f"❌ خطا در دریافت لیست کوین‌ها: {e}")
-            return []
-    
-    def get_status(self) -> Dict[str, Any]:
-        """وضعیت سیستم"""
         return {
-            'initialized': self.initialized,
-            'timestamp': datetime.now().isoformat(),
-            'available_coins_count': len(self.get_available_coins(10))
+            "data_type": "hybrid",
+            "symbol": symbol,
+            "timestamp": datetime.now().isoformat(),
+            "raw_data": raw_data,
+            "processed_data": processed_data,
+            "summary": {
+                "raw_available": "error" not in raw_data,
+                "processed_available": processed_data.get("success", False),
+                "data_quality": "good" if "error" not in raw_data and processed_data.get("success") else "poor"
+            }
         }
+    
+    @staticmethod
+    def _generate_signal(coin_data: Dict) -> str:
+        """تولید سیگنال ساده"""
+        change = coin_data.get('priceChange1d', 0)
+        if change > 3:
+            return "BUY"
+        elif change < -3:
+            return "SELL"
+        else:
+            return "HOLD"
+    
+    @staticmethod
+    def _calculate_confidence(coin_data: Dict) -> float:
+        """محاسبه اعتماد"""
+        volume = coin_data.get('volume', 0)
+        change = abs(coin_data.get('priceChange1d', 0))
+        
+        base_confidence = 0.5
+        volume_boost = min(0.3, volume / 1000000000)  # نرمال‌سازی حجم
+        change_boost = min(0.2, change / 20)  # نرمال‌سازی تغییرات
+        
+        return round(base_confidence + volume_boost + change_boost, 2)
+    
+    @staticmethod
+    def _analyze_trend(coin_data: Dict) -> str:
+        """تحلیل روند"""
+        change = coin_data.get('priceChange1d', 0)
+        if change > 2:
+            return "صعودی"
+        elif change < -2:
+            return "نزولی"
+        else:
+            return "خنثی"
+    
+    @staticmethod
+    def _assess_risk(coin_data: Dict) -> str:
+        """ارزیابی ریسک"""
+        volatility = abs(coin_data.get('priceChange1d', 0))
+        if volatility > 10:
+            return "بالا"
+        elif volatility > 5:
+            return "متوسط"
+        else:
+            return "پایین"
 
-# ایجاد مدیر
-coin_stats_manager = CoinStatsManager()
+# ==================== سیستم اسکن چندحالته ====================
 
-# ==================== موتور اسکن ====================
-
-class ScanEngine:
-    """موتور اسکن با پردازش داده‌های واقعی"""
+class HybridScanEngine:
+    """موتور اسکن با قابلیت چندحالته"""
     
     def __init__(self):
         self.scan_count = 0
     
-    def scan_symbols(self, symbols: List[str]) -> Dict[str, Any]:
-        """اسکن نمادها"""
+    def scan_basic(self, symbols: List[str]) -> Dict[str, Any]:
+        """اسکن معمولی - فقط داده پردازش شده"""
         self.scan_count += 1
-        logger.info(f"🎯 شروع اسکن برای {len(symbols)} نماد")
+        logger.info(f"🔍 اسکن معمولی برای {len(symbols)} نماد")
         
         results = []
-        successful = 0
-        
         for symbol in symbols:
-            try:
-                # دریافت و پردازش داده
-                coin_data = coin_stats_manager.get_coin_data(symbol)
-                
-                if coin_data['success']:
-                    # تحلیل داده‌های پردازش شده
-                    analysis = self._analyze_coin(coin_data)
-                    results.append(analysis)
-                    successful += 1
-                    logger.info(f"✅ اسکن موفق {symbol}: ${analysis['price']}")
-                else:
-                    # خطا در دریافت داده
-                    error_result = {
-                        'symbol': symbol,
-                        'success': False,
-                        'error': coin_data.get('error', 'خطای ناشناخته'),
-                        'price': 0,
-                        'change_24h': 0,
-                        'volume': 'N/A',
-                        'market_cap': 'N/A',
-                        'signal': 'ERROR',
-                        'confidence': 0
-                    }
-                    results.append(error_result)
-                    logger.warning(f"⚠️ اسکن ناموفق {symbol}: {coin_data.get('error')}")
-                    
-            except Exception as e:
-                logger.error(f"❌ خطا در اسکن {symbol}: {e}")
-                results.append({
-                    'symbol': symbol,
-                    'success': False,
-                    'error': str(e),
-                    'price': 0,
-                    'change_24h': 0,
-                    'volume': 'N/A',
-                    'market_cap': 'N/A',
-                    'signal': 'ERROR',
-                    'confidence': 0
-                })
+            processed_data = DataProcessor.get_processed_data(symbol)
+            results.append(processed_data)
         
         return {
-            'scan_results': results,
-            'summary': {
-                'total': len(symbols),
-                'successful': successful,
-                'failed': len(symbols) - successful,
-                'success_rate': f"{(successful/len(symbols))*100:.1f}%",
-                'timestamp': datetime.now().isoformat()
+            "scan_type": "basic",
+            "data_type": "processed", 
+            "results": results,
+            "summary": {
+                "total": len(symbols),
+                "successful": len([r for r in results if r.get('success')]),
+                "timestamp": datetime.now().isoformat()
             }
         }
     
-    def _analyze_coin(self, coin_data: Dict) -> Dict[str, Any]:
-        """تحلیل کوین پردازش شده"""
-        price = coin_data.get('price', 0)
-        change_24h = coin_data.get('price_change_24h', 0)
+    def scan_ai_ready(self, symbols: List[str]) -> Dict[str, Any]:
+        """اسکن مخصوص AI - داده خام"""
+        self.scan_count += 1
+        logger.info(f"🤖 اسکن AI برای {len(symbols)} نماد")
         
-        # منطق ساده تحلیل
-        if change_24h > 3:
-            signal = "BUY"
-            confidence = 0.7 + min(0.3, change_24h / 20)
-        elif change_24h < -3:
-            signal = "SELL"
-            confidence = 0.6 + min(0.3, abs(change_24h) / 20)
-        else:
-            signal = "HOLD"
-            confidence = 0.5
+        results = []
+        for symbol in symbols:
+            raw_data = DataProcessor.get_raw_data(symbol)
+            results.append(raw_data)
         
         return {
-            'symbol': coin_data['symbol'],
-            'success': True,
-            'price': price,
-            'change_24h': change_24h,
-            'volume': f"{coin_data.get('volume_24h', 0):,.0f}",
-            'market_cap': f"{coin_data.get('market_cap', 0):,.0f}",
-            'signal': signal,
-            'confidence': round(confidence, 2),
-            'timestamp': coin_data.get('timestamp'),
-            'data_quality': coin_data.get('data_quality', 'unknown')
+            "scan_type": "ai_ready",
+            "data_type": "raw",
+            "results": results,
+            "summary": {
+                "total": len(symbols),
+                "raw_data_quality": f"{len([r for r in results if 'error' not in r])}/{len(results)}",
+                "ai_compatible": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+    
+    def scan_hybrid(self, symbols: List[str]) -> Dict[str, Any]:
+        """اسکن هیبریدی - هر دو نوع داده"""
+        self.scan_count += 1
+        logger.info(f"🔀 اسکن هیبریدی برای {len(symbols)} نماد")
+        
+        results = []
+        for symbol in symbols:
+            hybrid_data = DataProcessor.get_hybrid_data(symbol)
+            results.append(hybrid_data)
+        
+        return {
+            "scan_type": "hybrid", 
+            "data_type": "hybrid",
+            "results": results,
+            "summary": {
+                "total": len(symbols),
+                "raw_available": len([r for r in results if r.get('summary', {}).get('raw_available')]),
+                "processed_available": len([r for r in results if r.get('summary', {}).get('processed_available')]),
+                "timestamp": datetime.now().isoformat()
+            }
         }
 
 # ایجاد موتور اسکن
-scan_engine = ScanEngine()
+scan_engine = HybridScanEngine()
 
 # ==================== روت‌های API ====================
 
@@ -341,59 +282,151 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "coinstats_status": coin_stats_manager.get_status(),
-        "total_scans": scan_engine.scan_count
+        "coinstats_available": COINSTATS_AVAILABLE,
+        "total_scans": scan_engine.scan_count,
+        "features": ["basic_scan", "ai_scan", "hybrid_scan", "raw_data", "processed_data"]
     }
 
-@api_router.post("/ai/scan")
-async def ai_scan(request: ScanRequest):
-    """اسکن هوشمند"""
+# ==================== اندپوینت‌های اسکن چندحالته ====================
+
+@api_router.post("/scan/basic")
+async def basic_scan(request: ScanRequest):
+    """اسکن معمولی - برای فرانت‌اند"""
     try:
-        results = scan_engine.scan_symbols(request.symbols)
-        
+        results = scan_engine.scan_basic(request.symbols)
         return {
             "status": "success",
-            "scan_mode": request.scan_mode,
-            "real_data": True,
+            "scan_mode": "basic",
+            "data_type": "processed",
             **results
         }
-        
     except Exception as e:
-        logger.error(f"❌ خطا در اسکن: {e}")
+        logger.error(f"خطا در اسکن معمولی: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@api_router.get("/debug/structure")
-async def debug_structure(symbol: str = "bitcoin"):
-    """دیباگ ساختار داده‌ها"""
+@api_router.post("/scan/ai")
+async def ai_scan(request: ScanRequest):
+    """اسکن مخصوص AI - داده خام"""
     try:
-        from complete_coinstats_manager import coin_stats_manager
-        
-        # دریافت داده خام
-        raw_data = coin_stats_manager.get_coin_details(symbol, "USD")
-        
+        results = scan_engine.scan_ai_ready(request.symbols)
         return {
-            "symbol": symbol,
-            "raw_structure": list(raw_data.keys()) if raw_data else "NO_DATA",
-            "result_structure": list(raw_data['result'].keys()) if raw_data and 'result' in raw_data else "NO_RESULT",
-            "sample_data": {k: raw_data['result'][k] for k in list(raw_data['result'].keys())[:10]} if raw_data and 'result' in raw_data else "NO_SAMPLE",
-            "processed_data": coin_stats_manager.get_coin_data(symbol)
+            "status": "success", 
+            "scan_mode": "ai",
+            "data_type": "raw",
+            "ai_compatible": True,
+            **results
         }
     except Exception as e:
-        return {"error": str(e)}
+        logger.error(f"خطا در اسکن AI: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/scan/hybrid")
+async def hybrid_scan(request: HybridScanRequest):
+    """اسکن هیبریدی - هر دو نوع داده"""
+    try:
+        results = scan_engine.scan_hybrid(request.symbols)
+        return {
+            "status": "success",
+            "scan_mode": "hybrid",
+            "data_type": "hybrid",
+            **results
+        }
+    except Exception as e:
+        logger.error(f"خطا در اسکن هیبریدی: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== اندپوینت‌های دسترسی مستقیم به داده ====================
+
+@api_router.get("/data/raw/{symbol}")
+async def get_raw_data(symbol: str):
+    """دریافت داده خام برای AI"""
+    try:
+        raw_data = DataProcessor.get_raw_data(symbol)
+        return {
+            "status": "success",
+            "data_type": "raw",
+            "ai_compatible": True,
+            "symbol": symbol,
+            "data": raw_data,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/data/processed/{symbol}")
+async def get_processed_data(symbol: str):
+    """دریافت داده پردازش شده برای نمایش"""
+    try:
+        processed_data = DataProcessor.get_processed_data(symbol)
+        return {
+            "status": "success" if processed_data.get('success') else "error",
+            "data_type": "processed",
+            "symbol": symbol,
+            "data": processed_data,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/data/hybrid/{symbol}")
+async def get_hybrid_data(symbol: str):
+    """دریافت داده هیبریدی"""
+    try:
+        hybrid_data = DataProcessor.get_hybrid_data(symbol)
+        return {
+            "status": "success",
+            "data_type": "hybrid", 
+            "symbol": symbol,
+            "data": hybrid_data,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== اندپوینت‌های کمکی ====================
+
+@api_router.get("/system/status")
+async def system_status():
+    """وضعیت سیستم"""
+    return {
+        "status": "running",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat(),
+        "available_endpoints": [
+            "POST /api/scan/basic - اسکن معمولی",
+            "POST /api/scan/ai - اسکن AI (داده خام)",
+            "POST /api/scan/hybrid - اسکن هیبریدی",
+            "GET /api/data/raw/{symbol} - داده خام",
+            "GET /api/data/processed/{symbol} - داده پردازش شده",
+            "GET /api/data/hybrid/{symbol} - داده هیبریدی"
+        ]
+    }
 
 # ثبت روت‌ها
 app.include_router(api_router)
 
-# روت‌های عمومی
+# ==================== مدیریت عمومی ====================
+
 @app.get("/")
 async def root():
-    return {"message": "CryptoAI Scan API", "status": "running"}
+    return {
+        "message": "CryptoAI Hybrid API",
+        "status": "running", 
+        "timestamp": datetime.now().isoformat(),
+        "documentation": "از اندپوینت‌های /api استفاده کنید"
+    }
 
 @app.get("/{path:path}")
 async def catch_all(path: str):
     if path.startswith('api/'):
         raise HTTPException(status_code=404, detail="Endpoint not found")
-    return FileResponse("frontend/index.html")
+    try:
+        return FileResponse("frontend/index.html")
+    except:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Frontend not found"}
+        )
 
 if __name__ == "__main__":
     import uvicorn
