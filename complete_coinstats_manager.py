@@ -1,9 +1,9 @@
-# complete_coinstats_manager.py - نسخه سازگار با سیستم هیبریدی
 import requests
 import json
 import os
 import time
 import logging
+import psutil
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 import glob
@@ -27,14 +27,28 @@ class CompleteCoinStatsManager:
         # ایجاد پوشه کش
         os.makedirs(self.cache_dir, exist_ok=True)
         
+        # ریت لیمیتینگ
+        self.last_request_time = 0
+        self.min_interval = 0.2  # 200ms بین درخواست‌ها
+        
         logger.info("✅ CoinStats Manager Initialized - Hybrid Mode Ready")
+
+    def _rate_limit(self):
+        """مدیریت ریت لیمیت"""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_interval:
+            time.sleep(self.min_interval - time_since_last)
+        self.last_request_time = time.time()
 
     def _get_cache_path(self, endpoint: str, params: Dict = None) -> str:
         """ایجاد مسیر فایل کش"""
+        import hashlib
         cache_key = endpoint.replace('/', '_')
         if params:
-            params_str = '__'.join(f"{k}_{v}" for k, v in sorted(params.items()))
-            cache_key += f"_{params_str}"
+            params_str = json.dumps(params, sort_keys=True, ensure_ascii=False)
+            params_hash = hashlib.md5(params_str.encode()).hexdigest()[:8]
+            cache_key += f"_{params_hash}"
         return os.path.join(self.cache_dir, f"{cache_key}.json")
 
     def _is_cache_valid(self, cache_path: str) -> bool:
@@ -62,12 +76,12 @@ class CompleteCoinStatsManager:
             with open(cache_path, 'r', encoding='utf-8') as f:
                 cached_data = json.load(f)
             return cached_data.get('data')
-        except Exception as e:
-            logger.error(f"❌ Cache load error: {e}")
+        except Exception:
             return None
 
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Union[Dict, List]:
         """ساخت درخواست به API - نسخه ساده‌شده"""
+        self._rate_limit()
         cache_path = self._get_cache_path(endpoint, params)
 
         # بررسی کش
@@ -86,7 +100,7 @@ class CompleteCoinStatsManager:
                 url,
                 headers=self.headers,
                 params=params,
-                timeout=15
+                timeout=20
             )
             
             logger.info(f"📡 API Response Status: {response.status_code}")
@@ -103,16 +117,15 @@ class CompleteCoinStatsManager:
                 
             else:
                 logger.error(f"❌ API Error {response.status_code} for {endpoint}")
-                # بازگشت ساختار خالی اما معتبر
-                return {"result": [], "error": f"HTTP {response.status_code}"}
+                return {"error": f"HTTP {response.status_code}", "status": "error"}
                 
         except requests.exceptions.Timeout:
             logger.error(f"⏰ Timeout for {endpoint}")
-            return {"result": [], "error": "Timeout"}
+            return {"error": "Timeout", "status": "error"}
             
         except Exception as e:
             logger.error(f"🚨 Error in {endpoint}: {e}")
-            return {"result": [], "error": str(e)}
+            return {"error": str(e), "status": "error"}
 
     # =============================== اندپوینت‌های اصلی =============================
 
@@ -333,6 +346,68 @@ class CompleteCoinStatsManager:
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             }
+
+    # ============================= متدهای جدید برای سیستم وضعیت =============================
+
+    def test_all_endpoints(self) -> Dict[str, Any]:
+        """تست سلامت تمام اندپوینت‌های API"""
+        endpoints = {
+            "coins_list": lambda: self.get_coins_list(limit=1),
+            "coin_details_btc": lambda: self.get_coin_details("bitcoin"),
+            "coin_details_eth": lambda: self.get_coin_details("ethereum"),
+            "coin_charts": lambda: self.get_coin_charts("bitcoin", "1w"),
+            "news": lambda: self.get_news(limit=5),
+            "btc_dominance": lambda: self.get_btc_dominance(),
+            "fear_greed": lambda: self.get_fear_greed(),
+            "tickers_exchanges": lambda: self.get_tickers_exchanges(),
+            "markets": lambda: self.get_markets(),
+            "fiats": lambda: self.get_fiats()
+        }
+        
+        results = {}
+        for name, endpoint_func in endpoints.items():
+            try:
+                start_time = time.time()
+                result = endpoint_func()
+                response_time = round((time.time() - start_time) * 1000, 2)
+                
+                if isinstance(result, dict) and "error" in result:
+                    results[name] = {"status": "error", "error": result["error"], "response_time": response_time}
+                else:
+                    results[name] = {"status": "success", "response_time": response_time}
+                    
+            except Exception as e:
+                results[name] = {"status": "error", "error": str(e), "response_time": 0}
+        
+        return results
+
+    def get_system_metrics(self) -> Dict[str, Any]:
+        """دریافت متریک‌های سیستم"""
+        try:
+            # مصرف RAM
+            memory = psutil.virtual_memory()
+            # مصرف CPU
+            cpu_percent = psutil.cpu_percent(interval=1)
+            # مصرف دیسک
+            disk = psutil.disk_usage('/')
+            
+            return {
+                "memory": {
+                    "total_gb": round(memory.total / (1024**3), 2),
+                    "used_gb": round(memory.used / (1024**3), 2),
+                    "percent": memory.percent
+                },
+                "cpu": {
+                    "percent": cpu_percent
+                },
+                "disk": {
+                    "total_gb": round(disk.total / (1024**3), 2),
+                    "used_gb": round(disk.used / (1024**3), 2),
+                    "percent": disk.percent
+                }
+            }
+        except Exception as e:
+            return {"error": f"System metrics error: {e}"}
 
 # ایجاد نمونه گلوبال
 coin_stats_manager = CompleteCoinStatsManager()
