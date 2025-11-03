@@ -1,5 +1,4 @@
-# complete_coinstats_manager.py - با سیستم کش محلی و داده‌های خام
-
+# complete_coinstats_manager.py - نسخه سازگار با سیستم هیبریدی
 import requests
 import json
 import os
@@ -28,11 +27,7 @@ class CompleteCoinStatsManager:
         # ایجاد پوشه کش
         os.makedirs(self.cache_dir, exist_ok=True)
         
-        # WebSocket compatibility
-        self.ws_connected = False
-        self.realtime_data = {}
-        
-        logger.info("✔️ CoinStats Manager Initialized with Local Cache - Raw Data Mode")
+        logger.info("✅ CoinStats Manager Initialized - Hybrid Mode Ready")
 
     def _get_cache_path(self, endpoint: str, params: Dict = None) -> str:
         """ایجاد مسیر فایل کش"""
@@ -59,7 +54,7 @@ class CompleteCoinStatsManager:
                     'expires_at': (datetime.now() + timedelta(seconds=self.cache_duration)).isoformat()
                 }, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            logger.error(f"✗ Cache save error: {e}")
+            logger.error(f"❌ Cache save error: {e}")
 
     def _load_from_cache(self, cache_path: str) -> Optional[Dict]:
         """بارگذاری از کش"""
@@ -68,11 +63,11 @@ class CompleteCoinStatsManager:
                 cached_data = json.load(f)
             return cached_data.get('data')
         except Exception as e:
-            logger.error(f"✗ Cache load error: {e}")
+            logger.error(f"❌ Cache load error: {e}")
             return None
 
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Union[Dict, List]:
-        """ساخت درخواست به API با کش و دیباگ پیشرفته - نسخه اصلاح شده"""
+        """ساخت درخواست به API - نسخه ساده‌شده"""
         cache_path = self._get_cache_path(endpoint, params)
 
         # بررسی کش
@@ -85,104 +80,39 @@ class CompleteCoinStatsManager:
         # درخواست به API
         url = f"{self.base_url}/{endpoint}"
         try:
-            logger.info(f"🔍 API Request: {endpoint}, Params: {params}")
-        
+            logger.info(f"🔍 API Request: {endpoint}")
+            
             response = self.session.get(
                 url,
                 headers=self.headers,
                 params=params,
                 timeout=15
             )
-        
-            # 🔍 دیباگ پیشرفته
+            
             logger.info(f"📡 API Response Status: {response.status_code}")
-        
+            
             if response.status_code == 200:
                 data = response.json()
-            
-                # 🔍 لاگ ساختار داده برگشتی
-                logger.info(f"📊 API Response Structure for {endpoint}:")
-                logger.info(f"   Type: {type(data)}")
-                if isinstance(data, dict):
-                    logger.info(f"   Keys: {list(data.keys())}")
-                    if 'result' in data:
-                        result_data = data['result']
-                        logger.info(f"   Result Type: {type(result_data)}")
-                        if isinstance(result_data, list) and len(result_data) > 0:
-                            logger.info(f"   List Length: {len(result_data)}")
-                            if isinstance(result_data[0], dict):
-                                logger.info(f"   First Item Keys: {list(result_data[0].keys())}")
-                elif isinstance(data, list):
-                    logger.info(f"   List Length: {len(data)}")
-                    if len(data) > 0:
-                        logger.info(f"   First Item Type: {type(data[0])}")
-            
+                
                 # ذخیره در کش
                 if use_cache:
                     self._save_to_cache(cache_path, data)
-            
+                
                 logger.info(f"✅ Data received from {endpoint}")
                 return data
-             
+                
             else:
                 logger.error(f"❌ API Error {response.status_code} for {endpoint}")
-                logger.error(f"❌ Response Text: {response.text[:500]}...")
-            
-                # استفاده از کش قدیمی در صورت خطا
-                if use_cache and os.path.exists(cache_path):
-                    logger.info("🔍 Using expired cache due to API error")
-                    cached_data = self._load_from_cache(cache_path)
-                    if cached_data is not None:
-                        return cached_data
-            
-                # بازگشت ساختار داده مناسب
-                return self._get_fallback_structure(endpoint)
-            
+                # بازگشت ساختار خالی اما معتبر
+                return {"result": [], "error": f"HTTP {response.status_code}"}
+                
         except requests.exceptions.Timeout:
             logger.error(f"⏰ Timeout for {endpoint}")
-            if use_cache and os.path.exists(cache_path):
-                logger.info("🔍 Using cache due to timeout")
-                cached_data = self._load_from_cache(cache_path)
-                if cached_data is not None:
-                    return cached_data
-            return self._get_fallback_structure(endpoint)
-        
+            return {"result": [], "error": "Timeout"}
+            
         except Exception as e:
             logger.error(f"🚨 Error in {endpoint}: {e}")
-            if use_cache and os.path.exists(cache_path):
-                logger.info("🔍 Using cache due to connection error")
-                cached_data = self._load_from_cache(cache_path)
-                if cached_data is not None:
-                    return cached_data
-            return self._get_fallback_structure(endpoint)
-    
-    def clear_cache(self, endpoint: str = None):
-        """پاک کردن کش"""
-        try:
-            if endpoint:
-                # پاک کردن کش خاص
-                pattern = self._get_cache_path(endpoint, {}).replace('.json', '*.json')
-                for file_path in glob.glob(pattern):
-                    os.remove(file_path)
-                    logger.info(f"🧹 Cleared cache: {os.path.basename(file_path)}")
-            else:
-                # پاک کردن تمام کش
-                for file_path in glob.glob(os.path.join(self.cache_dir, "*.json")):
-                    os.remove(file_path)
-                logger.info("🧹 Cleared all cache")
-        except Exception as e:
-            logger.error(f"✗ Cache clear error: {e}")
-
-    def get_cache_info(self) -> Dict[str, Any]:
-        """اطلاعات کش"""
-        cache_files = list(Path(self.cache_dir).glob("*.json"))
-        total_size = sum(f.stat().st_size for f in cache_files)
-        return {
-            'total_files': len(cache_files),
-            'total_size_mb': round(total_size / (1024 * 1024), 2),
-            'cache_dir': self.cache_dir,
-            'cache_duration_seconds': self.cache_duration
-        }
+            return {"result": [], "error": str(e)}
 
     # =============================== اندپوینت‌های اصلی =============================
 
@@ -227,32 +157,26 @@ class CompleteCoinStatsManager:
         return self._make_api_request("coins/charts", params)
 
     def get_coin_price_avg(self, coin_id: str = "bitcoin", timestamp: str = "2024-01-01") -> Dict:
-        """دریافت قیمت متوسط - با timestamp اصلاح شده"""
+        """دریافت قیمت متوسط"""
         timestamp_fixed = self._date_to_timestamp(timestamp)
         params = {
             "coinId": coin_id,
-            "timestamp": timestamp_fixed  # ✅ حالا عددی است
+            "timestamp": timestamp_fixed
         }
-    
-        logger.info(f"🔍 درخواست قیمت متوسط برای {coin_id} در تایم‌استمپ {timestamp_fixed}")
         return self._make_api_request("coins/price/avg", params)
 
     def get_exchange_price(self, exchange: str = "Binance", from_coin: str = "BTC", 
                           to_coin: str = "ETH", timestamp: str = "1636315200") -> Dict:
-        """دریافت قیمت exchange با پارامترهای صحیح"""
-    
-        # تبدیل تاریخ به تایم‌استمپ عددی
+        """دریافت قیمت exchange"""
         timestamp_fixed = self._date_to_timestamp(timestamp)
-      
         params = {
-            "exchange": "Binance",      # ✅ با B بزرگ
-            "from": "BTC",              # ✅
-            "to": "ETH",                # ✅ ETH نه USDT
-            "timestamp": timestamp_fixed  # ✅ تایم‌استمپ عددی
+            "exchange": "Binance",
+            "from": "BTC",
+            "to": "ETH",
+            "timestamp": timestamp_fixed
         }
-    
-        logger.info(f"🔍 Exchange price request: {params}")
         return self._make_api_request("coins/price/exchange", params)
+
     # ============================= اندپوینت‌های جدید ============================
 
     def get_tickers_exchanges(self) -> Dict:
@@ -287,45 +211,20 @@ class CompleteCoinStatsManager:
         return self._make_api_request("news", params)
 
     def get_news_by_type(self, news_type: str = "trending", limit: int = 10) -> Dict:
-        """دریافت اخبار - بدون handpicked"""
-    
+        """دریافت اخبار بر اساس نوع"""
         valid_types = ["trending", "latest", "bullish", "bearish"]
-    
-        # اگر handpicked وارد شد، به trending تغییرش بده
-        if news_type == "handpicked":
-            logger.warning("🗑️ handpicked حذف شده، استفاده از trending")
-            news_type = "trending"
-      
         if news_type not in valid_types:
             news_type = "trending"
-    
         params = {"limit": limit}
         return self._make_api_request(f"news/type/{news_type}", params)
 
     def get_news_detail(self, news_id: str = "sample") -> Dict:
-        """دریافت جزئیات خبر - با fallback هوشمند"""
+        """دریافت جزئیات خبر"""
         try:
-            # اگر news_id نمونه است، از fallback استفاده کن
-            if news_id.lower() == "sample":
-                logger.info("📝 استفاده از داده نمونه برای جزئیات خبر")
-                return {
-                    "title": "Sample News Article",
-                    "content": "This is a sample news content for testing purposes. The system is working correctly but the specific news article was not found.",
-                    "source": "system_fallback",
-                    "author": "System",
-                    "published_at": datetime.now().isoformat(),
-                    "url": "https://example.com/sample-news"
-                }
-            
             return self._make_api_request(f"news/{news_id}")
-          
-        except Exception as e:
-            logger.error(f"❌ خطا در دریافت خبر {news_id}: {e}")
-            return {
-                "error": f"News article '{news_id}' not available",
-                "message": "The requested news article was not found",
-                "source": "error_fallback"
-            }
+        except:
+            return {"error": "News not available", "id": news_id}
+
     # ============================= اندپوینت‌های پیش‌بازار =========================
 
     def get_btc_dominance(self, period_type: str = "all") -> Dict:
@@ -348,128 +247,92 @@ class CompleteCoinStatsManager:
         """دریافت چارت رنگین‌کمان - داده خام"""
         return self._make_api_request(f"insights/rainbow-chart/{coin_id}")
 
-    # ============================= متدهای سازگاری =============================
-
-    def get_realtime_price(self, symbol: str) -> Dict:
-        """متد سازگاری برای WebSocket - داده خام"""
-        # این متد برای سازگاری با کدهای قدیمی
-        coin_data = self.get_coin_details(symbol.lower())
-        if coin_data and 'result' in coin_data:
-            result = coin_data['result']
-            return {
-                'price': result.get('price', 0),
-                'volume': result.get('volume', 0),
-                'change': result.get('priceChange1d', 0),
-                'high_24h': result.get('high', 0),
-                'low_24h': result.get('low', 0),
-                'timestamp': datetime.now().isoformat()
-            }
-        return {}
+    # ============================= متدهای کمکی =============================
 
     def _date_to_timestamp(self, date_str: str) -> str:
-        """تبدیل تاریخ به تایم‌استمپ عددی - نسخه نهایی"""
+        """تبدیل تاریخ به تایم‌استمپ"""
         try:
-            # اگر None یا خالی است
             if not date_str:
-                logger.warning("⚠️ تاریخ خالی است، استفاده از زمان فعلی")
                 return str(int(datetime.now().timestamp()))
-        
-            # اگر از قبل timestamp عددی است
+            
             if isinstance(date_str, (int, float)):
-                timestamp = int(date_str)
-                logger.info(f"✅ timestamp عددی دریافت شد: {timestamp}")
-                return str(timestamp)
-        
-            # اگر رشته است
+                return str(int(date_str))
+            
             if isinstance(date_str, str):
                 date_str = date_str.strip()
-            
-                # بررسی اینکه آیا رشته عددی است (تایم‌استمپ)
+                
                 if date_str.isdigit():
                     timestamp = int(date_str)
-                    # اگر عدد ۱۳ رقمی یا بیشتر است (میلی‌ثانیه)
                     if len(date_str) >= 13:
-                        timestamp = timestamp // 1000  # تبدیل به ثانیه
-                        logger.info(f"✅ میلی‌ثانیه به ثانیه تبدیل شد: {date_str} -> {timestamp}")
-                    else:
-                        logger.info(f"✅ timestamp رشته‌ای دریافت شد: {timestamp}")
+                        timestamp = timestamp // 1000
                     return str(timestamp)
-            
-                # 🔥 اگر رشته تاریخ است، به تایم‌استمپ تبدیل کن
+                
+                # فرمت‌های تاریخ
                 date_formats = [
-                    "%Y-%m-%d",                    # 2024-01-01
-                    "%Y-%m-%d %H:%M:%S",           # 2024-01-01 12:00:00
-                    "%Y-%m-%dT%H:%M:%S",           # 2024-01-01T12:00:00
-                    "%Y-%m-%dT%H:%M:%S.%fZ",       # 2024-01-01T12:00:00.000Z
-                    "%d/%m/%Y",                    # 01/01/2024
-                    "%d/%m/%Y %H:%M:%S",           # 01/01/2024 12:00:00
-                    "%m/%d/%Y",                    # 01/01/2024
-                    "%m/%d/%Y %H:%M:%S",           # 01/01/2024 12:00:00
-                    "%d-%m-%Y",                    # 01-01-2024
-                    "%d-%m-%Y %H:%M:%S",           # 01-01-2024 12:00:00
+                    "%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
+                    "%Y-%m-%dT%H:%M:%S.%fZ", "%d/%m/%Y", "%d/%m/%Y %H:%M:%S",
+                    "%m/%d/%Y", "%m/%d/%Y %H:%M:%S", "%d-%m-%Y", "%d-%m-%Y %H:%M:%S"
                 ]
-            
+                
                 for date_format in date_formats:
                     try:
                         dt = datetime.strptime(date_str, date_format)
-                        timestamp = int(dt.timestamp())
-                        logger.info(f"✅ تاریخ '{date_str}' با فرمت '{date_format}' به تایم‌استمپ {timestamp} تبدیل شد")
-                        return str(timestamp)  # 🔥 عدد برمی‌گرداند
+                        return str(int(dt.timestamp()))
                     except ValueError:
                         continue
             
-                # بررسی تاریخ‌های نسبی
-                if date_str.lower() in ['now', 'current', 'today']:
-                    timestamp = int(datetime.now().timestamp())
-                    logger.info(f"✅ تاریخ نسبی '{date_str}' به تایم‌استمپ {timestamp} تبدیل شد")
-                    return str(timestamp)
-        
-            # اگر هیچکدام کار نکرد
-            logger.warning(f"⚠️ فرمت تاریخ نامعتبر: '{date_str}' - استفاده از زمان فعلی")
             return str(int(datetime.now().timestamp()))
-        
+            
         except Exception as e:
-            logger.error(f"❌ خطای غیرمنتظره در تبدیل تاریخ '{date_str}': {e}")
+            logger.error(f"❌ Error converting date '{date_str}': {e}")
             return str(int(datetime.now().timestamp()))
 
-    def _load_raw_data(self) -> Dict[str, Any]:
-        """بارگذاری داده‌های خام از کش - سازگاری با AI"""
+    def clear_cache(self, endpoint: str = None):
+        """پاک کردن کش"""
         try:
-            cache_files = list(Path(self.cache_dir).glob("*.json"))
-            raw_data = {}
-        
-            for file_path in cache_files:
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        cache_content = json.load(f)
-                
-                    filename = file_path.stem  # فقط نام فایل بدون پسوند
-                    data_content = cache_content.get('data', {})
-                
-                    # اطمینان از ساختار مناسب برای system_health_debug
-                    if isinstance(data_content, list):
-                        raw_data[filename] = {
-                            "data": data_content,
-                            "count": len(data_content),
-                            "type": "list"
-                        }
-                    else:
-                        raw_data[filename] = data_content
-                    
-                except Exception as e:
-                    logger.error(f"Error loading cache file {file_path}: {e}")
-        
-            logger.info(f"📊 داده‌های خام بارگذاری شد: {len(raw_data)} فایل")
-            return raw_data
-        
+            if endpoint:
+                pattern = self._get_cache_path(endpoint, {}).replace('.json', '*.json')
+                for file_path in glob.glob(pattern):
+                    os.remove(file_path)
+                    logger.info(f"🧹 Cleared cache: {os.path.basename(file_path)}")
+            else:
+                for file_path in glob.glob(os.path.join(self.cache_dir, "*.json")):
+                    os.remove(file_path)
+                logger.info("🧹 Cleared all cache")
         except Exception as e:
-            logger.error(f"❌ خطا در بارگذاری داده‌های خام: {e}")
-            return {}
+            logger.error(f"❌ Cache clear error: {e}")
+
+    def get_cache_info(self) -> Dict[str, Any]:
+        """اطلاعات کش"""
+        cache_files = list(Path(self.cache_dir).glob("*.json"))
+        total_size = sum(f.stat().st_size for f in cache_files)
+        return {
+            'total_files': len(cache_files),
+            'total_size_mb': round(total_size / (1024 * 1024), 2),
+            'cache_dir': self.cache_dir,
+            'cache_duration_seconds': self.cache_duration
+        }
 
     def get_all_coins(self, limit: int = 100) -> List[Dict]:
-        """دریافت تمام کوین‌ها - سازگاری با AI - داده خام"""
+        """دریافت تمام کوین‌ها - سازگاری با AI"""
         data = self.get_coins_list(limit=limit)
         return data.get('result', [])
+
+    def get_api_status(self) -> Dict[str, Any]:
+        """وضعیت API"""
+        try:
+            test_data = self.get_coins_list(limit=1)
+            return {
+                'status': 'connected' if test_data and 'result' in test_data else 'disconnected',
+                'timestamp': datetime.now().isoformat(),
+                'cache_info': self.get_cache_info()
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
 
 # ایجاد نمونه گلوبال
 coin_stats_manager = CompleteCoinStatsManager()
