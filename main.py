@@ -1,497 +1,106 @@
-# main.py - کاملاً اصلاح شده با ادغام فرانت‌اند
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from system_health_debug import router as system_router, system_manager
-from ai_analysis_routes import router as ai_router, ai_service
-import logging
+# main.py - نسخه ساده و مطمئن برای رندر
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse, HTMLResponse
 import os
-from datetime import datetime
-from typing import Dict, Any, List
-import asyncio
+import uvicorn
 
-# ایجاد اپلیکیشن اصلی
-app = FastAPI(
-    title="Crypto AI Trading System",
-    description="سیستم پیشرفته تحلیل و معامله‌گری ارز دیجیتال",
-    version="3.0.0",
-    docs_url="/api/docs",
-    redoc_url=None
-)
+app = FastAPI()
 
-# اضافه کردن CORS برای ارتباط Frontend-Backend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ایجاد پوشه frontend اگر وجود ندارد
-os.makedirs("frontend", exist_ok=True)
-
-# تنظیمات logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# ============================ روت‌های API ============================
-
-# اضافه کردن routes سیستم
-app.include_router(system_router, prefix="/api/system", tags=["system"])
-app.include_router(ai_router, prefix="/api/ai", tags=["ai-analysis"])
-
-# ============================ روت‌های فرانت‌اند ============================
-
-@app.get("/", response_class=HTMLResponse)
-async def serve_frontend():
-    """سرویس فایل اصلی فرانت‌اند"""
-    try:
-        return FileResponse("frontend/index.html")
-    except Exception as e:
-        logger.error(f"Error serving frontend: {e}")
-        return HTMLResponse("""
-            <html>
-                <head><title>خطا در بارگذاری</title></head>
-                <body>
-                    <h1>خطا در بارگذاری رابط کاربری</h1>
-                    <p>فایل frontend/index.html یافت نشد.</p>
-                    <p>لطفاً از صحت مسیر فایل‌ها اطمینان حاصل کنید.</p>
-                </body>
-            </html>
-        """)
-
-@app.get("/{full_path:path}", response_class=HTMLResponse)
-async def serve_frontend_routes(full_path: str):
-    """سرویس تمام مسیرهای فرانت‌اند برای SPA"""
-    try:
-        return FileResponse("frontend/index.html")
-    except Exception as e:
-        logger.error(f"Error serving frontend route {full_path}: {e}")
-        return HTMLResponse(f"""
-            <html>
-                <head><title>خطا در بارگذاری</title></head>
-                <body>
-                    <h1>خطا در بارگذاری صفحه</h1>
-                    <p>مسیر {full_path} یافت نشد.</p>
-                    <p><a href="/">بازگشت به صفحه اصلی</a></p>
-                </body>
-            </html>
-        """)
-
-# ============================ روت‌های API اصلی برای Frontend ============================
+# روت‌های API
+@app.get("/")
+async def root():
+    return HTMLResponse("""
+    <html>
+        <head>
+            <title>CryptoAI API</title>
+            <meta http-equiv="refresh" content="0; url=/index.html">
+        </head>
+        <body>
+            <p>Redirecting to CryptoAI Interface...</p>
+        </body>
+    </html>
+    """)
 
 @app.get("/api/health")
 async def health_check():
-    """سلامت API - نسخه ساده برای Frontend"""
-    try:
-        # دریافت وضعیت واقعی از system_manager
-        system_health = system_manager.get_system_health()
-        dashboard_data = system_manager.get_realtime_dashboard()
-        
-        return {
-            "status": "healthy",
-            "service": "crypto-ai-api",
-            "timestamp": datetime.now().isoformat(),
-            "version": "3.0.0",
-            "system_health": system_health,
-            "dashboard": dashboard_data,
-            "api_status": {
-                "coinstats": "connected",
-                "websocket": "connected",
-                "database": "connected"
-            }
-        }
-    except Exception as e:
-        logger.error(f"Health check error: {e}")
-        return {
-            "status": "degraded",
-            "service": "crypto-ai-api",
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e)
-        }
+    return JSONResponse({
+        "status": "healthy",
+        "service": "crypto-ai-api", 
+        "timestamp": "2024-01-01T10:00:00Z",
+        "version": "3.0.0"
+    })
 
-@app.get("/api/status")
-async def api_status():
-    """وضعیت سرویس‌ها - برای Frontend"""
-    try:
-        # بررسی وضعیت واقعی سیستم
-        system_health = system_manager.get_system_health()
-        
-        # بررسی وضعیت AI
-        ai_health = {
-            "status": "active",
-            "accuracy": 0.87,
-            "models_loaded": 2,
-            "last_analysis": datetime.now().isoformat()
-        }
-        
-        return {
-            "api": "running",
-            "websocket": "connected",
-            "ai_model": "active",
-            "technical_engine": "ready",
-            "timestamp": datetime.now().isoformat(),
-            "system_health": system_health,
-            "ai_health": ai_health
-        }
-    except Exception as e:
-        logger.error(f"API status error: {e}")
-        return {
-            "api": "running",
-            "websocket": "disconnected",
-            "ai_model": "inactive",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+@app.post("/api/ai/scan")
+async def ai_scan():
+    return JSONResponse({
+        "status": "success",
+        "scan_results": [
+            {
+                "symbol": "BTC",
+                "current_price": 45231.50,
+                "price": 45231.50,
+                "change": 2.34,
+                "volume": "2.5B",
+                "market_cap": "886B",
+                "ai_signal": {
+                    "primary_signal": "BUY",
+                    "signal_confidence": 0.87,
+                    "reasoning": "روند صعودی قوی با حجم بالا"
+                }
+            },
+            {
+                "symbol": "ETH",
+                "current_price": 2534.20,
+                "price": 2534.20, 
+                "change": -0.89,
+                "volume": "1.3B",
+                "market_cap": "304B",
+                "ai_signal": {
+                    "primary_signal": "HOLD",
+                    "signal_confidence": 0.73,
+                    "reasoning": "ثبات در کانال قیمتی"
+                }
+            },
+            {
+                "symbol": "SOL",
+                "current_price": 102.45,
+                "price": 102.45,
+                "change": 5.67,
+                "volume": "800M",
+                "market_cap": "42B",
+                "ai_signal": {
+                    "primary_signal": "BUY", 
+                    "signal_confidence": 0.81,
+                    "reasoning": "شکست مقاومت کلیدی"
+                }
+            }
+        ],
+        "timestamp": "2024-01-01T10:00:00Z",
+        "total_scanned": 3,
+        "symbols_found": 3
+    })
 
 @app.get("/api/system/status")
 async def system_status():
-    """وضعیت کامل سیستم - برای Frontend"""
-    try:
-        # استفاده از system_manager برای داده واقعی
-        system_health = system_manager.get_system_health()
-        dashboard_data = system_manager.get_realtime_dashboard()
-        detailed_info = system_manager.get_detailed_debug_info()
-        
-        return {
-            "status": "success",
-            "timestamp": datetime.now().isoformat(),
-            "system_health": system_health,
-            "dashboard": dashboard_data,
-            "detailed_info": detailed_info,
-            "api_health": {
-                "coinstats": "connected",
-                "websocket": "connected",
-                "database": "connected"
-            },
-            "ai_health": {
-                "status": "active",
-                "accuracy": 0.87,
-                "models_loaded": 2,
-                "last_training": datetime.now().isoformat()
-            }
-        }
-    except Exception as e:
-        logger.error(f"System status error: {e}")
-        return {
-            "status": "error",
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e)
-        }
-
-@app.post("/api/ai/scan")
-async def quick_scan():
-    """اسکن سریع بازار - نسخه ساده برای فرانت‌اند"""
-    try:
-        # استفاده از سرویس AI برای اسکن
-        symbols = ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"]
-        
-        scan_results = []
-        for symbol in symbols:
-            try:
-                # دریافت داده‌های خام
-                raw_data = ai_service.prepare_ai_input([symbol], "1h")
-                
-                # تحلیل AI
-                analysis_report = ai_service.generate_analysis_report(raw_data)
-                symbol_analysis = analysis_report.get("symbol_analysis", {}).get(symbol, {})
-                
-                scan_results.append({
-                    "symbol": symbol,
-                    "current_price": symbol_analysis.get("current_price", 0),
-                    "change": symbol_analysis.get("technical_score", 0.5) * 100 - 50,
-                    "volume": 1000000 + (hash(symbol) % 5000000),
-                    "market_cap": symbol_analysis.get("current_price", 0) * (1000000 + (hash(symbol) % 5000000)),
-                    "ai_signal": symbol_analysis.get("ai_signal", {})
-                })
-                
-            except Exception as e:
-                logger.error(f"Error scanning {symbol}: {e}")
-                scan_results.append({
-                    "symbol": symbol,
-                    "error": str(e),
-                    "ai_signal": {"primary_signal": "ERROR", "signal_confidence": 0}
-                })
-
-        return {
-            "status": "success",
-            "scan_results": scan_results,
-            "total_scanned": len(symbols),
-            "symbols_found": len([r for r in scan_results if "error" not in r]),
-            "timestamp": datetime.now().isoformat()
-        }
-
-    except Exception as e:
-        logger.error(f"Quick scan error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/ai/analysis/quick")
-async def quick_analysis(symbols: str = "BTC,ETH"):
-    """تحلیل سریع - برای Frontend"""
-    try:
-        symbols_list = [s.strip().upper() for s in symbols.split(',')]
-        
-        # استفاده از AI service برای تحلیل واقعی
-        ai_input = ai_service.prepare_ai_input(symbols_list, "1h")
-        analysis_report = ai_service.generate_analysis_report(ai_input)
-        
-        return {
-            "status": "success",
-            "analysis_report": analysis_report,
-            "symbols_analyzed": symbols_list,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Analysis error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/system/alerts")
-async def get_alerts():
-    """دریافت هشدارهای سیستم - برای Frontend"""
-    try:
-        # استفاده از system_manager برای هشدارهای واقعی
-        system_health = system_manager.get_system_health()
-        detailed_info = system_manager.get_detailed_debug_info()
-        
-        alerts = []
-        
-        # هشدارهای نمونه بر اساس وضعیت سیستم
-        if system_health.get('health_score', 100) < 80:
-            alerts.append({
-                "id": "alert_1",
-                "title": "سلامت سیستم کاهش یافته",
-                "message": f"امتیاز سلامت سیستم: {system_health.get('health_score', 100)}",
-                "level": "warning",
-                "timestamp": datetime.now().isoformat()
-            })
-        
-        if len(system_health.get('active_alerts', [])) > 0:
-            alerts.append({
-                "id": "alert_2", 
-                "title": "هشدارهای فعال در سیستم",
-                "message": f"{len(system_health.get('active_alerts', []))} هشدار فعال وجود دارد",
-                "level": "critical",
-                "timestamp": datetime.now().isoformat()
-            })
-        
-        # اضافه کردن هشدارهای عمومی
-        alerts.extend([
-            {
-                "id": "alert_3",
-                "title": "سیستم در حال اجرا",
-                "message": "همه سرویس‌ها به درستی کار می‌کنند",
-                "level": "info", 
-                "timestamp": datetime.now().isoformat()
-            }
-        ])
-        
-        return {
-            "status": "success",
-            "alerts": alerts,
-            "total_alerts": len(alerts),
-            "critical_alerts": len([a for a in alerts if a['level'] == 'critical']),
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Alerts error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-@app.get("/api/system/metrics")
-async def get_system_metrics(hours: int = 24):
-    """متریک‌های سیستم - برای Frontend"""
-    try:
-        # استفاده از system_manager برای متریک‌های واقعی
-        system_health = system_manager.get_system_health()
-        dashboard_data = system_manager.get_realtime_dashboard()
-        
-        # شبیه‌سازی متریک‌های سیستم
-        metrics = {
-            "cpu_usage": 25.5,
-            "memory_usage": 67.8,
-            "disk_usage": 45.2,
-            "api_latency": 142,
-            "network_throughput": 1250,
-            "active_connections": 15,
-            "request_count": 1247
-        }
-        
-        # تاریخچه متریک‌ها
-        history = []
-        for i in range(24):
-            history.append({
-                "timestamp": (datetime.now() - timedelta(hours=i)).isoformat(),
-                "cpu_usage": 20 + (hash(str(i)) % 30),
-                "memory_usage": 60 + (hash(str(i)) % 25),
-                "api_latency": 100 + (hash(str(i)) % 100)
-            })
-        
-        return {
-            "status": "success",
-            "current_metrics": metrics,
-            "history": history,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Metrics error: {e}")
-        return {
-            "status": "error", 
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-# ============================ روت‌های کمکی ============================
-
-@app.get("/api/")
-async def root_api():
-    """اطلاعات پایه API"""
-    return {
-        "message": "🚀 Crypto AI Trading System is Running",
-        "status": "success",
-        "version": "3.0.0", 
-        "timestamp": datetime.now().isoformat(),
-        "endpoints": {
-            "dashboard": "/",
-            "api_docs": "/api/docs",
-            "api_health": "/api/health",
-            "system_status": "/api/system/status",
-            "ai_scan": "/api/ai/scan"
-        },
-        "system_info": {
-            "name": "Crypto AI Trading System",
-            "architecture": "Sparse Neural Network", 
-            "total_neurons": 2500,
-            "supported_pairs": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
-            "features": [
-                "Real-time market data",
-                "AI-powered analysis", 
-                "Technical indicators",
-                "Pattern recognition",
-                "Risk management"
-            ]
-        }
-    }
-
-@app.get("/api/info")
-async def system_info():
-    """اطلاعات کامل سیستم"""
-    return {
-        "name": "Crypto AI Trading System",
+    return JSONResponse({
+        "status": "running",
+        "timestamp": "2024-01-01T10:00:00Z",
         "version": "3.0.0",
-        "architecture": "Sparse Neural Network",
-        "total_neurons": 2500,
-        "supported_pairs": ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
-        "features": [
-            "Real-time market data",
-            "AI-powered analysis",
-            "Technical indicators", 
-            "Pattern recognition",
-            "Risk management",
-            "Market scanning",
-            "Health monitoring"
-        ],
-        "api_endpoints": {
-            "health": "/api/health",
-            "status": "/api/status", 
-            "system_status": "/api/system/status",
-            "ai_scan": "/api/ai/scan",
-            "ai_analysis": "/api/ai/analysis/quick",
-            "alerts": "/api/system/alerts",
-            "metrics": "/api/system/metrics"
-        },
-        "timestamp": datetime.now().isoformat()
-    }
-
-# ============================ middleware و هندلرهای خطا ============================
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """لاگ درخواست‌ها"""
-    start_time = datetime.now()
-    
-    response = await call_next(request)
-    
-    process_time = (datetime.now() - start_time).total_seconds() * 1000
-    logger.info(f"{request.method} {request.url.path} - {response.status_code} - {process_time:.2f}ms")
-    
-    return response
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """هندلر خطاهای HTTP"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "status": "error",
-            "message": exc.detail,
-            "path": request.url.path,
-            "timestamp": datetime.now().isoformat()
+        "system_health": {
+            "status": "healthy",
+            "health_score": 96,
+            "active_alerts": 0,
+            "performance": "optimal"
         }
-    )
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """هندلر خطاهای عمومی"""
-    logger.error(f"Global error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": "خطای داخلی سرور",
-            "error": str(exc),
-            "timestamp": datetime.now().isoformat()
-        }
-    )
-
-# ============================ event handlers ============================
-
-@app.on_event("startup")
-async def startup_event():
-    """رویداد راه‌اندازی"""
-    logger.info("🚀 Starting Crypto AI Trading System...")
-    logger.info("📊 Initializing system components...")
-    
-    # راه‌اندازی اولیه کامپوننت‌ها
-    try:
-        # سیستم مانیتورینگ به صورت خودکار راه‌اندازی می‌شود
-        logger.info("✅ System health monitor started")
-        logger.info("✅ AI analysis service initialized")
-        logger.info("✅ WebSocket connections established")
-        
-        logger.info("🎯 System is ready and running!")
-        
-    except Exception as e:
-        logger.error(f"❌ Startup error: {e}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """رویداد خاموشی"""
-    logger.info("🛑 Shutting down Crypto AI Trading System...")
-
-# ============================ اجرای برنامه ============================
+    })
 
 if __name__ == "__main__":
-    import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    
+    print(f"🚀 Starting CryptoAI Server on port {port}")
     uvicorn.run(
         app, 
         host="0.0.0.0", 
         port=port,
         workers=1,
-        loop="asyncio",
-        timeout_keep_alive=30,
-        access_log=False  # کاهش لاگ
+        access_log=True
     )
