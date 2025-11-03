@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سیستم تحلیل ارز دیجیتال</title>
+    <link rel="stylesheet" href="navigation.css">
+</head>
+<body>
+    <!-- نویگیشن بار اصلی -->
+    <nav class="main-navigation">
+        <div class="nav-container">
+            <div class="nav-brand">CryptoAI</div>
+            <ul class="nav-menu">
+                <!-- هوش مصنوعی -->
+                <li class="nav-item" data-section="ai-analysis">
+                    <button type="button">
+                        <span>هوش مصنوعی</span>
+                    </button>
+                    <div class="submenu">
+                        <button class="submenu-item" data-route="ai-scan">اسکن هوشمند</button>
+                        <button class="submenu-item" data-route="ai-technical">تحلیل تکنیکال</button>
+                        <button class="submenu-item" data-route="ai-analysis">پیش‌بینی AI</button>
+                        <button class="submenu-item" data-route="ai-quick">تحلیل سریع</button>
+                    </div>
+                </li>
+
+                <!-- اسکن بازار -->
+                <li class="nav-item" data-section="ai-scan">
+                    <button type="button">
+                        <span>اسکن بازار</span>
+                    </button>
+                    <div class="submenu">
+                        <div class="scan-mode-selector" style="margin: 0.5rem; width: calc(100% - 1rem);">
+                            <button class="scan-mode-btn active" data-mode="ai">حالت هوشمند</button>
+                            <button class="scan-mode-btn" data-mode="manual">حالت دستی</button>
+                        </div>
+                        <button class="submenu-item" data-route="ai-scan">اسکن با فیلتر AI</button>
+                        <button class="submenu-item" data-route="ai-scan">اسکن با فیلتر دستی</button>
+                        <button class="submenu-item" data-route="ai-scan">تنظیمات پیشرفته</button>
+                    </div>
+                </li>
+
+                <!-- سلامت سیستم -->
+                <li class="nav-item" data-section="system-health">
+                    <button type="button">
+                        <span>سلامت سیستم</span>
+                    </button>
+                    <div class="submenu">
+                        <button class="submenu-item" data-route="system-dashboard">داشبورد اصلی</button>
+                        <button class="submenu-item" data-route="system-health">وضعیت سلامت</button>
+                        <button class="submenu-item" data-route="system-alerts">هشدارها</button>
+                        <button class="submenu-item" data-route="system-metrics">عملکرد سیستم</button>
+                        <button class="submenu-item" data-route="system-tests">تست خودکار</button>
+                        <button class="submenu-item" data-route="system-logs">لاگ‌های سیستم</button>
+                    </div>
+                </li>
+
+                <!-- تنظیمات -->
+                <li class="nav-item" data-section="settings">
+                    <button type="button">
+                        <span>تنظیمات</span>
+                    </button>
+                    <div class="submenu">
+                        <button class="submenu-item" data-route="settings-cache">پاکسازی کش</button>
+                        <button class="submenu-item" data-route="settings-ai">آموزش مدل AI</button>
+                        <button class="submenu-item" data-route="settings-debug">اطلاعات دیباگ</button>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- محتوای اصلی -->
+    <main class="main-container">
+        <div id="main-content">
+            <!-- محتوا توسط جاوااسکریپت پر می‌شود -->
+            <div class="loading-placeholder">
+                <p>در حال بارگذاری...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="navigation.js"></script>
+</body>
+</html>
