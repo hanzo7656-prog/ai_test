@@ -821,15 +821,16 @@
             return reasons[signal][Math.floor(Math.random() * reasons[signal].length)];
         }
         
-        // بارگذاری بخش‌ها - راه‌حل هیبریدی
+        // در تابع loadSection، این رو اضافه کن
+        // بارگذاری بخش‌ها - نسخه کامل و اصلاح شده
         async function loadSection(section) {
             console.log('بارگذاری بخش:', section);
-            
+    
             // بستن منو
             if (sidebarOpen) {
                 toggleSidebar();
             }
-            
+    
             // نمایش لودینگ
             document.getElementById('content').innerHTML = `
                 <div class="loading">
@@ -838,72 +839,345 @@
                     <p>در حال بارگذاری...</p>
                 </div>
             `;
-            
-            // ابتدا تست کن ببین API کار می‌کنه
-            const apiWorking = await testAPI();
-            
-            if (apiWorking && useRealAPI) {
-                // استفاده از API واقعی
-                try {
-                    const endpoint = getEndpoint(section);
-                    
-                    if (!endpoint) {
-                        throw new Error('این قابلیت در حال توسعه است');
-                    }
-                    
-                    const apiUrl = `/api/${endpoint}`;
-                    console.log('📡 دریافت از API:', apiUrl);
-                    
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8000);
-                    
-                    const options = {
-                        method: endpoint.includes('scan') ? 'POST' : 'GET',
+    
+            try {
+                let apiUrl, options = {};
+        
+                // تعیین اندپوینت و تنظیمات بر اساس بخش
+                if (section.includes('scan')) {
+                    apiUrl = '/api/ai/scan';
+                    options = {
+                        method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        signal: controller.signal
-                    };
-                    
-                    if (options.method === 'POST') {
-                        options.body = JSON.stringify({
+                        body: JSON.stringify({
                             symbols: ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"],
                             timeframe: "1h",
                             scan_mode: currentScanMode
-                        });
-                    }
-                    
-                    const response = await fetch(apiUrl, options);
-                    clearTimeout(timeoutId);
-                    
-                    if (!response.ok) {
-                        throw new Error(`خطای ${response.status}`);
-                    }
-                    
-                    // بررسی که پاسخ JSON هست
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('پاسخ غیرمعتبر از سرور');
-                    }
-                    
-                    const data = await response.json();
-                    console.log('✅ داده واقعی دریافت شد:', data);
-                    showContent(section, data, true);
-                    
-                } catch (error) {
-                    console.log('❌ خطای API:', error.message);
-                    // fallback به داده تستی
-                    const testData = generateRealisticTestData(section);
-                    showContent(section, testData, false);
+                        })
+                    };
+                } 
+                else if (section.includes('system-dashboard') || section.includes('system-status')) {
+                    apiUrl = '/api/system/status';
+                    options = { method: 'GET' };
                 }
-            } else {
-                // استفاده از داده تستی
-                console.log('🔄 استفاده از داده تستی');
+                else if (section.includes('system-health')) {
+                    apiUrl = '/api/health';
+                    options = { method: 'GET' };
+                }
+                else if (section.includes('system-alerts')) {
+                    apiUrl = '/api/system/alerts';
+                    options = { method: 'GET' };
+                }
+                else if (section.includes('system-metrics')) {
+                    apiUrl = '/api/system/metrics';
+                    options = { method: 'GET' };
+                }
+                else if (section.includes('system-logs')) {
+                    apiUrl = '/api/system/logs';
+                    options = { method: 'GET' };
+                }
+                else if (section.includes('ai-technical')) {
+                    apiUrl = '/api/ai/technical/analysis';
+                    options = {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            symbols: ["BTC", "ETH"],
+                            period: "7d",
+                            analysis_type: "comprehensive"
+                        })
+                    };
+                }
+                else if (section.includes('ai-predict')) {
+                    apiUrl = '/api/ai/analysis';
+                    options = {
+                        method: 'GET'
+                    };
+                }
+                else if (section.includes('ai-quick')) {
+                    apiUrl = '/api/ai/analysis/quick';
+                    options = {
+                        method: 'GET'
+                    };
+                }
+                else if (section.includes('settings-cache')) {
+                    apiUrl = '/api/system/cache/clear';
+                    options = { method: 'POST' };
+                }
+                else if (section.includes('settings-debug')) {
+                    apiUrl = '/api/system/debug';
+                    options = { method: 'GET' };
+                }
+                else {
+                    // پیش‌فرض
+                    apiUrl = '/api/health';
+                    options = { method: 'GET' };
+                }
+        
+                console.log('📡 درخواست به:', apiUrl);
+        
+                // اضافه کردن timeout به درخواست
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 ثانیه timeout
+          
+                options.signal = controller.signal;
+        
+                const response = await fetch(apiUrl, options);
+                clearTimeout(timeoutId);
+        
+                // بررسی status code
+                if (!response.ok) {
+                    throw new Error(`خطای HTTP: ${response.status} ${response.statusText}`);
+                }
+        
+                // بررسی اینکه پاسخ JSON هست
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('پاسخ غیرمعتبر از سرور - انتظار JSON بود');
+                }
+        
+                const data = await response.json();
+                console.log('✅ داده واقعی دریافت شد:', data);
+        
+                // نمایش داده واقعی
+                showContent(section, data, true);
+        
+            } catch (error) {
+                console.log('❌ خطا در دریافت داده:', error.message);
+        
+                // تولید داده تستی واقعی
+                const testData = generateRealisticTestData(section);
+        
+                // نمایش داده تستی با اطلاع‌رسانی
+                showContent(section, testData, false);
+        
+                // نمایش پیام خطا
                 setTimeout(() => {
-                    const testData = generateRealisticTestData(section);
-                    showContent(section, testData, false);
-                }, 800);
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'warning';
+                    errorDiv.innerHTML = `
+                        <p>⚠️ اتصال به سرور برقرار نشد</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">خطا: ${error.message}</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.8;">
+                            در حال نمایش داده‌های نمونه...
+                        </p>
+                    `;
+                    document.getElementById('content').prepend(errorDiv);
+                }, 100);
             }
+        }
+
+        // تابع تولید داده تستی واقعی
+        function generateRealisticTestData(section) {
+            const now = new Date().toISOString();
+            const symbols = ["BTC", "ETH", "ADA", "SOL", "DOT", "LINK", "BNB", "XRP"];
+    
+            if (section.includes('scan')) {
+                const scanResults = symbols.map(symbol => {
+                    const basePrices = {
+                        'BTC': 45000, 'ETH': 2500, 'ADA': 0.45, 'SOL': 100,
+                        'DOT': 6.5, 'LINK': 14, 'BNB': 320, 'XRP': 0.6
+                    };
+                    const price = basePrices[symbol] + (Math.random() * basePrices[symbol] * 0.1);
+                    const change = (Math.random() * 15 - 5);
+                    const signal = change > 3 ? 'BUY' : change < -3 ? 'SELL' : 'HOLD';
+                    const confidence = 0.6 + Math.random() * 0.3;
+            
+                    return {
+                        symbol: symbol,
+                        current_price: parseFloat(price.toFixed(2)),
+                        price: parseFloat(price.toFixed(2)),
+                        change: parseFloat(change.toFixed(2)),
+                        volume: (Math.random() * 5 + 0.5).toFixed(1) + 'B',
+                        market_cap: (price * (Math.random() * 10 + 5)).toFixed(1) + 'B',
+                        ai_signal: {
+                            primary_signal: signal,
+                            signal_confidence: parseFloat(confidence.toFixed(2)),
+                            reasoning: getSignalReasoning(signal),
+                            all_probabilities: {
+                                BUY: signal === 'BUY' ? confidence : (1 - confidence) / 2,
+                                SELL: signal === 'SELL' ? confidence : (1 - confidence) / 2,
+                                HOLD: signal === 'HOLD' ? confidence : (1 - confidence) / 2
+                            }
+                        }
+                    };
+                });
+        
+                return {
+                    status: "success",
+                    scan_results: scanResults,
+                    timestamp: now,
+                    total_scanned: scanResults.length,
+                    symbols_found: scanResults.length,
+                    scan_mode: currentScanMode
+                };
+        
+            } else if (section.includes('system-dashboard') || section.includes('system-status')) {
+                return {
+                    status: "running",
+                    timestamp: now,
+                    version: "3.0.0",
+                    system_health: {
+                        status: "healthy",
+                        health_score: 95,
+                        active_alerts: 1,
+                        performance: "optimal",
+                        uptime: "2 hours 15 minutes"
+                    },
+                    api_health: {
+                        status: "connected",
+                        healthy_endpoints: 18,
+                        total_endpoints: 19,
+                        response_time: "142ms"
+                    },
+                    ai_health: {
+                        status: "active",
+                        accuracy: 0.87,
+                        models_loaded: 2,
+                        last_training: "2024-01-01T10:00:00Z"
+                    },
+                    resources: {
+                        cpu_usage: "23%",
+                        memory_usage: "45%",
+                        disk_usage: "32%",
+                        network_throughput: "1.2 Gbps"
+                    }
+                };
+        
+            } else if (section.includes('system-health')) {
+                return {
+                    status: "healthy",
+                    service: "crypto-ai-api",
+                    timestamp: now,
+                    version: "3.0.0",
+                    uptime: "2 hours 15 minutes",
+                    resources: {
+                        memory_usage: "45%",
+                        cpu_usage: "23%",
+                        disk_usage: "32%"
+                    },
+                    api_status: {
+                        coinstats: "connected",
+                        websocket: "connected",
+                        database: "connected"
+                    }
+                };
+        
+            } else if (section.includes('system-alerts')) {
+                return {
+                    status: "success",
+                    alerts: [
+                        {
+                            id: "alert_1",
+                            title: "اتصال API پایدار",
+                            message: "همه سرویس‌های خارجی در دسترس هستند",
+                            level: "info",
+                            timestamp: now,
+                            source: "external_connections"
+                        },
+                        {
+                            id: "alert_2",
+                            title: "دقت مدل AI بالا",
+                            message: "میانگین دقت مدل‌های AI: 87%",
+                            level: "success",
+                            timestamp: now,
+                            source: "ai_performance"
+                        }
+                    ],
+                    total_alerts: 2,
+                    critical_alerts: 0,
+                    warning_alerts: 0,
+                    info_alerts: 2
+                };
+        
+            } else if (section.includes('technical') || section.includes('analysis')) {
+                return {
+                    status: "success",
+                    analysis_report: {
+                        analysis_id: `ai_analysis_${Date.now()}`,
+                        timestamp: now,
+                        summary: {
+                            total_symbols: 1,
+                            analysis_period: "1h",
+                            ai_model_used: "SparseTechnicalNetwork",
+                            data_sources_used: ["coin_data", "historical_data", "market_insights"],
+                            raw_data_mode: true
+                        },
+                        symbol_analysis: {
+                            BTC: {
+                                current_price: 45231,
+                                technical_score: 0.82,
+                                ai_signal: {
+                                    signals: {
+                                        primary_signal: "BUY",
+                                        signal_confidence: 0.82,
+                                        model_confidence: 0.85,
+                                        all_probabilities: {
+                                            BUY: 0.82,
+                                            SELL: 0.08,
+                                            HOLD: 0.10
+                                        }
+                                    }
+                                },
+                                data_quality: "excellent",
+                                trend_analysis: {
+                                    trend: "bullish",
+                                    strength: 0.75,
+                                    support_level: 44500,
+                                    resistance_level: 46000
+                                }
+                            }
+                        },
+                        market_insights: {
+                            fear_greed_index: 65,
+                            btc_dominance: 52.3,
+                            market_sentiment: "bullish"
+                        }
+                    }
+                };
+        
+            } else if (section.includes('settings-cache')) {
+                return {
+                    status: "success",
+                    message: "کش سیستم با موفقیت پاکسازی شد",
+                    timestamp: now,
+                    cache_cleared: true,
+                    details: {
+                        memory_freed: "45.2 MB",
+                        items_removed: 1250,
+                        cache_size: "15.8 MB"
+                    }
+                };
+        
+            } else {
+                return {
+                    status: "success",
+                    message: `سیستم ${getSectionTitle(section)} فعال است`,
+                    timestamp: now,
+                    data: "این ماژول به درستی کار می‌کند",
+                    details: {
+                        version: "3.0.0",
+                        last_updated: now,
+                        features: ["پردازش واقعی", "تحلیل پیشرفته", "گزارش‌گیری کامل"]
+                    }
+                };
+            }
+        }
+
+        // تابع کمکی برای دلیل سیگنال
+        function getSignalReasoning(signal) {
+            const reasons = {
+                BUY: ["روند صعودی قوی با حجم بالا", "شکست مقاومت کلیدی", "الگوی تکنیکال مثبت", "اخبار مثبت بازار"],
+                SELL: ["ضعف در حجم معاملات", "شکست حمایت مهم", "الگوی نزولی تشکیل شده", "اخبار منفی تاثیرگذار"],
+                HOLD: ["ثبات در کانال قیمتی", "انتظار برای شکست", "سیگنال‌های متناقض", "بازار در حال تثبیت"]
+            };
+    
+            const reasonList = reasons[signal];
+            return reasonList[Math.floor(Math.random() * reasonList.length)];
         }
         
         function getSectionTitle(section) {
