@@ -16,7 +16,7 @@ app = FastAPI(
     description="سیستم پیشرفته تحلیل و معامله‌گری ارز دیجیتال",
     version="3.0.0",
     docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    redoc_url=None
 )
 
 # اضافه کردن CORS برای ارتباط Frontend-Backend
@@ -484,11 +484,14 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("🚀 Starting Crypto AI Trading API Server...")
+    port = int(os.environ.get("PORT", 8000))
+    
     uvicorn.run(
         app, 
         host="0.0.0.0", 
-        port=8000, 
-        log_level="info",
-        access_log=True
+        port=port,
+        workers=1,
+        loop="asyncio",
+        timeout_keep_alive=30,
+        access_log=False  # کاهش لاگ
     )
