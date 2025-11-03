@@ -1,4 +1,4 @@
-# main.py - نسخه ساده و متمرکز روی اسکن
+# main.py - با پردازش داده‌های خام CoinStats
 from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,11 +9,8 @@ from datetime import datetime
 import logging
 import traceback
 
-# تنظیمات پیشرفته لاگینگ
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# تنظیمات لاگینگ
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="CryptoAI Scan API", version="1.0.0")
@@ -36,323 +33,300 @@ class ScanRequest(BaseModel):
     timeframe: str = "1h"
     scan_mode: str = "ai"
 
-# ==================== مدیریت خطا و لاگینگ ====================
+# ==================== پردازش داده‌های خام CoinStats ====================
 
-class ErrorHandler:
-    """مدیریت پیشرفته خطاها"""
+class CoinStatsDataProcessor:
+    """پردازش داده‌های خام CoinStats"""
     
     @staticmethod
-    def log_error(operation: str, error: Exception, details: Dict = None):
-        """لاگ کردن خطا با جزئیات کامل"""
-        error_details = {
-            'operation': operation,
-            'error_type': type(error).__name__,
-            'error_message': str(error),
-            'timestamp': datetime.now().isoformat(),
-            'traceback': traceback.format_exc()
-        }
-        if details:
-            error_details.update(details)
-        
-        logger.error(f"❌ {operation} failed: {error}")
-        logger.debug(f"🔍 Error details: {error_details}")
-        
-        return error_details
+    def process_coin_list(raw_data: Dict) -> List[Dict]:
+        """پردازش لیست کوین‌های خام"""
+        try:
+            if not raw_data or 'result' not in raw_data:
+                return []
+            
+            coins = raw_data['result']
+            processed_coins = []
+            
+            for coin in coins:
+                processed_coin = {
+                    'id': coin.get('id', ''),
+                    'symbol': coin.get('symbol', ''),
+                    'name': coin.get('name', ''),
+                    'price': coin.get('price', 0),
+                    'price_change_24h': coin.get('priceChange1d', 0),
+                    'price_change_percent_24h': coin.get('priceChange1d', 0),  # ممکنه فیلد جداگانه داشته باشه
+                    'volume_24h': coin.get('volume', 0),
+                    'market_cap': coin.get('marketCap', 0),
+                    'rank': coin.get('rank', 0),
+                    'high_24h': coin.get('high', 0),
+                    'low_24h': coin.get('low', 0),
+                    'website': coin.get('websiteUrl', ''),
+                    'raw_data': coin  # نگه‌داری داده خام
+                }
+                processed_coins.append(processed_coin)
+            
+            logger.info(f"✅ پردازش {len(processed_coins)} کوین انجام شد")
+            return processed_coins
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در پردازش لیست کوین‌ها: {e}")
+            return []
+    
+    @staticmethod
+    def process_coin_details(raw_data: Dict, symbol: str) -> Dict[str, Any]:
+        """پردازش جزئیات کوین خام"""
+        try:
+            if not raw_data or 'result' not in raw_data:
+                return {
+                    'success': False,
+                    'error': 'داده‌ای دریافت نشد',
+                    'symbol': symbol
+                }
+            
+            coin_data = raw_data['result']
+            
+            # استخراج فیلدهای مهم - با توجه به ساختار واقعی داده‌ها
+            processed_data = {
+                'success': True,
+                'symbol': symbol,
+                'id': coin_data.get('id', ''),
+                'name': coin_data.get('name', ''),
+                'price': float(coin_data.get('price', 0)),
+                'price_change_24h': float(coin_data.get('priceChange1d', 0)),
+                'price_change_percent_24h': float(coin_data.get('priceChange1d', 0)),
+                'volume_24h': float(coin_data.get('volume', 0)),
+                'market_cap': float(coin_data.get('marketCap', 0)),
+                'rank': coin_data.get('rank', 0),
+                'high_24h': float(coin_data.get('high', 0)),
+                'low_24h': float(coin_data.get('low', 0)),
+                'website': coin_data.get('websiteUrl', ''),
+                'explorers': coin_data.get('explorers', []),
+                'social_media': {
+                    'twitter': coin_data.get('twitterUrl', ''),
+                    'reddit': coin_data.get('redditUrl', '')
+                },
+                'timestamp': datetime.now().isoformat(),
+                'raw_data_structure': list(coin_data.keys())  # برای دیباگ
+            }
+            
+            logger.info(f"✅ پردازش جزئیات {symbol} انجام شد: ${processed_data['price']}")
+            return processed_data
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در پردازش جزئیات {symbol}: {e}")
+            return {
+                'success': False,
+                'error': f'خطا در پردازش داده: {str(e)}',
+                'symbol': symbol,
+                'raw_data': raw_data  # برای دیباگ
+            }
+    
+    @staticmethod
+    def process_chart_data(raw_data: Dict, symbol: str) -> Dict[str, Any]:
+        """پردازش داده‌های چارت خام"""
+        try:
+            if not raw_data or 'result' not in raw_data:
+                return {'success': False, 'error': 'داده چارت دریافت نشد'}
+            
+            chart_points = raw_data['result']
+            processed_chart = {
+                'success': True,
+                'symbol': symbol,
+                'data_points': len(chart_points),
+                'prices': [point.get('price', 0) for point in chart_points],
+                'timestamps': [point.get('timestamp', '') for point in chart_points],
+                'sample_data': chart_points[:3] if chart_points else []  # نمونه‌ای از داده
+            }
+            
+            return processed_chart
+            
+        except Exception as e:
+            logger.error(f"❌ خطا در پردازش چارت {symbol}: {e}")
+            return {'success': False, 'error': str(e)}
 
-# ==================== اتصال به CoinStats API ====================
+# ==================== مدیر CoinStats ====================
 
 class CoinStatsManager:
-    """مدیریت اتصال به CoinStats API با مدیریت خطای کامل"""
+    """مدیریت اتصال و پردازش داده‌های CoinStats"""
     
     def __init__(self):
-        self.initialized = False
-        self.api_status = "unknown"
-        self.last_error = None
+        self.processor = CoinStatsDataProcessor()
         self.coin_stats_manager = None
+        self.initialized = False
         
         self._initialize()
     
     def _initialize(self):
-        """راه‌اندازی اتصال به CoinStats"""
+        """راه‌اندازی"""
         try:
-            logger.info("🔄 در حال راه‌اندازی اتصال به CoinStats API...")
-            
             from complete_coinstats_manager import coin_stats_manager
             self.coin_stats_manager = coin_stats_manager
             self.initialized = True
             
-            # تست اتصال
-            test_result = self._test_connection()
-            if test_result:
-                self.api_status = "connected"
-                logger.info("✅ اتصال به CoinStats API با موفقیت برقرار شد")
-            else:
-                self.api_status = "connection_failed"
-                logger.error("❌ اتصال به CoinStats API ناموفق بود")
-                
-        except ImportError as e:
-            self.initialized = False
-            self.api_status = "import_error"
-            self.last_error = str(e)
-            logger.error(f"❌ خطای ایمپورت CoinStats: {e}")
-            
-        except Exception as e:
-            self.initialized = False
-            self.api_status = "initialization_error"
-            self.last_error = str(e)
-            ErrorHandler.log_error("CoinStats initialization", e)
-    
-    def _test_connection(self) -> bool:
-        """تست اتصال به API"""
-        try:
-            if not self.coin_stats_manager:
-                return False
-                
             # تست دریافت داده
-            result = self.coin_stats_manager.get_coins_list(limit=1)
-            
-            if result and isinstance(result, dict) and 'result' in result:
-                coins = result['result']
-                if coins and len(coins) > 0:
-                    logger.info(f"✅ تست اتصال موفق - داده دریافت شد: {len(coins)} کوین")
-                    return True
-            
-            logger.warning("⚠️ تست اتصال: داده‌ای دریافت نشد")
-            return False
-            
+            test_data = self.coin_stats_manager.get_coins_list(limit=1)
+            if test_data and 'result' in test_data and test_data['result']:
+                logger.info("✅ CoinStats API قابل دسترسی است")
+            else:
+                logger.warning("⚠️ CoinStats API داده برنگرداند")
+                
         except Exception as e:
-            ErrorHandler.log_error("API connection test", e)
-            return False
+            logger.error(f"❌ خطا در راه‌اندازی CoinStats: {e}")
+            self.initialized = False
     
     def get_coin_data(self, symbol: str) -> Dict[str, Any]:
-        """دریافت داده‌های کوین با مدیریت خطای کامل"""
-        if not self.initialized or not self.coin_stats_manager:
-            error_msg = "CoinStats Manager راه‌اندازی نشده است"
+        """دریافت و پردازش داده‌های کوین"""
+        if not self.initialized:
             return {
                 'success': False,
-                'error': error_msg,
-                'symbol': symbol,
-                'data': None
+                'error': 'CoinStats Manager راه‌اندازی نشده',
+                'symbol': symbol
             }
         
         try:
-            logger.info(f"🔍 در حال دریافت داده برای {symbol}...")
+            logger.info(f"🔍 دریافت داده‌های {symbol}...")
             
-            # دریافت جزئیات کوین
-            details = self.coin_stats_manager.get_coin_details(symbol, "USD")
+            # دریافت داده خام
+            raw_details = self.coin_stats_manager.get_coin_details(symbol, "USD")
             
-            # دریافت داده‌های چارت
-            charts = self.coin_stats_manager.get_coin_charts(symbol, "1w")
+            # پردازش داده خام
+            processed_data = self.processor.process_coin_details(raw_details, symbol)
             
-            # اعتبارسنجی داده‌ها
-            if not details or 'result' not in details:
-                return {
-                    'success': False,
-                    'error': 'داده‌ای از API دریافت نشد',
-                    'symbol': symbol,
-                    'data': None
-                }
+            if processed_data['success']:
+                # دریافت داده چارت برای تحلیل بیشتر
+                raw_charts = self.coin_stats_manager.get_coin_charts(symbol, "1w")
+                chart_data = self.processor.process_chart_data(raw_charts, symbol)
+                
+                processed_data['chart_info'] = chart_data
+                processed_data['data_quality'] = 'good' if processed_data['price'] > 0 else 'poor'
             
-            coin_data = details['result']
-            
-            # بررسی ساختار داده
-            if not isinstance(coin_data, dict):
-                return {
-                    'success': False,
-                    'error': 'ساختار داده نامعتبر است',
-                    'symbol': symbol,
-                    'data': None
-                }
-            
-            # استخراج اطلاعات مهم
-            processed_data = {
-                'symbol': symbol,
-                'name': coin_data.get('name', 'Unknown'),
-                'price': coin_data.get('price', 0),
-                'price_change_24h': coin_data.get('priceChange1d', 0),
-                'price_change_percent_24h': coin_data.get('priceChange1d', 0),
-                'high_24h': coin_data.get('high', 0),
-                'low_24h': coin_data.get('low', 0),
-                'volume_24h': coin_data.get('volume', 0),
-                'market_cap': coin_data.get('marketCap', 0),
-                'rank': coin_data.get('rank', 0),
-                'website': coin_data.get('websiteUrl', ''),
-                'timestamp': datetime.now().isoformat(),
-                'raw_data': coin_data  # داده خام برای دیباگ
-            }
-            
-            logger.info(f"✅ داده‌های {symbol} با موفقیت دریافت شد: ${processed_data['price']}")
-            
-            return {
-                'success': True,
-                'error': None,
-                'symbol': symbol,
-                'data': processed_data
-            }
+            return processed_data
             
         except Exception as e:
-            error_details = ErrorHandler.log_error(
-                f"Get coin data for {symbol}", 
-                e,
-                {'symbol': symbol}
-            )
-            
+            logger.error(f"❌ خطا در دریافت داده‌های {symbol}: {e}")
             return {
                 'success': False,
-                'error': f"خطا در دریافت داده: {str(e)}",
-                'symbol': symbol,
-                'data': None,
-                'debug_info': error_details
+                'error': f'خطا در دریافت داده: {str(e)}',
+                'symbol': symbol
             }
     
+    def get_available_coins(self, limit: int = 50) -> List[Dict]:
+        """دریافت لیست کوین‌های available"""
+        try:
+            raw_data = self.coin_stats_manager.get_coins_list(limit=limit)
+            return self.processor.process_coin_list(raw_data)
+        except Exception as e:
+            logger.error(f"❌ خطا در دریافت لیست کوین‌ها: {e}")
+            return []
+    
     def get_status(self) -> Dict[str, Any]:
-        """دریافت وضعیت اتصال"""
+        """وضعیت سیستم"""
         return {
             'initialized': self.initialized,
-            'api_status': self.api_status,
-            'last_error': self.last_error,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'available_coins_count': len(self.get_available_coins(10))
         }
 
-# ایجاد مدیر CoinStats
-coin_stats = CoinStatsManager()
+# ایجاد مدیر
+coin_stats_manager = CoinStatsManager()
 
-# ==================== سیستم اسکن ====================
+# ==================== موتور اسکن ====================
 
 class ScanEngine:
-    """موتور اسکن با مدیریت خطای پیشرفته"""
+    """موتور اسکن با پردازش داده‌های واقعی"""
     
     def __init__(self):
         self.scan_count = 0
-        self.successful_scans = 0
-        self.failed_scans = 0
     
-    async def scan_symbols(self, symbols: List[str], scan_mode: str) -> Dict[str, Any]:
-        """اسکن چندنماد با مدیریت خطا"""
+    def scan_symbols(self, symbols: List[str]) -> Dict[str, Any]:
+        """اسکن نمادها"""
         self.scan_count += 1
-        logger.info(f"🔍 شروع اسکن برای {len(symbols)} نماد: {symbols}")
+        logger.info(f"🎯 شروع اسکن برای {len(symbols)} نماد")
         
         results = []
         successful = 0
-        failed = 0
         
         for symbol in symbols:
             try:
-                # دریافت داده از CoinStats
-                coin_result = coin_stats.get_coin_data(symbol)
+                # دریافت و پردازش داده
+                coin_data = coin_stats_manager.get_coin_data(symbol)
                 
-                if coin_result['success']:
-                    # تحلیل داده‌ها
-                    analysis = self._analyze_coin_data(coin_result['data'])
+                if coin_data['success']:
+                    # تحلیل داده‌های پردازش شده
+                    analysis = self._analyze_coin(coin_data)
                     results.append(analysis)
                     successful += 1
-                    logger.info(f"✅ اسکن موفق برای {symbol}")
+                    logger.info(f"✅ اسکن موفق {symbol}: ${analysis['price']}")
                 else:
                     # خطا در دریافت داده
-                    error_analysis = {
+                    error_result = {
                         'symbol': symbol,
                         'success': False,
-                        'error': coin_result['error'],
+                        'error': coin_data.get('error', 'خطای ناشناخته'),
                         'price': 0,
                         'change_24h': 0,
                         'volume': 'N/A',
                         'market_cap': 'N/A',
                         'signal': 'ERROR',
-                        'confidence': 0,
-                        'timestamp': datetime.now().isoformat(),
-                        'debug_info': coin_result.get('debug_info')
+                        'confidence': 0
                     }
-                    results.append(error_analysis)
-                    failed += 1
-                    logger.warning(f"⚠️ اسکن ناموفق برای {symbol}: {coin_result['error']}")
+                    results.append(error_result)
+                    logger.warning(f"⚠️ اسکن ناموفق {symbol}: {coin_data.get('error')}")
                     
             except Exception as e:
-                # خطای غیرمنتظره
-                error_details = ErrorHandler.log_error(
-                    f"Scan symbol {symbol}", 
-                    e,
-                    {'symbol': symbol, 'scan_mode': scan_mode}
-                )
-                
-                error_analysis = {
+                logger.error(f"❌ خطا در اسکن {symbol}: {e}")
+                results.append({
                     'symbol': symbol,
                     'success': False,
-                    'error': f"خطای غیرمنتظره: {str(e)}",
+                    'error': str(e),
                     'price': 0,
                     'change_24h': 0,
                     'volume': 'N/A',
                     'market_cap': 'N/A',
                     'signal': 'ERROR',
-                    'confidence': 0,
-                    'timestamp': datetime.now().isoformat(),
-                    'debug_info': error_details
-                }
-                results.append(error_analysis)
-                failed += 1
-                logger.error(f"❌ خطای غیرمنتظره در اسکن {symbol}")
-        
-        # آپدیت آمار
-        self.successful_scans += successful
-        self.failed_scans += failed
+                    'confidence': 0
+                })
         
         return {
             'scan_results': results,
             'summary': {
-                'total_scanned': len(symbols),
+                'total': len(symbols),
                 'successful': successful,
-                'failed': failed,
-                'success_rate': f"{(successful/len(symbols))*100:.1f}%" if symbols else "0%",
-                'scan_mode': scan_mode,
+                'failed': len(symbols) - successful,
+                'success_rate': f"{(successful/len(symbols))*100:.1f}%",
                 'timestamp': datetime.now().isoformat()
-            },
-            'api_status': coin_stats.get_status()
+            }
         }
     
-    def _analyze_coin_data(self, coin_data: Dict) -> Dict[str, Any]:
-        """تحلیل داده‌های کوین"""
-        try:
-            price = coin_data.get('price', 0)
-            change_24h = coin_data.get('price_change_24h', 0)
-            
-            # تولید سیگنال ساده
-            if change_24h > 5:
-                signal = "BUY"
-                confidence = 0.8
-            elif change_24h < -5:
-                signal = "SELL"
-                confidence = 0.7
-            else:
-                signal = "HOLD"
-                confidence = 0.6
-            
-            return {
-                'symbol': coin_data['symbol'],
-                'success': True,
-                'price': price,
-                'change_24h': change_24h,
-                'volume': f"{coin_data.get('volume_24h', 0):,.0f}",
-                'market_cap': f"{coin_data.get('market_cap', 0):,.0f}",
-                'signal': signal,
-                'confidence': confidence,
-                'timestamp': coin_data['timestamp'],
-                'raw_data_available': True
-            }
-            
-        except Exception as e:
-            ErrorHandler.log_error("Analyze coin data", e, {'coin_data': coin_data})
-            
-            return {
-                'symbol': coin_data.get('symbol', 'UNKNOWN'),
-                'success': False,
-                'error': f"خطا در تحلیل داده: {str(e)}",
-                'price': 0,
-                'change_24h': 0,
-                'volume': 'N/A',
-                'market_cap': 'N/A',
-                'signal': 'ERROR',
-                'confidence': 0,
-                'timestamp': datetime.now().isoformat()
-            }
+    def _analyze_coin(self, coin_data: Dict) -> Dict[str, Any]:
+        """تحلیل کوین پردازش شده"""
+        price = coin_data.get('price', 0)
+        change_24h = coin_data.get('price_change_24h', 0)
+        
+        # منطق ساده تحلیل
+        if change_24h > 3:
+            signal = "BUY"
+            confidence = 0.7 + min(0.3, change_24h / 20)
+        elif change_24h < -3:
+            signal = "SELL"
+            confidence = 0.6 + min(0.3, abs(change_24h) / 20)
+        else:
+            signal = "HOLD"
+            confidence = 0.5
+        
+        return {
+            'symbol': coin_data['symbol'],
+            'success': True,
+            'price': price,
+            'change_24h': change_24h,
+            'volume': f"{coin_data.get('volume_24h', 0):,.0f}",
+            'market_cap': f"{coin_data.get('market_cap', 0):,.0f}",
+            'signal': signal,
+            'confidence': round(confidence, 2),
+            'timestamp': coin_data.get('timestamp'),
+            'data_quality': coin_data.get('data_quality', 'unknown')
+        }
 
 # ایجاد موتور اسکن
 scan_engine = ScanEngine()
@@ -363,163 +337,64 @@ api_router = APIRouter(prefix="/api")
 
 @api_router.get("/health")
 async def health_check():
-    """بررسی سلامت API"""
+    """سلامت سیستم"""
     return {
         "status": "healthy",
-        "service": "crypto-ai-scan",
         "timestamp": datetime.now().isoformat(),
-        "coinstats_status": coin_stats.get_status(),
-        "scan_stats": {
-            "total_scans": scan_engine.scan_count,
-            "successful_scans": scan_engine.successful_scans,
-            "failed_scans": scan_engine.failed_scans
-        }
-    }
-
-@api_router.get("/system/status")
-async def system_status():
-    """وضعیت سیستم"""
-    return {
-        "status": "running",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "features": ["scan", "real-time-data", "error-handling"],
-        "coinstats_api": coin_stats.get_status()
+        "coinstats_status": coin_stats_manager.get_status(),
+        "total_scans": scan_engine.scan_count
     }
 
 @api_router.post("/ai/scan")
 async def ai_scan(request: ScanRequest):
-    """اسکن هوشمند بازار"""
+    """اسکن هوشمند"""
     try:
-        logger.info(f"🎯 دریافت درخواست اسکن: {request.symbols}")
-        
-        # اعتبارسنجی نمادها
-        if not request.symbols:
-            raise HTTPException(status_code=400, detail="لیست نمادها خالی است")
-        
-        # اجرای اسکن
-        scan_result = await scan_engine.scan_symbols(request.symbols, request.scan_mode)
-        
-        # بررسی نتایج
-        successful_scans = scan_result['summary']['successful']
-        
-        if successful_scans == 0:
-            logger.warning("⚠️ هیچ اسکن موفقی انجام نشد")
+        results = scan_engine.scan_symbols(request.symbols)
         
         return {
             "status": "success",
-            "message": f"اسکن کامل شد - {successful_scans} موفق از {len(request.symbols)}",
             "scan_mode": request.scan_mode,
-            **scan_result
+            "real_data": True,
+            **results
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        error_details = ErrorHandler.log_error(
-            "AI Scan endpoint", 
-            e,
-            {'request_data': request.dict()}
-        )
-        
-        raise HTTPException(
-            status_code=500, 
-            detail={
-                "error": "خطای داخلی در اسکن",
-                "message": str(e),
-                "debug_id": error_details.get('timestamp')
-            }
-        )
+        logger.error(f"❌ خطا در اسکن: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@api_router.get("/debug/coinstats")
-async def debug_coinstats(symbol: str = "bitcoin"):
-    """دیباگ مستقیم CoinStats API"""
+@api_router.get("/debug/structure")
+async def debug_structure(symbol: str = "bitcoin"):
+    """دیباگ ساختار داده‌ها"""
     try:
-        result = coin_stats.get_coin_data(symbol)
+        from complete_coinstats_manager import coin_stats_manager
+        
+        # دریافت داده خام
+        raw_data = coin_stats_manager.get_coin_details(symbol, "USD")
+        
         return {
-            "debug_mode": True,
             "symbol": symbol,
-            "coinstats_status": coin_stats.get_status(),
-            "api_response": result
+            "raw_structure": list(raw_data.keys()) if raw_data else "NO_DATA",
+            "result_structure": list(raw_data['result'].keys()) if raw_data and 'result' in raw_data else "NO_RESULT",
+            "sample_data": {k: raw_data['result'][k] for k in list(raw_data['result'].keys())[:10]} if raw_data and 'result' in raw_data else "NO_SAMPLE",
+            "processed_data": coin_stats_manager.get_coin_data(symbol)
         }
     except Exception as e:
-        error_details = ErrorHandler.log_error("Debug coinstats", e)
-        raise HTTPException(status_code=500, detail={
-            "error": "خطا در دیباگ",
-            "details": error_details
-        })
+        return {"error": str(e)}
 
 # ثبت روت‌ها
 app.include_router(api_router)
 
-# ==================== مدیریت عمومی ====================
-
+# روت‌های عمومی
 @app.get("/")
-async def serve_frontend():
-    """سرویس دهی فرانت‌اند"""
-    try:
-        return FileResponse("frontend/index.html")
-    except Exception as e:
-        logger.error(f"خطا در بارگذاری فرانت‌اند: {e}")
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": "فایل فرانت‌اند یافت نشد",
-                "detail": str(e),
-                "timestamp": datetime.now().isoformat()
-            }
-        )
+async def root():
+    return {"message": "CryptoAI Scan API", "status": "running"}
 
 @app.get("/{path:path}")
 async def catch_all(path: str):
-    """مدیریت تمام مسیرهای دیگر"""
     if path.startswith('api/'):
-        return JSONResponse(
-            status_code=404,
-            content={
-                "error": "Endpoint not found",
-                "path": path,
-                "available_endpoints": [
-                    "/api/health",
-                    "/api/system/status", 
-                    "/api/ai/scan",
-                    "/api/debug/coinstats"
-                ],
-                "timestamp": datetime.now().isoformat()
-            }
-        )
-    else:
-        try:
-            return FileResponse("frontend/index.html")
-        except:
-            return JSONResponse(
-                status_code=404,
-                content={
-                    "error": "Page not found",
-                    "path": path,
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-
-# هندلر خطاهای全局
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    error_details = ErrorHandler.log_error(
-        "Global 500 error", 
-        exc,
-        {'path': str(request.url), 'method': request.method}
-    )
-    
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal Server Error",
-            "message": "خطای داخلی سرور",
-            "debug_id": error_details.get('timestamp'),
-            "timestamp": datetime.now().isoformat()
-        }
-    )
+        raise HTTPException(status_code=404, detail="Endpoint not found")
+    return FileResponse("frontend/index.html")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=10000)
