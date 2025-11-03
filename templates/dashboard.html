@@ -1,137 +1,0 @@
-<!-- templates/dashboard.html -->
-<!DOCTYPE html>
-<html dir="rtl" lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>داشبورد هوشمند - VortexAI Trading</title>
-    <link rel="stylesheet" href="/static/css/dark-theme.css">
-    <link rel="stylesheet" href="/static/css/dashboard.css">
-</head>
-<body>
-    <div class="dashboard-container">
-        <!-- هدر -->
-        <header class="dashboard-header">
-            <div class="header-content">
-                <div class="logo-section">
-                    <div class="logo">🌀</div>
-                    <h1>VortexAI Trading</h1>
-                </div>
-                <div class="header-stats">
-                    <div class="stat-card">
-                        <div class="stat-label">وضعیت بازار</div>
-                        <div class="stat-value bullish">صعودی</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">سیگنال‌های فعال</div>
-                        <div class="stat-value">۱۲</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">دقت AI</div>
-                        <div class="stat-value">۸۷٪</div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <!-- محتوای اصلی -->
-        <main class="dashboard-main">
-            <!-- کارت‌های سریع دسترسی -->
-            <section class="quick-access grid-system grid-4">
-                <div class="quick-card glass-card" data-page="/analysis">
-                    <div class="card-icon">📈</div>
-                    <h3>تحلیل تکنیکال</h3>
-                    <p>تحلیل پیشرفته نمودارها</p>
-                </div>
-                
-                <div class="quick-card glass-card" data-page="/scan">
-                    <div class="card-icon">🔍</div>
-                    <h3>اسکن بازار</h3>
-                    <p>۳۰۰+ ارز دیجیتال</p>
-                </div>
-                
-                <div class="quick-card glass-card" data-page="/health">
-                    <div class="card-icon">🩺</div>
-                    <h3>سلامت سیستم</h3>
-                    <p>مانیتورینگ Real-time</p>
-                </div>
-                
-                <div class="quick-card glass-card" data-page="/settings">
-                    <div class="card-icon">⚙️</div>
-                    <h3>تنظیمات</h3>
-                    <p>شخصی‌سازی سیستم</p>
-                </div>
-            </section>
-
-            <!-- بخش‌های اصلی -->
-            <div class="main-grid grid-system grid-2">
-                <!-- سیگنال‌های فعال -->
-                <section class="active-signals glass-card">
-                    <div class="section-header">
-                        <h2>🚀 سیگنال‌های فعال</h2>
-                        <span class="badge">۱۲ نماد</span>
-                    </div>
-                    <div class="signals-list" id="signalsList">
-                        <!-- از JavaScript پر میشود -->
-                    </div>
-                </section>
-
-                <!-- وضعیت سیستم -->
-                <section class="system-status glass-card">
-                    <div class="section-header">
-                        <h2>🖥️ وضعیت سیستم</h2>
-                        <span class="status-dot online"></span>
-                    </div>
-                    <div class="status-grid grid-system grid-2">
-                        <div class="status-item">
-                            <div class="status-label">API CoinStats</div>
-                            <div class="status-value connected">متصل</div>
-                        </div>
-                        <div class="status-item">
-                            <div class="status-label">مدل AI</div>
-                            <div class="status-value active">فعال</div>
-                        </div>
-                        <div class="status-item">
-                            <div class="status-label">WebSocket</div>
-                            <div class="status-value connected">متصل</div>
-                        </div>
-                        <div class="status-item">
-                            <div class="status-label">دقت پیش‌بینی</div>
-                            <div class="status-value">۸۷٪</div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- نمودار سریع -->
-                <section class="quick-chart glass-card">
-                    <div class="section-header">
-                        <h2>📊 BTC/USDT</h2>
-                        <div class="price-change positive">+۲.۳٪</div>
-                    </div>
-                    <div class="chart-container" id="btcChart">
-                        <!-- نمودار از JavaScript پر میشود -->
-                    </div>
-                </section>
-
-                <!-- هشدارها -->
-                <section class="alerts-panel glass-card">
-                    <div class="section-header">
-                        <h2>⚠️ هشدارهای سیستم</h2>
-                        <span class="badge danger">۳</span>
-                    </div>
-                    <div class="alerts-list" id="alertsList">
-                        <!-- از JavaScript پر میشود -->
-                    </div>
-                </section>
-            </div>
-        </main>
-    </div>
-
-    <!-- FAB مایع -->
-    {% include 'components/smart_fab.html' %}
-
-    <!-- اسکریپت‌ها -->
-    <script src="/static/js/dashboard.js"></script>
-    <script src="/static/js/smart_fab.js"></script>
-</body>
-</html>

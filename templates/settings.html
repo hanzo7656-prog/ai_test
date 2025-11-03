@@ -1,389 +1,0 @@
-<!-- templates/settings.html -->
-<!DOCTYPE html>
-<html dir="rtl" lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تنظیمات کاربر - VortexAI Trading</title>
-    <link rel="stylesheet" href="/static/css/dark-theme.css">
-    <link rel="stylesheet" href="/static/css/settings.css">
-</head>
-<body>
-    <div class="settings-container">
-        <!-- هدر تنظیمات -->
-        <header class="settings-header">
-            <div class="header-content">
-                <div class="back-button">
-                    <a href="/" class="btn btn-secondary">← بازگشت</a>
-                </div>
-                <h1>⚙️ تنظیمات کاربر</h1>
-                <div class="user-profile">
-                    <div class="profile-avatar">
-                        <div class="avatar-icon">👤</div>
-                    </div>
-                    <div class="profile-info">
-                        <div class="profile-name">کاربر VortexAI</div>
-                        <div class="profile-status">عضویت: طلایی</div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <!-- نوار کناری تنظیمات -->
-        <div class="settings-layout">
-            <aside class="settings-sidebar">
-                <nav class="settings-nav">
-                    <div class="nav-section">
-                        <div class="nav-title">تنظیمات اصلی</div>
-                        <a href="#profile" class="nav-item active" data-tab="profile">
-                            <span class="nav-icon">👤</span>
-                            <span class="nav-label">پروفایل کاربر</span>
-                        </a>
-                        <a href="#appearance" class="nav-item" data-tab="appearance">
-                            <span class="nav-icon">🎨</span>
-                            <span class="nav-label">ظاهر و تم</span>
-                        </a>
-                        <a href="#notifications" class="nav-item" data-tab="notifications">
-                            <span class="nav-icon">🔔</span>
-                            <span class="nav-label">نوتیفیکیشن‌ها</span>
-                        </a>
-                    </div>
-
-                    <div class="nav-section">
-                        <div class="nav-title">تنظیمات تریدینگ</div>
-                        <a href="#trading" class="nav-item" data-tab="trading">
-                            <span class="nav-icon">📈</span>
-                            <span class="nav-label">تنظیمات معاملاتی</span>
-                        </a>
-                        <a href="#ai-models" class="nav-item" data-tab="ai-models">
-                            <span class="nav-icon">🤖</span>
-                            <span class="nav-label">مدل‌های AI</span>
-                        </a>
-                        <a href="#risk-management" class="nav-item" data-tab="risk-management">
-                            <span class="nav-icon">🛡️</span>
-                            <span class="nav-label">مدیریت ریسک</span>
-                        </a>
-                    </div>
-
-                    <div class="nav-section">
-                        <div class="nav-title">داده‌ها و امنیت</div>
-                        <a href="#data" class="nav-item" data-tab="data">
-                            <span class="nav-icon">💾</span>
-                            <span class="nav-label">مدیریت داده‌ها</span>
-                        </a>
-                        <a href="#security" class="nav-item" data-tab="security">
-                            <span class="nav-icon">🔐</span>
-                            <span class="nav-label">امنیت</span>
-                        </a>
-                        <a href="#api" class="nav-item" data-tab="api">
-                            <span class="nav-icon">🔑</span>
-                            <span class="nav-label">API Keys</span>
-                        </a>
-                    </div>
-
-                    <div class="nav-section">
-                        <div class="nav-title">پشتیبانی</div>
-                        <a href="#help" class="nav-item" data-tab="help">
-                            <span class="nav-icon">❓</span>
-                            <span class="nav-label">راهنما</span>
-                        </a>
-                        <a href="#about" class="nav-item" data-tab="about">
-                            <span class="nav-icon">ℹ️</span>
-                            <span class="nav-label">درباره سیستم</span>
-                        </a>
-                    </div>
-                </nav>
-            </aside>
-
-            <!-- محتوای اصلی تنظیمات -->
-            <main class="settings-content">
-                <!-- تب پروفایل کاربر -->
-                <div class="tab-content active" id="profile-tab">
-                    <div class="tab-header">
-                        <h2>👤 پروفایل کاربر</h2>
-                        <p>مدیریت اطلاعات حساب کاربری</p>
-                    </div>
-                    
-                    <div class="settings-grid">
-                        <div class="setting-group glass-card">
-                            <h3>اطلاعات شخصی</h3>
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>نام کاربری</label>
-                                    <input type="text" value="VortexTrader" class="form-input" id="username">
-                                </div>
-                                <div class="form-group">
-                                    <label>ایمیل</label>
-                                    <input type="email" value="trader@example.com" class="form-input" id="email">
-                                </div>
-                                <div class="form-group">
-                                    <label>شماره تلفن</label>
-                                    <input type="tel" value="+98 912 345 6789" class="form-input" id="phone">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>تنظیمات حساب</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">زبان سیستم</div>
-                                    <div class="preference-desc">زبان رابط کاربری</div>
-                                </div>
-                                <select class="preference-control" id="language">
-                                    <option value="fa" selected>فارسی</option>
-                                    <option value="en">English</option>
-                                </select>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">منطقه زمانی</div>
-                                    <div class="preference-desc">زمان نمایش داده‌ها</div>
-                                </div>
-                                <select class="preference-control" id="timezone">
-                                    <option value="tehran" selected>تهران (UTC+3:30)</option>
-                                    <option value="utc">UTC</option>
-                                </select>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">واحد پول</div>
-                                    <div class="preference-desc">واحد نمایش قیمت‌ها</div>
-                                </div>
-                                <select class="preference-control" id="currency">
-                                    <option value="usdt" selected>USDT</option>
-                                    <option value="usd">USD</option>
-                                    <option value="irr">ریال</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>اشتراک و محدودیت‌ها</h3>
-                            <div class="subscription-status">
-                                <div class="subscription-level gold">
-                                    <div class="level-icon">⭐</div>
-                                    <div class="level-info">
-                                        <div class="level-name">اشتراک طلایی</div>
-                                        <div class="level-desc">دسترسی کامل به تمام ویژگی‌ها</div>
-                                    </div>
-                                </div>
-                                <div class="subscription-features">
-                                    <div class="feature-item">✅ اسکن ۵۰۰+ نماد</div>
-                                    <div class="feature-item">✅ تحلیل AI پیشرفته</div>
-                                    <div class="feature-item">✅ سیگنال‌های Real-time</div>
-                                    <div class="feature-item">✅ پشتیبانی VIP</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="action-buttons">
-                        <button class="btn btn-primary" id="saveProfile">ذخیره تغییرات</button>
-                        <button class="btn btn-secondary" id="resetProfile">بازنشانی</button>
-                    </div>
-                </div>
-
-                <!-- تب ظاهر و تم -->
-                <div class="tab-content" id="appearance-tab">
-                    <div class="tab-header">
-                        <h2>🎨 ظاهر و تم</h2>
-                        <p>شخصی‌سازی ظاهر سیستم</p>
-                    </div>
-
-                    <div class="settings-grid">
-                        <div class="setting-group glass-card">
-                            <h3>تم رنگ</h3>
-                            <div class="theme-options">
-                                <div class="theme-option active" data-theme="dark-blue">
-                                    <div class="theme-preview dark-blue-theme"></div>
-                                    <div class="theme-name">آبی تیره</div>
-                                </div>
-                                <div class="theme-option" data-theme="dark-purple">
-                                    <div class="theme-preview dark-purple-theme"></div>
-                                    <div class="theme-name">بنفش تیره</div>
-                                </div>
-                                <div class="theme-option" data-theme="dark-green">
-                                    <div class="theme-preview dark-green-theme"></div>
-                                    <div class="theme-name">سبز تیره</div>
-                                </div>
-                                <div class="theme-option" data-theme="auto">
-                                    <div class="theme-preview auto-theme"></div>
-                                    <div class="theme-name">خودکار</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>تنظیمات نمودار</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">سبک نمودار</div>
-                                    <div class="preference-desc">نوع نمایش نمودار قیمت</div>
-                                </div>
-                                <select class="preference-control" id="chartStyle">
-                                    <option value="candle" selected>شمعی</option>
-                                    <option value="line">خطی</option>
-                                    <option value="area">ناحیه‌ای</option>
-                                </select>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">رنگ‌های نمودار</div>
-                                    <div class="preference-desc">رنگ‌های صعودی/نزولی</div>
-                                </div>
-                                <div class="color-picker">
-                                    <input type="color" value="#10b981" id="bullishColor" class="color-input">
-                                    <input type="color" value="#ef4444" id="bearishColor" class="color-input">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>تنظیمات نمایش</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">تراکم اطلاعات</div>
-                                    <div class="preference-desc">میزان جزئیات نمایش داده شده</div>
-                                </div>
-                                <select class="preference-control" id="dataDensity">
-                                    <option value="compact">فشرده</option>
-                                    <option value="normal" selected>معمولی</option>
-                                    <option value="detailed">مفصل</option>
-                                </select>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">انیمیشن‌ها</div>
-                                    <div class="preference-desc">افکت‌های بصری و حرکتی</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="animationsToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">فونت</div>
-                                    <div class="preference-desc">نوع فونت متن‌ها</div>
-                                </div>
-                                <select class="preference-control" id="fontFamily">
-                                    <option value="vazirmatn" selected>Vazirmatn</option>
-                                    <option value="iran-sans">Iran Sans</option>
-                                    <option value="system">System Default</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- تب نوتیفیکیشن‌ها -->
-                <div class="tab-content" id="notifications-tab">
-                    <div class="tab-header">
-                        <h2>🔔 نوتیفیکیشن‌ها</h2>
-                        <p>مدیریت هشدارها و اطلاع‌رسانی‌ها</p>
-                    </div>
-
-                    <div class="settings-grid">
-                        <div class="setting-group glass-card">
-                            <h3>هشدارهای قیمتی</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">هشدارهای Real-time</div>
-                                    <div class="preference-desc">اطلاع‌رسانی تغییرات قیمت</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="priceAlertsToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">حداقل تغییر برای هشدار</div>
-                                    <div class="preference-desc">درصد تغییر قیمت برای فعال شدن هشدار</div>
-                                </div>
-                                <input type="range" min="1" max="10" value="3" class="preference-slider" id="alertThreshold">
-                                <span class="slider-value" id="alertThresholdValue">۳٪</span>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>سیگنال‌های AI</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">سیگنال‌های خرید/فروش</div>
-                                    <div class="preference-desc">اطلاع‌رسانی سیگنال‌های AI</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="aiSignalsToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">حداقل اعتماد سیگنال</div>
-                                    <div class="preference-desc">حداقل confidence برای ارسال نوتیفیکیشن</div>
-                                </div>
-                                <input type="range" min="50" max="95" value="75" class="preference-slider" id="signalConfidence">
-                                <span class="slider-value" id="signalConfidenceValue">۷۵٪</span>
-                            </div>
-                        </div>
-
-                        <div class="setting-group glass-card">
-                            <h3>کانال‌های اطلاع‌رسانی</h3>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">نوتیفیکیشن مرورگر</div>
-                                    <div class="preference-desc">نمایش پیام در مرورگر</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="browserNotificationsToggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">ایمیل</div>
-                                    <div class="preference-desc">ارسال ایمیل برای هشدارهای مهم</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="emailNotificationsToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <div class="preference-item">
-                                <div class="preference-info">
-                                    <div class="preference-label">صدا</div>
-                                    <div class="preference-desc">پخش صدا برای سیگنال‌های مهم</div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="soundNotificationsToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- بقیه تب‌ها به صورت مشابه -->
-                <div class="tab-content" id="trading-tab">
-                    <!-- محتوای تنظیمات معاملاتی -->
-                </div>
-
-                <div class="tab-content" id="ai-models-tab">
-                    <!-- محتوای مدل‌های AI -->
-                </div>
-
-                <!-- ... بقیه تب‌ها -->
-            </main>
-        </div>
-    </div>
-
-    <!-- FAB مایع -->
-    {% include 'components/smart_fab.html' %}
-
-    <!-- اسکریپت‌ها -->
-    <script src="/static/js/settings.js"></script>
-    <script src="/static/js/smart_fab.js"></script>
-</body>
-</html>
