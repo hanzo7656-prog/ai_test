@@ -110,6 +110,10 @@
                     <div class="stat-value" id="apiStatus">--</div>
                     <div class="stat-label">وضعیت API</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="scanCount">0</div>
+                    <div class="stat-label">اسکن امروز</div>
+                </div>
             </div>
         </section>
 
@@ -124,14 +128,22 @@
                 <div class="health-card">
                     <h3>وضعیت اندپوینت‌ها</h3>
                     <div class="endpoints-list" id="endpointsList">
-                        <!-- لیست اندپوینت‌ها -->
+                        <div class="endpoint-item">
+                            <div class="endpoint-info">
+                                <div class="endpoint-name">در حال بارگذاری...</div>
+                            </div>
+                            <span class="endpoint-status status-success">بررسی</span>
+                        </div>
                     </div>
                 </div>
                 
                 <div class="health-card">
                     <h3>متریک‌های سیستم</h3>
                     <div class="system-metrics" id="systemMetrics">
-                        <!-- متریک‌های سیستم -->
+                        <div class="metric-item">مصرف CPU: در حال بارگذاری...</div>
+                        <div class="metric-item">مصرف RAM: در حال بارگذاری...</div>
+                        <div class="metric-item">فضای دیسک: در حال بارگذاری...</div>
+                        <div class="metric-item">آپتایم: در حال بارگذاری...</div>
                     </div>
                 </div>
             </div>
@@ -139,7 +151,10 @@
             <div class="logs-card">
                 <h3>لاگ‌های دقیق سیستم</h3>
                 <div class="logs-container" id="logsContainer">
-                    <!-- لاگ‌های سیستم -->
+                    <div class="log-entry">
+                        <span class="log-time">در حال بارگذاری...</span>
+                        سیستم در حال راه‌اندازی
+                    </div>
                 </div>
             </div>
         </section>
@@ -153,9 +168,9 @@
                 <div class="setting-group">
                     <label>سایز دسته اسکن</label>
                     <select id="batchSize">
-                        <option value="25">25 ارز در هر دسته</option>
+                        <option value="10">10 ارز در هر دسته</option>
+                        <option value="25" selected>25 ارز در هر دسته</option>
                         <option value="50">50 ارز در هر دسته</option>
-                        <option value="100">100 ارز در هر دسته</option>
                     </select>
                 </div>
                 
@@ -168,9 +183,28 @@
                     </select>
                 </div>
 
+                <div class="setting-group">
+                    <label>محدودیت نرخ درخواست</label>
+                    <select id="rateLimit">
+                        <option value="500">500ms تاخیر</option>
+                        <option value="1000" selected>1s تاخیر</option>
+                        <option value="2000">2s تاخیر</option>
+                    </select>
+                </div>
+
                 <div class="setting-actions">
                     <button class="primary-btn" id="saveSettings">ذخیره تنظیمات</button>
                     <button class="secondary-btn" id="clearCache">پاکسازی کش</button>
+                    <button class="secondary-btn" id="testAPI">تست API</button>
+                </div>
+            </div>
+
+            <div class="debug-section">
+                <h3>ابزارهای توسعه</h3>
+                <div class="debug-actions">
+                    <button class="secondary-btn" id="showConsole">نمایش Console</button>
+                    <button class="secondary-btn" id="exportLogs">خروجی لاگ‌ها</button>
+                    <button class="secondary-btn" id="resetSettings">بازنشانی تنظیمات</button>
                 </div>
             </div>
         </section>
@@ -197,11 +231,15 @@
             <div class="scan-details">
                 <div class="detail-group">
                     <label>در حال اسکن:</label>
-                    <div class="scanning-list" id="scanningList"></div>
+                    <div class="scanning-list" id="scanningList">
+                        <span class="coin-tag">آماده‌سازی...</span>
+                    </div>
                 </div>
                 <div class="detail-group">
                     <label>تکمیل شده:</label>
-                    <div class="completed-list" id="completedList"></div>
+                    <div class="completed-list" id="completedList">
+                        <span class="coin-tag">در انتظار...</span>
+                    </div>
                 </div>
             </div>
 
@@ -213,6 +251,14 @@
                 <div class="stat">
                     <span class="stat-label">سرعت اسکن</span>
                     <span class="stat-value" id="scanSpeed">0/دقیقه</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">موفقیت</span>
+                    <span class="stat-value" id="successRate">0%</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">دسته جاری</span>
+                    <span class="stat-value" id="currentBatch">0/0</span>
                 </div>
             </div>
         </div>
