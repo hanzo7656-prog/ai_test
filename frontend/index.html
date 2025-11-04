@@ -3,158 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexAI - سیستم تحلیل هوشمند بازار ارز دیجیتال</title>
+    <title>VortexAI - سیستم تحلیل بازار</title>
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <!-- هدر -->
+    <!-- هدر مینیمال -->
     <header class="header">
         <div class="header-content">
-            <a href="#" class="nav-brand" onclick="loadSection('dashboard')">
-                <span class="brand-icon">V</span>
-                VortexAI
-            </a>
+            <div class="nav-brand">
+                <span class="brand-symbol">V</span>
+                <span class="brand-text">VortexAI</span>
+            </div>
             
-            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
-                <span class="menu-bar"></span>
-                <span class="menu-bar"></span>
-                <span class="menu-bar"></span>
-            </button>
-            
-            <ul class="nav-menu" id="navMenu">
-                <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('dashboard')">
-                        <span class="nav-icon">📊</span>
-                        داشبورد
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('scan')">
-                        <span class="nav-icon">🔍</span>
-                        اسکن بازار
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('health')">
-                        <span class="nav-icon">❤️</span>
-                        سلامت سیستم
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('settings')">
-                        <span class="nav-icon">⚙️</span>
-                        تنظیمات
-                    </a>
-                </li>
-            </ul>
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-section="scan">اسکن بازار</button>
+                <button class="nav-btn" data-section="dashboard">داشبورد</button>
+                <button class="nav-btn" data-section="health">سلامت سیستم</button>
+                <button class="nav-btn" data-section="settings">تنظیمات</button>
+            </nav>
 
-            <div class="api-status">
-                <div class="status-indicator" id="statusIndicator"></div>
-                <span id="statusText">در حال اتصال...</span>
+            <div class="system-status">
+                <div class="status-dot" id="statusDot"></div>
+                <span class="status-text" id="statusText">آماده</span>
             </div>
         </div>
     </header>
 
     <!-- محتوای اصلی -->
     <main class="main-content">
-        <div id="content">
-            <!-- محتوای داینامیک -->
-            <div class="welcome-message">
-                <div class="welcome-card">
-                    <h1>VortexAI</h1>
-                    <p>سیستم تحلیل هوشمند بازار ارز دیجیتال</p>
-                    <div class="welcome-stats">
-                        <div class="stat">اسکن 100 ارز برتر</div>
-                        <div class="stat">تحلیل هوش مصنوعی</div>
-                        <div class="stat">پردازش Real-time</div>
+        <!-- بخش اسکن -->
+        <section id="scan-section" class="content-section active">
+            <div class="section-header">
+                <h1>اسکنر بازار ارز</h1>
+                <div class="header-actions">
+                    <div class="currency-filter">
+                        <button class="filter-btn" id="filterToggle">تعداد ارز</button>
+                        <div class="filter-menu" id="filterMenu">
+                            <button class="filter-option" data-count="10">10 ارز</button>
+                            <button class="filter-option" data-count="50">50 ارز</button>
+                            <button class="filter-option" data-count="100">100 ارز</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+            <div class="scan-controls">
+                <div class="mode-selector">
+                    <label class="mode-option">
+                        <input type="radio" name="scanMode" value="basic" checked>
+                        <span class="mode-label">داده بهینه</span>
+                    </label>
+                    <label class="mode-option">
+                        <input type="radio" name="scanMode" value="ai">
+                        <span class="mode-label">داده کامل</span>
+                    </label>
+                </div>
+
+                <div class="symbols-input">
+                    <textarea 
+                        id="symbolsInput" 
+                        placeholder="نام ارزها را وارد کنید (هر خط یک ارز) یا از فیلتر تعداد استفاده کنید"
+                        rows="4"
+                    ></textarea>
+                    <div class="input-info">
+                        <span id="selectedCount">0 ارز انتخاب شده</span>
+                    </div>
+                </div>
+
+                <button class="primary-btn" id="startScan">
+                    شروع اسکن هوشمند
+                </button>
+            </div>
+
+            <div class="results-container">
+                <div class="results-header">
+                    <h3>نتایج اسکن</h3>
+                    <div class="results-actions">
+                        <span id="resultsCount">0 مورد</span>
+                        <button class="secondary-btn" id="clearResults">پاکسازی</button>
+                    </div>
+                </div>
+                <div class="results-grid" id="resultsGrid">
+                    <div class="empty-state">
+                        <p>هنوز اسکنی انجام نشده است</p>
+                        <small>برای شروع از دکمه بالا استفاده کنید</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- بخش داشبورد -->
+        <section id="dashboard-section" class="content-section">
+            <div class="section-header">
+                <h1>داشبورد سیستم</h1>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="cacheCount">0</div>
+                    <div class="stat-label">آیتم در کش</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalSymbols">100</div>
+                    <div class="stat-label">ارز پشتیبانی شده</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="apiStatus">--</div>
+                    <div class="stat-label">وضعیت API</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- بخش سلامت سیستم -->
+        <section id="health-section" class="content-section">
+            <div class="section-header">
+                <h1>سلامت سیستم</h1>
+                <button class="secondary-btn" id="refreshHealth">بروزرسانی</button>
+            </div>
+
+            <div class="health-grid">
+                <div class="health-card">
+                    <h3>وضعیت اندپوینت‌ها</h3>
+                    <div class="endpoints-list" id="endpointsList">
+                        <!-- لیست اندپوینت‌ها -->
+                    </div>
+                </div>
+                
+                <div class="health-card">
+                    <h3>متریک‌های سیستم</h3>
+                    <div class="system-metrics" id="systemMetrics">
+                        <!-- متریک‌های سیستم -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="logs-card">
+                <h3>لاگ‌های دقیق سیستم</h3>
+                <div class="logs-container" id="logsContainer">
+                    <!-- لاگ‌های سیستم -->
+                </div>
+            </div>
+        </section>
+
+        <!-- بخش تنظیمات -->
+        <section id="settings-section" class="content-section">
+            <div class="section-header">
+                <h1>تنظیمات سیستم</h1>
+            </div>
+            <div class="settings-grid">
+                <div class="setting-group">
+                    <label>سایز دسته اسکن</label>
+                    <select id="batchSize">
+                        <option value="25">25 ارز در هر دسته</option>
+                        <option value="50">50 ارز در هر دسته</option>
+                        <option value="100">100 ارز در هر دسته</option>
+                    </select>
+                </div>
+                
+                <div class="setting-group">
+                    <label>زمان انقضای کش</label>
+                    <select id="cacheTTL">
+                        <option value="300">5 دقیقه</option>
+                        <option value="600">10 دقیقه</option>
+                        <option value="1800">30 دقیقه</option>
+                    </select>
+                </div>
+
+                <div class="setting-actions">
+                    <button class="primary-btn" id="saveSettings">ذخیره تنظیمات</button>
+                    <button class="secondary-btn" id="clearCache">پاکسازی کش</button>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- لودینگ هوشمند -->
-    <div id="smartLoading" class="smart-loading-overlay">
-        <div class="smart-loading-container">
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-modal">
             <div class="loading-header">
-                <div class="loading-title-section">
-                    <h3 id="loadingTitle">در حال اسکن بازار</h3>
-                    <div class="scan-mode-badge" id="scanModeBadge">Manual</div>
-                </div>
-                <button class="btn-outline btn-sm" onclick="cancelScan()">
-                    <span class="btn-icon">×</span>
-                    لغو اسکن
-                </button>
+                <h3 id="loadingTitle">در حال اسکن بازار</h3>
+                <button class="close-btn" id="cancelScan">لغو</button>
             </div>
             
-            <div class="progress-section">
+            <div class="progress-container">
                 <div class="progress-info">
+                    <span id="progressText">0/0</span>
                     <span id="progressPercent">0%</span>
-                    <span id="progressCount">0/0 ارز</span>
                 </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="smartProgressBar"></div>
-                </div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">⏱</div>
-                    <div class="stat-info">
-                        <div class="stat-label">زمان سپری شده</div>
-                        <div class="stat-value" id="elapsedTime">0:00</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⏳</div>
-                    <div class="stat-info">
-                        <div class="stat-label">زمان باقی‌مانده</div>
-                        <div class="stat-value" id="remainingTime">0:00</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⚡</div>
-                    <div class="stat-info">
-                        <div class="stat-label">سرعت اسکن</div>
-                        <div class="stat-value" id="scanSpeed">0/m</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📦</div>
-                    <div class="stat-info">
-                        <div class="stat-label">دسته جاری</div>
-                        <div class="stat-value" id="batchInfo">0/0</div>
-                    </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
                 </div>
             </div>
 
             <div class="scan-details">
-                <div class="detail-section">
-                    <div class="detail-header">
-                        <span class="detail-icon">🔍</span>
-                        <h4>در حال اسکن</h4>
-                    </div>
-                    <div id="currentScanning" class="coins-list">
-                        <div class="loading-text">در حال آماده‌سازی...</div>
-                    </div>
+                <div class="detail-group">
+                    <label>در حال اسکن:</label>
+                    <div class="scanning-list" id="scanningList"></div>
                 </div>
-                <div class="detail-section">
-                    <div class="detail-header">
-                        <span class="detail-icon">✅</span>
-                        <h4>تکمیل شده</h4>
-                    </div>
-                    <div id="completedScan" class="coins-list">
-                        <div class="loading-text">در حال انتظار...</div>
-                    </div>
+                <div class="detail-group">
+                    <label>تکمیل شده:</label>
+                    <div class="completed-list" id="completedList"></div>
+                </div>
+            </div>
+
+            <div class="performance-stats">
+                <div class="stat">
+                    <span class="stat-label">زمان سپری شده</span>
+                    <span class="stat-value" id="elapsedTime">0:00</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">سرعت اسکن</span>
+                    <span class="stat-value" id="scanSpeed">0/دقیقه</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- اسکریپت‌ها -->
-    <script src="/static/js/cache.js"></script>
-    <script src="/static/js/loading.js"></script>
-    <script src="/static/js/scanner.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
