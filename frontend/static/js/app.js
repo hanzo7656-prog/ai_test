@@ -8,6 +8,31 @@ class VortexApp {
         this.isScanning = false;
         this.currentScan = null;
         
+        // لیست کامل 100 ارز برتر
+        this.top100Symbols = [
+            "bitcoin", "ethereum", "tether", "ripple", "binancecoin",
+            "solana", "usd-coin", "staked-ether", "tron", "dogecoin",
+            "cardano", "polkadot", "chainlink", "litecoin", "bitcoin-cash",
+            "stellar", "monero", "ethereum-classic", "vechain", "theta-token",
+            "filecoin", "cosmos", "tezos", "aave", "eos",
+            "okb", "crypto-com-chain", "algorand", "maker", "iota",
+            "avalanche-2", "compound", "dash", "zcash", "neo",
+            "kusama", "elrond-erd-2", "helium", "decentraland", "the-sandbox",
+            "gala", "axie-infinity", "enjincoin", "render-token", "theta-fuel",
+            "fantom", "klay-token", "waves", "arweave", "bittorrent",
+            "huobi-token", "nexo", "celo", "qtum", "ravencoin",
+            "basic-attention-token", "holotoken", "chiliz", "curve-dao-token", "kusama",
+            "yearn-finance", "sushi", "uma", "balancer", "renbtc",
+            "0x", "bancor", "loopring", "reserve-rights-token", "orchid",
+            "nucypher", "livepeer", "api3", "uma", "badger-dao",
+            "keep-network", "origin-protocol", "mirror-protocol", "radicle", "fetchtoken",
+            "ocean-protocol", "dock", "request-network", "district0x", "gnosis",
+            "kyber-network", "republic-protocol", "aeternity", "golem", "iostoken",
+            "wax", "dent", "stormx", "funfair", "enigma",
+            "singularitynet", "numeraire", "civic", "poa-network", "metal",
+            "pillar", "bluzelle", "cybermiles", "datum", "edgeware"
+        ];
+        
         this.init();
     }
 
@@ -125,17 +150,9 @@ class VortexApp {
     }
 
     selectTopSymbols(count) {
-        const topSymbols = this.getTopSymbols().slice(0, count);
+        const topSymbols = this.top100Symbols.slice(0, count);
         this.selectedSymbols = topSymbols;
         this.updateSymbolsInput();
-    }
-
-    getTopSymbols() {
-        return [
-            "bitcoin", "ethereum", "tether", "ripple", "binance-coin",
-            "solana", "usd-coin", "cardano", "dogecoin", "polkadot",
-            // ... بقیه ارزها
-        ];
     }
 
     updateSelectedSymbols(text) {
@@ -154,7 +171,9 @@ class VortexApp {
 
     updateSelectedCount() {
         const countElement = document.getElementById('selectedCount');
-        countElement.textContent = `${this.selectedSymbols.length} ارز انتخاب شده`;
+        if (countElement) {
+            countElement.textContent = `${this.selectedSymbols.length} ارز انتخاب شده`;
+        }
     }
 
     async startSmartScan() {
@@ -164,7 +183,12 @@ class VortexApp {
         }
 
         const symbolsToScan = this.selectedSymbols.length > 0 ? 
-            this.selectedSymbols : this.getTopSymbols().slice(0, 100);
+            this.selectedSymbols : this.top100Symbols.slice(0, 100);
+
+        if (symbolsToScan.length === 0) {
+            alert('لطفاً حداقل یک ارز انتخاب کنید');
+            return;
+        }
 
         this.isScanning = true;
         this.currentScan = new ScanSession({
@@ -193,12 +217,19 @@ class VortexApp {
     }
 
     clearResults() {
-        document.getElementById('resultsGrid').innerHTML = `
-            <div class="empty-state">
-                <p>نتایج پاکسازی شد</p>
-            </div>
-        `;
-        document.getElementById('resultsCount').textContent = '0 مورد';
+        const resultsGrid = document.getElementById('resultsGrid');
+        if (resultsGrid) {
+            resultsGrid.innerHTML = `
+                <div class="empty-state">
+                    <p>نتایج پاکسازی شد</p>
+                </div>
+            `;
+        }
+        
+        const resultsCount = document.getElementById('resultsCount');
+        if (resultsCount) {
+            resultsCount.textContent = '0 مورد';
+        }
     }
 
     async checkAPIStatus() {
@@ -218,14 +249,22 @@ class VortexApp {
             }
         } catch (error) {
             console.error('خطا در بررسی وضعیت API:', error);
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            statusDot.className = 'status-dot offline';
+            statusText.textContent = 'خطا';
         }
     }
 
     async loadDashboard() {
         // آپدیت آمار داشبورد
-        document.getElementById('cacheCount').textContent = '0'; // از کش واقعی بگیر
-        document.getElementById('totalSymbols').textContent = this.getTopSymbols().length;
-        document.getElementById('apiStatus').textContent = 'متصل'; // از وضعیت واقعی بگیر
+        const cacheCount = document.getElementById('cacheCount');
+        const totalSymbols = document.getElementById('totalSymbols');
+        const apiStatus = document.getElementById('apiStatus');
+        
+        if (cacheCount) cacheCount.textContent = '0';
+        if (totalSymbols) totalSymbols.textContent = this.top100Symbols.length;
+        if (apiStatus) apiStatus.textContent = 'متصل';
     }
 
     async loadHealthStatus() {
@@ -233,27 +272,43 @@ class VortexApp {
             const response = await fetch('/api/system/status');
             const data = await response.json();
             
-            this.displayEndpointsHealth(data.endpoints_health);
-            this.displaySystemMetrics(data.system_metrics);
+            this.displayEndpointsHealth(data.endpoints_health || {});
+            this.displaySystemMetrics(data.system_metrics || {});
             this.displayLogs(data);
             
         } catch (error) {
             console.error('خطا در دریافت وضعیت سلامت:', error);
+            this.displayHealthError(error);
         }
     }
 
     displayEndpointsHealth(endpoints) {
         const container = document.getElementById('endpointsList');
-        if (!endpoints) return;
+        if (!container) return;
+
+        if (Object.keys(endpoints).length === 0) {
+            container.innerHTML = '<div class="endpoint-item">داده‌ای برای نمایش موجود نیست</div>';
+            return;
+        }
 
         let html = '';
         for (const [endpoint, info] of Object.entries(endpoints)) {
             const statusClass = info.status === 'success' ? 'status-success' : 'status-error';
+            const statusText = info.status === 'success' ? 'فعال' : 'خطا';
+            const responseTime = info.response_time ? `${info.response_time}ms` : '--';
+            const errorCode = info.error_code ? `کد: ${info.error_code}` : '';
+            
             html += `
                 <div class="endpoint-item">
-                    <span class="endpoint-name">${endpoint}</span>
+                    <div class="endpoint-info">
+                        <div class="endpoint-name">${endpoint}</div>
+                        <div class="endpoint-details">
+                            <span class="response-time">${responseTime}</span>
+                            ${errorCode ? `<span class="error-code">${errorCode}</span>` : ''}
+                        </div>
+                    </div>
                     <span class="endpoint-status ${statusClass}">
-                        ${info.status === 'success' ? 'فعال' : 'خطا'}
+                        ${statusText}
                     </span>
                 </div>
             `;
@@ -263,23 +318,26 @@ class VortexApp {
 
     displaySystemMetrics(metrics) {
         const container = document.getElementById('systemMetrics');
-        if (!metrics) return;
+        if (!container) return;
 
         container.innerHTML = `
             <div class="metric-item">مصرف CPU: ${metrics.cpu?.percent || 0}%</div>
             <div class="metric-item">مصرف RAM: ${metrics.memory?.percent || 0}%</div>
             <div class="metric-item">فضای دیسک: ${metrics.disk?.percent || 0}%</div>
+            <div class="metric-item">آپتایم: ${metrics.uptime_seconds ? Math.floor(metrics.uptime_seconds / 3600) + 'h' : '--'}</div>
         `;
     }
 
     displayLogs(data) {
         const container = document.getElementById('logsContainer');
+        if (!container) return;
+
         const timestamp = new Date().toLocaleString('fa-IR');
         
         let logs = `
             <div class="log-entry">
                 <span class="log-time">${timestamp}</span>
-                وضعیت سیستم: ${data.status}
+                وضعیت سیستم: ${data.status || 'نامشخص'}
             </div>
         `;
 
@@ -292,7 +350,39 @@ class VortexApp {
             `;
         }
 
+        if (data.timestamp) {
+            logs += `
+                <div class="log-entry">
+                    <span class="log-time">${timestamp}</span>
+                    آخرین بروزرسانی: ${new Date(data.timestamp).toLocaleString('fa-IR')}
+                </div>
+            `;
+        }
+
         container.innerHTML = logs;
+    }
+
+    displayHealthError(error) {
+        const endpointsList = document.getElementById('endpointsList');
+        const logsContainer = document.getElementById('logsContainer');
+        
+        if (endpointsList) {
+            endpointsList.innerHTML = `
+                <div class="endpoint-item error">
+                    <span class="endpoint-name">خطا در دریافت داده‌های سلامت</span>
+                    <span class="endpoint-status status-error">قطع</span>
+                </div>
+            `;
+        }
+        
+        if (logsContainer) {
+            logsContainer.innerHTML = `
+                <div class="log-entry error">
+                    <span class="log-time">${new Date().toLocaleString('fa-IR')}</span>
+                    خطا در اتصال به API: ${error.message}
+                </div>
+            `;
+        }
     }
 
     loadSettings() {
@@ -300,8 +390,11 @@ class VortexApp {
         const savedBatchSize = localStorage.getItem('vortex_batchSize') || '25';
         const savedCacheTTL = localStorage.getItem('vortex_cacheTTL') || '300';
         
-        document.getElementById('batchSize').value = savedBatchSize;
-        document.getElementById('cacheTTL').value = savedCacheTTL;
+        const batchSizeSelect = document.getElementById('batchSize');
+        const cacheTTLSelect = document.getElementById('cacheTTL');
+        
+        if (batchSizeSelect) batchSizeSelect.value = savedBatchSize;
+        if (cacheTTLSelect) cacheTTLSelect.value = savedCacheTTL;
         
         this.batchSize = parseInt(savedBatchSize);
     }
@@ -314,13 +407,13 @@ class VortexApp {
         localStorage.setItem('vortex_cacheTTL', cacheTTL);
         
         this.batchSize = parseInt(batchSize);
-        alert('تنظیمات ذخیره شد');
+        alert('تنظیمات با موفقیت ذخیره شد');
     }
 
     clearCache() {
         // پاکسازی کش
         localStorage.clear();
-        alert('کش سیستم پاکسازی شد');
+        alert('کش سیستم با موفقیت پاکسازی شد');
     }
 }
 
@@ -357,14 +450,21 @@ class ScanSession {
 
                 const batch = batches[i];
                 await this.processBatch(batch, i + 1, batches.length);
+                
+                // تاخیر بین دسته‌ها برای جلوگیری از rate limit
+                if (i < batches.length - 1 && !this.isCancelled) {
+                    await this.delay(500);
+                }
             }
 
             if (!this.isCancelled) {
                 this.displayResults();
+                this.showCompletionMessage();
             }
 
         } catch (error) {
             console.error('خطا در اسکن:', error);
+            this.showError('خطا در انجام اسکن: ' + error.message);
         } finally {
             vortexApp.hideLoading();
         }
@@ -372,9 +472,18 @@ class ScanSession {
 
     async processBatch(batch, batchNumber, totalBatches) {
         const batchPromises = batch.map(symbol => this.scanSymbol(symbol));
-        const batchResults = await Promise.all(batchPromises);
+        const batchResults = await Promise.allSettled(batchPromises);
         
-        this.results.push(...batchResults);
+        // پردازش نتایج
+        const successfulResults = batchResults
+            .filter(result => result.status === 'fulfilled' && result.value.success)
+            .map(result => result.value);
+        
+        const failedResults = batchResults
+            .filter(result => result.status === 'fulfilled' && !result.value.success)
+            .map(result => result.value);
+
+        this.results.push(...successfulResults, ...failedResults);
         this.completed += batch.length;
 
         this.updateLoadingUI(batch, batchNumber, totalBatches);
@@ -386,8 +495,18 @@ class ScanSession {
             const endpoint = this.mode === 'ai' ? 
                 `/api/scan/ai/${symbol}` : `/api/scan/basic/${symbol}`;
             
-            const response = await fetch(endpoint);
-            if (!response.ok) throw new Error('خطا در دریافت داده');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // تایم‌اوت 10 ثانیه
+            
+            const response = await fetch(endpoint, {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
 
             const data = await response.json();
             return {
@@ -398,6 +517,7 @@ class ScanSession {
             };
 
         } catch (error) {
+            console.error(`خطا در اسکن ${symbol}:`, error);
             return {
                 symbol,
                 success: false,
@@ -414,43 +534,58 @@ class ScanSession {
         const speed = elapsed > 0 ? Math.round((this.completed / elapsed) * 60) : 0;
 
         // آپدیت UI
-        document.getElementById('progressText').textContent = `${this.completed}/${total}`;
-        document.getElementById('progressPercent').textContent = `${percent}%`;
-        document.getElementById('progressFill').style.width = `${percent}%`;
-        document.getElementById('elapsedTime').textContent = this.formatTime(elapsed);
-        document.getElementById('scanSpeed').textContent = `${speed}/دقیقه`;
+        const progressText = document.getElementById('progressText');
+        const progressPercent = document.getElementById('progressPercent');
+        const progressFill = document.getElementById('progressFill');
+        const elapsedTime = document.getElementById('elapsedTime');
+        const scanSpeed = document.getElementById('scanSpeed');
+        const loadingTitle = document.getElementById('loadingTitle');
+
+        if (progressText) progressText.textContent = `${this.completed}/${total}`;
+        if (progressPercent) progressPercent.textContent = `${percent}%`;
+        if (progressFill) progressFill.style.width = `${percent}%`;
+        if (elapsedTime) elapsedTime.textContent = this.formatTime(elapsed);
+        if (scanSpeed) scanSpeed.textContent = `${speed}/دقیقه`;
+        if (loadingTitle) {
+            loadingTitle.textContent = `اسکن ${this.mode === 'ai' ? 'داده کامل' : 'داده بهینه'} - دسته ${batchNumber}/${totalBatches}`;
+        }
 
         // نمایش ارزهای در حال اسکن
         const scanningList = document.getElementById('scanningList');
-        if (currentBatch.length > 0) {
+        if (scanningList && currentBatch.length > 0) {
             scanningList.innerHTML = currentBatch
-                .slice(0, 3)
-                .map(symbol => `<span class="coin-tag">${symbol.toUpperCase()}</span>`)
+                .slice(0, 5)
+                .map(symbol => `<span class="coin-tag scanning">${symbol.toUpperCase()}</span>`)
                 .join('');
         }
 
         // نمایش ارزهای تکمیل شده
         const completedList = document.getElementById('completedList');
-        const completedSymbols = this.results
-            .slice(-5)
-            .filter(r => r.success)
-            .map(r => r.symbol);
-        
-        completedList.innerHTML = completedSymbols
-            .map(symbol => `<span class="coin-tag">${symbol.toUpperCase()}</span>`)
-            .join('');
+        if (completedList) {
+            const completedSymbols = this.results
+                .slice(-8)
+                .map(r => r.symbol);
+            
+            completedList.innerHTML = completedSymbols
+                .map(symbol => `<span class="coin-tag completed">${symbol.toUpperCase()}</span>`)
+                .join('');
+        }
     }
 
     displayPartialResults() {
         const container = document.getElementById('resultsGrid');
         const countElement = document.getElementById('resultsCount');
         
-        countElement.textContent = `${this.results.length} مورد`;
+        if (countElement) {
+            const successCount = this.results.filter(r => r.success).length;
+            const totalCount = this.results.length;
+            countElement.textContent = `${successCount}/${totalCount} مورد`;
+        }
         
-        if (this.results.length === 0) return;
-
-        const html = this.results.map(result => this.createCoinCard(result)).join('');
-        container.innerHTML = html;
+        if (container && this.results.length > 0) {
+            const html = this.results.map(result => this.createCoinCard(result)).join('');
+            container.innerHTML = `<div class="coin-grid">${html}</div>`;
+        }
     }
 
     displayResults() {
@@ -462,14 +597,17 @@ class ScanSession {
             return `
                 <div class="coin-card error">
                     <div class="coin-header">
-                        <span class="coin-name">${result.symbol.toUpperCase()}</span>
-                        <span class="coin-price">خطا</span>
-                    </div>
-                    <div class="coin-details">
-                        <div class="detail-item">
-                            <span class="detail-label">پیام:</span>
-                            <span>${result.error}</span>
+                        <div class="coin-icon">❌</div>
+                        <div class="coin-basic-info">
+                            <div class="coin-symbol">${result.symbol.toUpperCase()}</div>
+                            <div class="coin-name">خطا در دریافت داده</div>
                         </div>
+                    </div>
+                    <div class="error-message">
+                        ${result.error}
+                    </div>
+                    <div class="coin-footer">
+                        <span class="data-freshness">${this.getDataFreshness(result.timestamp)}</span>
                     </div>
                 </div>
             `;
@@ -478,33 +616,149 @@ class ScanSession {
         const data = result.data.data || {};
         const displayData = data.display_data || {};
         const analysis = data.analysis || {};
+        
+        const price = displayData.price || 0;
+        const change = displayData.price_change_24h || displayData.priceChange1d || 0;
+        const changeClass = change >= 0 ? 'positive' : 'negative';
+        const changeSymbol = change >= 0 ? '▲' : '▼';
+        
+        const volume = displayData.volume_24h || displayData.volume || 0;
+        const marketCap = displayData.market_cap || displayData.marketCap || 0;
+        const rank = displayData.rank || '--';
+        
+        const signal = analysis.signal || 'HOLD';
+        const confidence = analysis.confidence || 0.5;
+        const signalText = this.getSignalText(signal);
+        const signalClass = this.getSignalClass(signal);
 
         return `
             <div class="coin-card">
                 <div class="coin-header">
-                    <span class="coin-name">${result.symbol.toUpperCase()}</span>
-                    <span class="coin-price">$${displayData.price || 0}</span>
+                    <div class="coin-icon">${this.getCoinSymbol(result.symbol)}</div>
+                    <div class="coin-basic-info">
+                        <div class="coin-symbol">${result.symbol.toUpperCase()}</div>
+                        <div class="coin-name">${displayData.name || 'Unknown'}</div>
+                    </div>
+                    <div class="coin-price-section">
+                        <div class="coin-price">$${this.formatPrice(price)}</div>
+                        <div class="price-change ${changeClass}">
+                            ${changeSymbol} ${Math.abs(change).toFixed(2)}%
+                        </div>
+                    </div>
                 </div>
-                <div class="coin-details">
-                    <div class="detail-item">
-                        <span class="detail-label">تغییر 24h:</span>
-                        <span>${displayData.price_change_24h || 0}%</span>
+
+                <div class="coin-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">حجم 24h</span>
+                        <span class="stat-value">${this.formatNumber(volume)}</span>
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">حجم:</span>
-                        <span>${this.formatNumber(displayData.volume_24h || 0)}</span>
+                    <div class="stat-item">
+                        <span class="stat-label">مارکت کپ</span>
+                        <span class="stat-value">${this.formatNumber(marketCap)}</span>
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">سیگنال:</span>
-                        <span>${analysis.signal || 'HOLD'}</span>
+                    <div class="stat-item">
+                        <span class="stat-label">رتبه</span>
+                        <span class="stat-value">#${rank}</span>
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">اعتماد:</span>
-                        <span>${Math.round((analysis.confidence || 0) * 100)}%</span>
+                    <div class="stat-item">
+                        <span class="stat-label">نوسان</span>
+                        <span class="stat-value">${analysis.volatility || 0}%</span>
                     </div>
+                </div>
+
+                <div class="coin-analysis">
+                    <div class="signal-badge ${signalClass}">${signalText}</div>
+                    <div class="confidence-meter">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                        </div>
+                        <div class="confidence-text">سطح اعتماد: ${Math.round(confidence * 100)}%</div>
+                    </div>
+                </div>
+
+                <div class="coin-footer">
+                    <span class="data-freshness">${this.getDataFreshness(result.timestamp)}</span>
+                    ${this.mode === 'ai' ? '<span class="ai-badge">AI Analysis</span>' : ''}
                 </div>
             </div>
         `;
+    }
+
+    // توابع کمکی
+    getCoinSymbol(symbol) {
+        const symbolsMap = {
+            'bitcoin': '₿',
+            'ethereum': 'Ξ',
+            'tether': '₮',
+            'ripple': 'X',
+            'binancecoin': 'BNB',
+            'solana': 'SOL',
+            'usd-coin': 'USDC',
+            'staked-ether': 'ETH2',
+            'tron': 'TRX',
+            'dogecoin': 'DOGE',
+            'cardano': 'ADA',
+            'polkadot': 'DOT',
+            'chainlink': 'LINK',
+            'litecoin': 'LTC',
+            'bitcoin-cash': 'BCH',
+            'stellar': 'XLM',
+            'monero': 'XMR',
+            'ethereum-classic': 'ETC',
+            'vechain': 'VET',
+            'theta-token': 'THETA'
+        };
+        return symbolsMap[symbol] || symbol.substring(0, 3).toUpperCase();
+    }
+
+    getSignalText(signal) {
+        const signals = {
+            'STRONG_BUY': 'خرید قوی',
+            'BUY': 'خرید',
+            'HOLD': 'نگهداری',
+            'SELL': 'فروش',
+            'STRONG_SELL': 'فروش قوی'
+        };
+        return signals[signal] || signal;
+    }
+
+    getSignalClass(signal) {
+        const classes = {
+            'STRONG_BUY': 'signal-buy',
+            'BUY': 'signal-buy',
+            'HOLD': 'signal-hold',
+            'SELL': 'signal-sell',
+            'STRONG_SELL': 'signal-sell'
+        };
+        return classes[signal] || 'signal-hold';
+    }
+
+    formatPrice(price) {
+        if (price === 0) return '0.00';
+        if (price < 0.01) return price.toFixed(6);
+        if (price < 1) return price.toFixed(4);
+        if (price < 1000) return price.toFixed(2);
+        return price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    }
+
+    formatNumber(num) {
+        if (num === 0) return '0';
+        if (num < 1000) return num.toString();
+        if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
+        if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num < 1000000000000) return (num / 1000000000).toFixed(1) + 'B';
+        return (num / 1000000000000).toFixed(1) + 'T';
+    }
+
+    getDataFreshness(timestamp) {
+        const now = new Date();
+        const dataTime = new Date(timestamp);
+        const diffMinutes = Math.round((now - dataTime) / (1000 * 60));
+        
+        if (diffMinutes < 1) return 'همین لحظه';
+        if (diffMinutes < 5) return 'دقایقی پیش';
+        if (diffMinutes < 30) return 'اخیراً';
+        return 'قدیمی';
     }
 
     formatTime(seconds) {
@@ -513,18 +767,26 @@ class ScanSession {
         return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
 
-    formatNumber(num) {
-        if (num >= 1000000) {
-            return (num / 1000000).toFixed(1) + 'M';
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    showCompletionMessage() {
+        const successCount = this.results.filter(r => r.success).length;
+        const totalCount = this.results.length;
+        
+        if (successCount > 0) {
+            console.log(`اسکن با موفقیت تکمیل شد: ${successCount}/${totalCount} ارز`);
         }
-        if (num >= 1000) {
-            return (num / 1000).toFixed(1) + 'K';
-        }
-        return num.toString();
+    }
+
+    showError(message) {
+        alert(message);
     }
 
     cancel() {
         this.isCancelled = true;
+        console.log('اسکن لغو شد');
     }
 }
 
