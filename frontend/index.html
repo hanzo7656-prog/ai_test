@@ -32,6 +32,7 @@
             background: var(--bg);
             color: var(--text);
             line-height: 1.6;
+            overflow-x: hidden;
         }
 
         .header {
@@ -361,6 +362,69 @@
             color: var(--error);
         }
 
+        /* لودینگ جدید */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-container {
+            width: 80%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .loading-title {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            color: var(--text);
+        }
+
+        .loading-progress {
+            width: 100%;
+            height: 12px;
+            background: var(--surface);
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            border-radius: 6px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .loading-percentage {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .loading-text {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .loading-steps {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+
         /* وضعیت‌ها */
         .loading {
             text-align: center;
@@ -433,19 +497,50 @@
             color: white;
         }
 
+        /* منوی کشویی برای موبایل */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
         /* رسپانسیو */
         @media (max-width: 768px) {
             .header-content {
                 padding: 0.75rem;
             }
 
+            .mobile-menu-toggle {
+                display: block;
+            }
+
             .nav-menu {
-                gap: 1rem;
+                position: fixed;
+                top: 70px;
+                right: -100%;
+                width: 80%;
+                height: calc(100vh - 70px);
+                background: var(--surface);
+                flex-direction: column;
+                padding: 2rem;
+                transition: right 0.3s ease;
+                box-shadow: var(--shadow-lg);
+                border-left: 1px solid var(--border);
+                z-index: 999;
+            }
+
+            .nav-menu.active {
+                right: 0;
             }
 
             .nav-link {
-                padding: 0.5rem;
-                font-size: 0.9rem;
+                padding: 1rem;
+                font-size: 1rem;
+                display: block;
+                border-radius: 8px;
             }
 
             .main-content {
@@ -470,15 +565,17 @@
 
         @media (max-width: 480px) {
             .header-content {
-                flex-direction: column;
-                height: auto;
-                gap: 1rem;
-                padding: 1rem;
+                flex-direction: row;
+                height: 70px;
+                gap: 0;
             }
 
-            .nav-menu {
-                flex-wrap: wrap;
-                justify-content: center;
+            .nav-brand {
+                font-size: 1.2rem;
+            }
+
+            .api-status {
+                font-size: 0.8rem;
             }
         }
     </style>
@@ -489,18 +586,20 @@
         <div class="header-content">
             <a href="#" class="nav-brand" onclick="loadSection('dashboard'); return false;">VortexAI</a>
             
-            <ul class="nav-menu">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
+            
+            <ul class="nav-menu" id="navMenu">
                 <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('dashboard'); return false;">داشبورد</a>
+                    <a href="#" class="nav-link" onclick="loadSection('dashboard'); closeMobileMenu(); return false;">داشبورد</a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('scan'); return false;">اسکن بازار</a>
+                    <a href="#" class="nav-link" onclick="loadSection('scan'); closeMobileMenu(); return false;">اسکن بازار</a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('health'); return false;">سلامت سیستم</a>
+                    <a href="#" class="nav-link" onclick="loadSection('health'); closeMobileMenu(); return false;">سلامت سیستم</a>
                 </li>
                 <li class="nav-item">
-                    <a href="#" class="nav-link" onclick="loadSection('settings'); return false;">تنظیمات</a>
+                    <a href="#" class="nav-link" onclick="loadSection('settings'); closeMobileMenu(); return false;">تنظیمات</a>
                 </li>
             </ul>
 
@@ -510,6 +609,19 @@
             </div>
         </div>
     </header>
+
+    <!-- لودینگ بار -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-container">
+            <h2 class="loading-title">VortexAI</h2>
+            <div class="loading-progress">
+                <div class="loading-bar" id="loadingBar"></div>
+            </div>
+            <div class="loading-percentage" id="loadingPercentage">0%</div>
+            <div class="loading-text" id="loadingText">در حال راه‌اندازی سیستم...</div>
+            <div class="loading-steps" id="loadingSteps"></div>
+        </div>
+    </div>
 
     <!-- محتوای اصلی -->
     <main class="main-content">
@@ -523,6 +635,78 @@
         let aiMode = false;
         let apiStatus = 'checking';
         let lastData = null;
+
+        // نمایش لودینگ بار
+        function showLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = 'flex';
+            
+            // شبیه‌سازی پیشرفت بار
+            let progress = 0;
+            const bar = document.getElementById('loadingBar');
+            const percentage = document.getElementById('loadingPercentage');
+            const text = document.getElementById('loadingText');
+            const steps = document.getElementById('loadingSteps');
+            
+            const stepsList = [
+                "بررسی اتصال به شبکه...",
+                "بارگذاری ماژول‌های تحلیل...",
+                "بررسی وضعیت API...",
+                "بارگذاری داده‌های بازار...",
+                "آماده‌سازی رابط کاربری...",
+                "تکمیل راه‌اندازی..."
+            ];
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 100) progress = 100;
+                
+                bar.style.width = `${progress}%`;
+                percentage.textContent = `${Math.round(progress)}%`;
+                
+                // تغییر متن بر اساس پیشرفت
+                if (progress < 20) {
+                    text.textContent = stepsList[0];
+                    steps.textContent = "مرحله 1 از 6";
+                } else if (progress < 35) {
+                    text.textContent = stepsList[1];
+                    steps.textContent = "مرحله 2 از 6";
+                } else if (progress < 50) {
+                    text.textContent = stepsList[2];
+                    steps.textContent = "مرحله 3 از 6";
+                } else if (progress < 65) {
+                    text.textContent = stepsList[3];
+                    steps.textContent = "مرحله 4 از 6";
+                } else if (progress < 85) {
+                    text.textContent = stepsList[4];
+                    steps.textContent = "مرحله 5 از 6";
+                } else {
+                    text.textContent = stepsList[5];
+                    steps.textContent = "مرحله 6 از 6";
+                }
+                
+                if (progress === 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        overlay.style.opacity = '0';
+                        setTimeout(() => {
+                            overlay.style.display = 'none';
+                        }, 500);
+                    }, 500);
+                }
+            }, 200);
+        }
+
+        // مدیریت منوی موبایل
+        function toggleMobileMenu() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.toggle('active');
+        }
+
+        function closeMobileMenu() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.remove('active');
+        }
 
         // تست اتصال API
         async function checkAPIStatus() {
@@ -928,6 +1112,7 @@
 
         // راه‌اندازی اولیه
         window.addEventListener('load', async function() {
+            showLoading();
             await checkAPIStatus();
             loadSection('dashboard');
             
