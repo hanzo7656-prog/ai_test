@@ -67,17 +67,17 @@ class DataProcessor:
     
     @staticmethod
     def get_ai_scan_data(symbol: str, limit: int = 500) -> Dict[str, Any]:
-        """داده خام برای هوش مصنوعی تحلیلگر تکنیکال"""
+        """داده خام برای هوش مصنوعی تحلیلگر تکنیکال - کامل"""
         try:
             start_time = time.time()
-            
-            # دریافت داده‌های خام از API
+        
+            # ✅ دریافت همه داده‌های خام برای AI
             raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
             raw_charts = coin_stats_manager.get_coin_charts(symbol, "1w")
             market_context = coin_stats_manager.get_coins_list(limit=min(limit, 1000))
-            
+        
             response_time = round((time.time() - start_time) * 1000, 2)
-            
+        
             # ساختار داده خام برای AI
             ai_data = {
                 "data_type": "raw",
@@ -85,15 +85,14 @@ class DataProcessor:
                 "symbol": symbol,
                 "timestamp": datetime.now().isoformat(),
                 "response_time_ms": response_time,
-                
-                # داده‌های خام اصلی
+            
+                # ✅ همه داده‌های خام برای AI
                 "raw_data": {
                     "coin_details": raw_details,
                     "price_charts": raw_charts,
                     "market_context": market_context
                 },
-                
-                # متادیتای فنی
+            
                 "technical_metadata": {
                     "data_sources": ["coinstats_api"],
                     "update_frequency": "real_time",
@@ -101,9 +100,9 @@ class DataProcessor:
                     "fields_available": list(raw_details.keys()) if isinstance(raw_details, dict) else []
                 }
             }
-            
+        
             return ai_data
-            
+          
         except Exception as e:
             logger.error(f"خطا در دریافت داده AI برای {symbol}: {e}")
             return {
@@ -116,13 +115,13 @@ class DataProcessor:
     
     @staticmethod
     def get_basic_scan_data(symbol: str, limit: int = 100) -> Dict[str, Any]:
-        """داده پردازش شده برای نمایش معمولی"""
+        """داده پردازش شده برای نمایش معمولی - بهینه‌شده"""
         try:
             start_time = time.time()
-            
-            # دریافت داده خام
+        
+            # دریافت فقط داده‌های ضروری - نه همه چیز
             raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
-            
+        
             # بررسی خطا
             if isinstance(raw_details, dict) and "error" in raw_details:
                 return {
@@ -130,23 +129,16 @@ class DataProcessor:
                     "error": raw_details["error"],
                     "symbol": symbol
                 }
-            
-            # اگر داده یک لیست باشد (ساختار غیرمنتظره)
+        
+            # اگر داده یک لیست باشد
             if isinstance(raw_details, list):
-                if len(raw_details) > 0:
-                    coin_data = raw_details[0]  # اولین آیتم را بگیر
-                else:
-                    return {
-                        "success": False,
-                        "error": "داده‌ای دریافت نشد",
-                        "symbol": symbol
-                    }
+                coin_data = raw_details[0] if len(raw_details) > 0 else {}
             else:
-                coin_data = raw_details  # مستقیماً استفاده کن
-            
+                coin_data = raw_details
+        
             response_time = round((time.time() - start_time) * 1000, 2)
-            
-            # پردازش برای نمایش کاربرپسند
+        
+            # ✅ فقط فیلدهای ضروری برای Manual
             processed_data = {
                 "data_type": "processed",
                 "purpose": "basic_display",
@@ -154,23 +146,18 @@ class DataProcessor:
                 "symbol": symbol,
                 "response_time_ms": response_time,
                 "timestamp": datetime.now().isoformat(),
-                
-                # داده‌های نمایشی
+            
+                # داده‌های نمایشی - فقط ضروری‌ها
                 "display_data": {
                     "name": coin_data.get('name', 'Unknown'),
                     "symbol": coin_data.get('symbol', 'UNKNOWN'),
                     "price": coin_data.get('price', 0),
-                    "price_formatted": f"${coin_data.get('price', 0):,.2f}",
                     "price_change_24h": coin_data.get('priceChange1d', 0),
-                    "price_change_24h_formatted": f"{coin_data.get('priceChange1d', 0):+.2f}%",
                     "volume_24h": coin_data.get('volume', 0),
-                    "volume_24h_formatted": f"${coin_data.get('volume', 0):,.0f}",
                     "market_cap": coin_data.get('marketCap', 0),
-                    "market_cap_formatted": f"${coin_data.get('marketCap', 0):,.0f}",
-                    "rank": coin_data.get('rank', 0),
-                    "rank_formatted": f"#{coin_data.get('rank', 0)}"
+                    "rank": coin_data.get('rank', 0)
                 },
-                
+            
                 # تحلیل‌های ساده
                 "analysis": {
                     "signal": DataProcessor._generate_signal(coin_data),
@@ -178,20 +165,11 @@ class DataProcessor:
                     "trend": DataProcessor._analyze_trend(coin_data),
                     "risk_level": DataProcessor._assess_risk(coin_data),
                     "volatility": DataProcessor._calculate_volatility(coin_data)
-                },
-                
-                # اطلاعات اضافی
-                "metadata": {
-                    "website": coin_data.get('websiteUrl'),
-                    "social_links": {
-                        "twitter": coin_data.get('twitterUrl'),
-                        "reddit": coin_data.get('redditUrl')
-                    }
                 }
             }
-            
+         
             return processed_data
-            
+          
         except Exception as e:
             logger.error(f"خطا در پردازش داده {symbol}: {e}")
             return {
@@ -201,6 +179,20 @@ class DataProcessor:
                 "symbol": symbol,
                 "timestamp": datetime.now().isoformat()
             }
+
+
+    @staticmethod
+    def get_essential_fields(coin_data: Dict) -> Dict[str, Any]:
+        """فقط فیلدهای ضروری برای نمایش Manual"""
+        return {
+            "name": coin_data.get('name'),
+            "symbol": coin_data.get('symbol'),
+            "price": coin_data.get('price'),
+            "price_change_24h": coin_data.get('priceChange1d'),
+            "volume_24h": coin_data.get('volume'),
+            "market_cap": coin_data.get('marketCap'),
+            "rank": coin_data.get('rank')
+        }
     
     @staticmethod
     def _generate_signal(coin_data: Dict) -> str:
@@ -434,8 +426,9 @@ async def process_raw_batch_scan(symbols: List[str], batch_size: int):
             status="error"
         )
 
+
 async def process_processed_batch_scan(symbols: List[str], batch_size: int):
-    """پردازش اسکن دسته‌ای پردازش شده"""
+    """پردازش اسکن دسته‌ای پردازش شده - بهینه‌شده"""
     try:
         logger.info(f"🚀 شروع اسکن دسته‌ای پردازش شده برای {len(symbols)} ارز")
         
@@ -453,14 +446,15 @@ async def process_processed_batch_scan(symbols: List[str], batch_size: int):
             
             for symbol in batch_symbols:
                 try:
-                    # دریافت داده پردازش شده
+                    # ✅ استفاده از داده‌های بهینه‌شده
                     processed_data = DataProcessor.get_basic_scan_data(symbol)
                     
                     # ذخیره در GitHub DB
                     github_cache.save_live_data(symbol, {
                         "scan_type": "processed", 
                         "data": processed_data,
-                        "batch_number": batch_num + 1
+                        "batch_number": batch_num + 1,
+                        "timestamp": datetime.now().isoformat()
                     })
                     
                     batch_results.append({
@@ -503,7 +497,6 @@ async def process_processed_batch_scan(symbols: List[str], batch_size: int):
             current_batch=0,
             status="error"
         )
-
 # ==================== روت‌های اصلی API ====================
 
 @app.get("/")
