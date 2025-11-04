@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VortexAI - سیستم تحلیل هوشمند بازار</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- هدر -->
+    <header class="header">
+        <div class="header-content">
+            <a href="#" class="nav-brand" onclick="loadSection('dashboard')">VortexAI</a>
+            
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li class="nav-item"><a href="#" class="nav-link" onclick="loadSection('dashboard')">داشبورد</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" onclick="loadSection('scan')">اسکن بازار</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" onclick="loadSection('health')">سلامت سیستم</a></li>
+                <li class="nav-item"><a href="#" class="nav-link" onclick="loadSection('settings')">تنظیمات</a></li>
+            </ul>
+
+            <div class="api-status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">در حال اتصال...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- محتوای اصلی -->
+    <main class="main-content">
+        <div id="content">
+            <!-- محتوای داینامیک -->
+        </div>
+    </main>
+
+    <!-- لودینگ هوشمند -->
+    <div id="smartLoading" class="smart-loading-overlay">
+        <div class="smart-loading-container">
+            <div class="loading-header">
+                <h3 id="loadingTitle">در حال اسکن بازار</h3>
+                <button class="btn-outline btn-sm" onclick="cancelScan()">لغو اسکن</button>
+            </div>
+            
+            <div class="progress-section">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="smartProgressBar"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progressPercent">0%</span>
+                    <span id="progressCount">0/0</span>
+                </div>
+            </div>
+
+            <div class="time-stats">
+                <div class="time-item">
+                    <span>⏱️ زمان سپری شده:</span>
+                    <span id="elapsedTime">0:00</span>
+                </div>
+                <div class="time-item">
+                    <span>⏳ زمان باقی‌مانده:</span>
+                    <span id="remainingTime">0:00</span>
+                </div>
+                <div class="time-item">
+                    <span>🚀 سرعت اسکن:</span>
+                    <span id="scanSpeed">0 ارز/دقیقه</span>
+                </div>
+            </div>
+
+            <div class="scan-details">
+                <div class="detail-section">
+                    <h4>🔍 در حال اسکن:</h4>
+                    <div id="currentScanning" class="coins-list"></div>
+                </div>
+                <div class="detail-section">
+                    <h4>✅ تکمیل شده:</h4>
+                    <div id="completedScan" class="coins-list"></div>
+                </div>
+            </div>
+
+            <div class="batch-info">
+                <span>📦 دسته: <span id="batchInfo">0/0</span></span>
+                <span>🎯 حالت: <span id="scanModeInfo">Manual</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- اسکریپت‌ها -->
+    <script src="cache-manager.js"></script>
+    <script src="smart-loading.js"></script>
+    <script src="optimized-scanner.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
