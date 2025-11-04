@@ -142,20 +142,38 @@
             color: var(--text);
         }
 
-        /* کلید AI */
-        .ai-toggle {
+        /* کنترل‌های اسکن */
+        .scan-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .control-group {
+            background: var(--bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .control-title {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .toggle-group {
             display: flex;
             align-items: center;
             gap: 1rem;
-            padding: 1rem;
-            background: var(--bg);
-            border-radius: 12px;
-            border: 1px solid var(--border);
+            margin-bottom: 1rem;
         }
 
         .toggle-label {
             font-weight: 500;
             color: var(--text-light);
+            min-width: 120px;
         }
 
         .toggle-switch {
@@ -187,52 +205,219 @@
             left: 30px;
         }
 
-        /* لیست نمادها */
+        .coin-selector {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            justify-content: center;
+            min-width: 140px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #0da271);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning), #d97706);
+        }
+
+        /* پیشرفت اسکن */
+        .progress-section {
+            margin-bottom: 2rem;
+        }
+
+        .progress-card {
+            background: var(--bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .progress-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-stat {
+            text-align: center;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 8px;
+        }
+
+        .progress-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .progress-label {
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background: var(--surface);
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+            border-radius: 6px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* گرید ارزها */
         .symbols-grid {
             display: grid;
-            gap: 1rem;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
         }
 
         .symbol-card {
-            display: grid;
-            grid-template-columns: 80px 1fr auto;
-            gap: 1rem;
-            align-items: center;
-            padding: 1.25rem;
-            border: 1px solid var(--border);
-            border-radius: 12px;
             background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
 
         .symbol-card:hover {
-            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
             border-color: var(--primary);
+        }
+
+        .symbol-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .coin-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .coin-icon img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .symbol-info {
+            flex: 1;
         }
 
         .symbol-name {
             font-weight: bold;
             color: var(--text);
             font-size: 1.1rem;
-            font-family: monospace;
+            margin-bottom: 0.25rem;
         }
 
-        .price-info {
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
+        .symbol-fullname {
+            color: var(--text-light);
+            font-size: 0.9rem;
         }
 
-        .price {
-            color: var(--text);
-            font-family: monospace;
+        .price-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .price-item {
+            text-align: center;
+            padding: 0.75rem;
+            background: var(--bg);
+            border-radius: 8px;
+        }
+
+        .price-label {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            margin-bottom: 0.25rem;
+        }
+
+        .price-value {
             font-size: 1.1rem;
             font-weight: bold;
-        }
-
-        .change {
-            font-size: 0.9rem;
-            font-weight: 600;
+            color: var(--text);
+            font-family: monospace;
         }
 
         .change.positive {
@@ -243,187 +428,66 @@
             color: var(--error);
         }
 
-        .signal {
+        .analysis-section {
+            border-top: 1px solid var(--border);
+            padding-top: 1rem;
+        }
+
+        .signal-badge {
+            display: inline-block;
             padding: 0.5rem 1rem;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: bold;
             text-align: center;
-            min-width: 80px;
-            border: 1px solid transparent;
-        }
-
-        .signal.buy {
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--success);
-            border-color: var(--success);
-        }
-
-        .signal.sell {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--error);
-            border-color: var(--error);
-        }
-
-        .signal.hold {
-            background: rgba(245, 158, 11, 0.2);
-            color: var(--warning);
-            border-color: var(--warning);
-        }
-
-        /* وضعیت سیستم */
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .metric-card {
-            background: var(--bg);
-            padding: 1.25rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
-
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--primary);
             margin-bottom: 0.5rem;
         }
 
-        .metric-label {
-            font-size: 0.9rem;
-            color: var(--text-light);
-        }
-
-        /* لاگ‌ها */
-        .logs-container {
-            background: var(--bg);
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            max-height: 400px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.85rem;
-        }
-
-        .log-entry {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-
-        .log-time {
-            color: var(--text-light);
-            min-width: 120px;
-            font-size: 0.8rem;
-        }
-
-        .log-message {
-            color: var(--text);
-            flex: 1;
-        }
-
-        .log-level {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: bold;
-            min-width: 60px;
-            text-align: center;
-        }
-
-        .level-info {
-            background: rgba(59, 130, 246, 0.2);
-            color: #3b82f6;
-        }
-
-        .level-success {
+        .signal-buy {
             background: rgba(16, 185, 129, 0.2);
             color: var(--success);
+            border: 1px solid var(--success);
         }
 
-        .level-warning {
-            background: rgba(245, 158, 11, 0.2);
-            color: var(--warning);
-        }
-
-        .level-error {
+        .signal-sell {
             background: rgba(239, 68, 68, 0.2);
             color: var(--error);
+            border: 1px solid var(--error);
         }
 
-        /* لودینگ جدید */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
+        .signal-hold {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .confidence-bar {
             width: 100%;
-            height: 100%;
-            background: rgba(15, 23, 42, 0.95);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            transition: opacity 0.5s ease;
-        }
-
-        .loading-container {
-            width: 80%;
-            max-width: 500px;
-            text-align: center;
-        }
-
-        .loading-title {
-            font-size: 1.5rem;
-            margin-bottom: 2rem;
-            color: var(--text);
-        }
-
-        .loading-progress {
-            width: 100%;
-            height: 12px;
-            background: var(--surface);
-            border-radius: 6px;
-            margin-bottom: 1rem;
+            height: 6px;
+            background: var(--bg);
+            border-radius: 3px;
+            margin: 0.5rem 0;
             overflow: hidden;
         }
 
-        .loading-bar {
+        .confidence-fill {
             height: 100%;
-            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
-            border-radius: 6px;
-            width: 0%;
-            transition: width 0.3s ease;
+            background: linear-gradient(90deg, var(--error), var(--warning), var(--success));
+            border-radius: 3px;
         }
 
-        .loading-percentage {
-            font-size: 1.2rem;
+        .risk-tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
             font-weight: bold;
-            color: var(--primary);
-            margin-bottom: 1rem;
+            margin-top: 0.5rem;
         }
 
-        .loading-text {
-            color: var(--text-light);
-            font-size: 0.9rem;
-        }
-
-        .loading-steps {
-            margin-top: 1rem;
-            font-size: 0.8rem;
-            color: var(--text-light);
-        }
+        .risk-low { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .risk-medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .risk-high { background: rgba(239, 68, 68, 0.2); color: var(--error); }
 
         /* وضعیت‌ها */
         .loading {
@@ -464,40 +528,7 @@
             margin-bottom: 1rem;
         }
 
-        /* دکمه‌ها */
-        .btn {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: var(--primary);
-            border: 1px solid var(--primary);
-        }
-
-        .btn-outline:hover {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* منوی کشویی برای موبایل */
+        /* منوی موبایل */
         .mobile-menu-toggle {
             display: none;
             background: none;
@@ -548,34 +579,25 @@
                 padding: 1rem;
             }
 
-            .symbol-card {
+            .scan-controls {
                 grid-template-columns: 1fr;
-                text-align: center;
-                gap: 0.75rem;
+                gap: 1rem;
             }
 
-            .metrics-grid {
+            .symbols-grid {
                 grid-template-columns: 1fr;
             }
 
             .card {
                 padding: 1rem;
             }
-        }
 
-        @media (max-width: 480px) {
-            .header-content {
-                flex-direction: row;
-                height: 70px;
-                gap: 0;
+            .btn-group {
+                flex-direction: column;
             }
 
-            .nav-brand {
-                font-size: 1.2rem;
-            }
-
-            .api-status {
-                font-size: 0.8rem;
+            .btn {
+                min-width: auto;
             }
         }
     </style>
@@ -610,19 +632,6 @@
         </div>
     </header>
 
-    <!-- لودینگ بار -->
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-container">
-            <h2 class="loading-title">VortexAI</h2>
-            <div class="loading-progress">
-                <div class="loading-bar" id="loadingBar"></div>
-            </div>
-            <div class="loading-percentage" id="loadingPercentage">0%</div>
-            <div class="loading-text" id="loadingText">در حال راه‌اندازی سیستم...</div>
-            <div class="loading-steps" id="loadingSteps"></div>
-        </div>
-    </div>
-
     <!-- محتوای اصلی -->
     <main class="main-content">
         <div id="content">
@@ -635,67 +644,39 @@
         let aiMode = false;
         let apiStatus = 'checking';
         let lastData = null;
+        let scanProgress = {
+            total: 0,
+            completed: 0,
+            batchSize: 25,
+            status: 'idle'
+        };
 
-        // نمایش لودینگ بار
-        function showLoading() {
-            const overlay = document.getElementById('loadingOverlay');
-            overlay.style.display = 'flex';
-            
-            // شبیه‌سازی پیشرفت بار
-            let progress = 0;
-            const bar = document.getElementById('loadingBar');
-            const percentage = document.getElementById('loadingPercentage');
-            const text = document.getElementById('loadingText');
-            const steps = document.getElementById('loadingSteps');
-            
-            const stepsList = [
-                "بررسی اتصال به شبکه...",
-                "بارگذاری ماژول‌های تحلیل...",
-                "بررسی وضعیت API...",
-                "بارگذاری داده‌های بازار...",
-                "آماده‌سازی رابط کاربری...",
-                "تکمیل راه‌اندازی..."
-            ];
-            
-            const interval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress > 100) progress = 100;
-                
-                bar.style.width = `${progress}%`;
-                percentage.textContent = `${Math.round(progress)}%`;
-                
-                // تغییر متن بر اساس پیشرفت
-                if (progress < 20) {
-                    text.textContent = stepsList[0];
-                    steps.textContent = "مرحله 1 از 6";
-                } else if (progress < 35) {
-                    text.textContent = stepsList[1];
-                    steps.textContent = "مرحله 2 از 6";
-                } else if (progress < 50) {
-                    text.textContent = stepsList[2];
-                    steps.textContent = "مرحله 3 از 6";
-                } else if (progress < 65) {
-                    text.textContent = stepsList[3];
-                    steps.textContent = "مرحله 4 از 6";
-                } else if (progress < 85) {
-                    text.textContent = stepsList[4];
-                    steps.textContent = "مرحله 5 از 6";
-                } else {
-                    text.textContent = stepsList[5];
-                    steps.textContent = "مرحله 6 از 6";
-                }
-                
-                if (progress === 100) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                        overlay.style.opacity = '0';
-                        setTimeout(() => {
-                            overlay.style.display = 'none';
-                        }, 500);
-                    }, 500);
-                }
-            }, 200);
-        }
+        // لیست 100 ارز برتر
+        const top100Symbols = [
+            "bitcoin", "ethereum", "tether", "ripple", "binance-coin",
+            "solana", "usd-coin", "staked-ether", "tron", "dogecoin",
+            "cardano", "figure-heloc", "wrapped-bitcoin", "chainlink", 
+            "hyperliquid", "bitcoin-cash", "wrapped-eeth", "ethena-usde",
+            "stellar", "whitebit", "sui", "hedera-hashgraph", "avalanche-2",
+            "litecoin", "zcash", "monero", "shiba-inu", "the-open-network",
+            "dai", "crypto-com-chain", "polkadot", "bittensor", "memecore",
+            "mantle", "uniswap", "world-liberty-financial", "aave",
+            "blackrock-usd-institutional-digital-liquidity-fund", "internet-computer",
+            "paypal-usd", "bitget-token", "okb", "near", "pepe", "ethena",
+            "ethereum-classic", "falcon-finance", "tether-gold", "aptos",
+            "ondo-finance", "aster-2", "pi-network", "usdtb", "polygon-ecosystem-token",
+            "worldcoin-wld", "kucoin-shares", "dash", "rocket-pool-eth",
+            "binance-staked-sol", "arbitrum", "official-trump", "gatechain-token",
+            "algorand", "pump-fun", "syrupusdt", "pax-gold", "stakewise-v3-oseth",
+            "syrupusdc", "function-fbtc", "liquid-staked-ethereum", "vechain",
+            "cosmos", "story-2", "kaspa", "sky", "jupiter-exchange-solana",
+            "flare-networks", "quant", "nexo", "filecoin", "ripple-usd",
+            "render-token", "sei-network", "global-dollar", "first-digital-usd",
+            "xinfin-network", "pudgy-penguins", "bonk", "virtual-protocol",
+            "mantle-staked-ether", "morpho", "immutable-x", "hashnote-usyc",
+            "fasttoken", "ousg", "pancakeswap-token", "aerodrome-finance",
+            "cgeth-hashkey-cloud", "optimism", "ondo-us-dollar-yield"
+        ];
 
         // مدیریت منوی موبایل
         function toggleMobileMenu() {
@@ -711,13 +692,7 @@
         // تست اتصال API
         async function checkAPIStatus() {
             try {
-                const response = await fetch('/api/system/status', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
+                const response = await fetch('/api/system/status');
                 if (response.ok) {
                     apiStatus = 'connected';
                     updateStatusIndicator();
@@ -847,28 +822,119 @@
 
         // صفحه اسکن
         async function loadScan() {
-            const symbols = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'chainlink'];
-            
             return `
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">اسکن بازار</h2>
-                        <div class="ai-toggle">
-                            <span class="toggle-label">حالت هوش مصنوعی</span>
-                            <div class="toggle-switch ${aiMode ? 'active' : ''}" onclick="toggleAIMode()">
-                                <div class="toggle-slider"></div>
+                        <h2 class="card-title">اسکن بازار ارزهای دیجیتال</h2>
+                    </div>
+
+                    <!-- کنترل‌های اسکن -->
+                    <div class="scan-controls">
+                        <!-- کنترل اسکن تکی -->
+                        <div class="control-group">
+                            <h3 class="control-title">اسکن تکی</h3>
+                            
+                            <div class="toggle-group">
+                                <span class="toggle-label">حالت اسکن:</span>
+                                <div class="toggle-switch ${aiMode ? 'active' : ''}" onclick="toggleAIMode()">
+                                    <div class="toggle-slider"></div>
+                                </div>
+                                <span>${aiMode ? 'AI (داده خام)' : 'Manual (پردازش شده)'}</span>
+                            </div>
+
+                            <select class="coin-selector" id="singleCoinSelector">
+                                <option value="">انتخاب ارز...</option>
+                                ${top100Symbols.map(symbol => `
+                                    <option value="${symbol}">${symbol.toUpperCase()}</option>
+                                `).join('')}
+                            </select>
+
+                            <div class="btn-group">
+                                <button class="btn btn-success" onclick="startSingleScan()">
+                                    🔍 اسکن تکی
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- کنترل اسکن دسته‌ای -->
+                        <div class="control-group">
+                            <h3 class="control-title">اسکن دسته‌ای 100 ارز</h3>
+                            
+                            <div class="toggle-group">
+                                <span class="toggle-label">حالت اسکن:</span>
+                                <div class="toggle-switch ${aiMode ? 'active' : ''}" onclick="toggleAIMode()">
+                                    <div class="toggle-slider"></div>
+                                </div>
+                                <span>${aiMode ? 'AI (داده خام)' : 'Manual (پردازش شده)'}</span>
+                            </div>
+
+                            <div style="margin-bottom: 1rem;">
+                                <small style="color: var(--text-light);">
+                                    اسکن کامل 100 ارز برتر بازار
+                                </small>
+                            </div>
+
+                            <div class="btn-group">
+                                <button class="btn btn-warning" onclick="startBatchScan()">
+                                    🚀 اسکن دسته‌ای AI
+                                </button>
+                                <button class="btn" onclick="startBatchScan()">
+                                    📊 اسکن دسته‌ای Manual
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <div class="warning-message">
-                        <strong>توجه:</strong> در حالت هوش مصنوعی از داده‌های خام برای تحلیل پیشرفته استفاده می‌شود.
+                    <!-- بخش پیشرفت -->
+                    <div class="progress-section" id="progressSection" style="display: none;">
+                        <div class="progress-card">
+                            <div class="progress-header">
+                                <h3 class="card-title">پیشرفت اسکن</h3>
+                                <span id="progressStatus">در حال آماده‌سازی...</span>
+                            </div>
+                            
+                            <div class="progress-stats">
+                                <div class="progress-stat">
+                                    <div class="progress-value" id="progressPercent">0%</div>
+                                    <div class="progress-label">پیشرفت</div>
+                                </div>
+                                <div class="progress-stat">
+                                    <div class="progress-value" id="completedCount">0</div>
+                                    <div class="progress-label">تکمیل شده</div>
+                                </div>
+                                <div class="progress-stat">
+                                    <div class="progress-value" id="totalCount">0</div>
+                                    <div class="progress-label">کل ارزها</div>
+                                </div>
+                                <div class="progress-stat">
+                                    <div class="progress-value" id="batchCount">0</div>
+                                    <div class="progress-label">دسته جاری</div>
+                                </div>
+                            </div>
+
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="progressBar"></div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="symbols-grid" id="scanResults">
-                        <div class="loading">
-                            <div class="loading-spinner"></div>
-                            <p>در حال اسکن بازار...</p>
+                    <!-- نتایج اسکن -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">نتایج اسکن</h3>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="font-size: 0.9rem; color: var(--text-light);" id="resultsCount">
+                                    ${scanProgress.completed} از ${scanProgress.total} ارز
+                                </span>
+                                <button class="btn-outline" onclick="clearResults()">پاکسازی نتایج</button>
+                            </div>
+                        </div>
+
+                        <div class="symbols-grid" id="scanResults">
+                            <div class="loading">
+                                <p>هنوز اسکنی انجام نشده است</p>
+                                <small style="color: var(--text-light);">برای شروع اسکن از کنترل‌های بالا استفاده کنید</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -960,8 +1026,11 @@
                         <div style="line-height: 1.8;">
                             <p><strong>VortexAI</strong> - سیستم تحلیل پیشرفته بازار ارز دیجیتال</p>
                             <br>
-                            <p><strong>حالت هوش مصنوعی:</strong> در این حالت از داده‌های خام برای تحلیل تکنیکال پیشرفته استفاده می‌شود.</p>
-                            <p><strong>حالت دستی:</strong> نمایش داده‌های پردازش‌شده برای تحلیل سریع.</p>
+                            <p><strong>حالت هوش مصنوعی (AI):</strong> در این حالت از داده‌های خام برای تحلیل تکنیکال پیشرفته استفاده می‌شود.</p>
+                            <p><strong>حالت دستی (Manual):</strong> نمایش داده‌های پردازش‌شده برای تحلیل سریع.</p>
+                            <br>
+                            <p><strong>اسکن تکی:</strong> تحلیل یک ارز خاص با جزئیات کامل</p>
+                            <p><strong>اسکن دسته‌ای:</strong> تحلیل 100 ارز برتر بازار به صورت همزمان</p>
                             <br>
                             <p>سیستم به طور خودکار وضعیت API را بررسی می‌کند و در صورت قطعی، پیام هشدار نمایش می‌دهد.</p>
                         </div>
@@ -972,106 +1041,328 @@
                         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                             <button class="btn-outline" onclick="clearCache()">پاکسازی کش</button>
                             <button class="btn-outline" onclick="showDebugInfo()">اطلاعات دیباگ</button>
+                            <button class="btn-outline" onclick="exportData()">خروجی داده‌ها</button>
                         </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // توابع اصلی اسکن
+        function toggleAIMode() {
+            aiMode = !aiMode;
+            document.querySelectorAll('.toggle-switch').forEach(switchEl => {
+                switchEl.classList.toggle('active', aiMode);
+            });
+            
+            // آپدیت متن‌ها
+            document.querySelectorAll('.toggle-group span:last-child').forEach(span => {
+                span.textContent = aiMode ? 'AI (داده خام)' : 'Manual (پردازش شده)';
+            });
+        }
+
+        async function startSingleScan() {
+            const symbol = document.getElementById('singleCoinSelector').value;
+            if (!symbol) {
+                alert('لطفاً یک ارز انتخاب کنید');
+                return;
+            }
+
+            try {
+                const endpoint = aiMode ? `/api/scan/ai/${symbol}` : `/api/scan/basic/${symbol}`;
+                const response = await fetch(endpoint);
+                
+                if (!response.ok) throw new Error('خطا در دریافت داده');
+                
+                const data = await response.json();
+                displaySingleResult(data, symbol);
+                
+            } catch (error) {
+                showError('خطا در اسکن تکی', error.message);
+            }
+        }
+
+        async function startBatchScan() {
+            try {
+                // نمایش بخش پیشرفت
+                document.getElementById('progressSection').style.display = 'block';
+                updateProgress(0, 100, 0, 1);
+                
+                // استفاده از endpoint دسته‌ای
+                const endpoint = aiMode ? '/api/scan/batch/raw' : '/api/scan/batch/processed';
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: top100Symbols,
+                        limit: 100
+                    })
+                });
+
+                if (!response.ok) throw new Error('خطا در شروع اسکن دسته‌ای');
+
+                // شروع مانیتورینگ پیشرفت
+                startProgressMonitoring();
+                
+            } catch (error) {
+                showError('خطا در شروع اسکن دسته‌ای', error.message);
+            }
+        }
+
+        function startProgressMonitoring() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/scan/progress');
+                    if (response.ok) {
+                        const progress = await response.json();
+                        
+                        if (progress.status === 'success') {
+                            const stats = progress.progress;
+                            updateProgress(
+                                stats.scanned || 0,
+                                stats.total_symbols || 100,
+                                stats.current_batch || 0,
+                                Math.ceil(100 / 25) // 4 دسته
+                            );
+
+                            // اگر اسکن کامل شد
+                            if (stats.status === 'completed_raw' || stats.status === 'completed_processed') {
+                                clearInterval(interval);
+                                loadBatchResults();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('خطا در دریافت پیشرفت:', error);
+                }
+            }, 2000);
+        }
+
+        function updateProgress(completed, total, currentBatch, totalBatches) {
+            const percent = Math.round((completed / total) * 100);
+            
+            document.getElementById('progressPercent').textContent = `${percent}%`;
+            document.getElementById('completedCount').textContent = completed;
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('batchCount').textContent = `${currentBatch}/${totalBatches}`;
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            
+            const statusText = percent === 100 ? 'تکمیل شده' : `در حال اسکن (${percent}%)`;
+            document.getElementById('progressStatus').textContent = statusText;
+            document.getElementById('resultsCount').textContent = `${completed} از ${total} ارز`;
+        }
+
+        async function loadBatchResults() {
+            try {
+                // در اینجا باید داده‌ها را از کش GitHub دریافت کنیم
+                // برای نمونه، از endpointهای تکی استفاده می‌کنیم
+                const resultsContainer = document.getElementById('scanResults');
+                resultsContainer.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>در حال دریافت نتایج...</p>
+                    </div>
+                `;
+
+                const results = [];
+                const sampleSymbols = top100Symbols.slice(0, 12); // برای نمونه 12 ارز اول
+
+                for (const symbol of sampleSymbols) {
+                    try {
+                        const endpoint = aiMode ? `/api/scan/ai/${symbol}` : `/api/scan/basic/${symbol}`;
+                        const response = await fetch(endpoint);
+                        if (response.ok) {
+                            const data = await response.json();
+                            results.push(createSymbolCard(data, symbol));
+                        }
+                    } catch (error) {
+                        results.push(createErrorCard(symbol, error.message));
+                    }
+                }
+
+                resultsContainer.innerHTML = results.join('');
+                
+            } catch (error) {
+                showError('خطا در دریافت نتایج دسته‌ای', error.message);
+            }
+        }
+
+        function displaySingleResult(data, symbol) {
+            const resultsContainer = document.getElementById('scanResults');
+            const card = createSymbolCard(data, symbol);
+            resultsContainer.innerHTML = card;
+            document.getElementById('resultsCount').textContent = `1 ارز اسکن شده`;
+        }
+
+        function createSymbolCard(data, symbol) {
+            // بررسی ساختار داده‌ها
+            const displayData = data.data?.display_data || data.data?.data?.display_data || {};
+            const rawData = data.data?.raw_data || data.data?.data?.raw_data || {};
+            const analysis = data.data?.analysis || data.data?.data?.analysis || {};
+            
+            // استفاده از داده‌های واقعی
+            const coinData = aiMode ? rawData.coin_details : displayData;
+            
+            if (!coinData || typeof coinData !== 'object') {
+                return createErrorCard(symbol, 'داده نامعتبر');
+            }
+
+            const price = coinData.price || coinData.price || 0;
+            const change = coinData.priceChange1d || coinData.price_change_24h || 0;
+            const changeClass = change > 0 ? 'positive' : 'negative';
+            const changeSymbol = change > 0 ? '▲' : '▼';
+
+            // سیگنال
+            const signal = analysis.signal || 'HOLD';
+            const confidence = analysis.confidence || 0.5;
+            const trend = analysis.trend || 'SIDEWAYS';
+            const riskLevel = analysis.risk_level || 'MEDIUM';
+            const volatility = analysis.volatility || 0;
+
+            // تبدیل سیگنال به فارسی
+            const signalText = getSignalText(signal);
+            const signalClass = getSignalClass(signal);
+
+            return `
+                <div class="symbol-card">
+                    <div class="symbol-header">
+                        <div class="coin-icon">
+                            ${getCoinIcon(symbol)}
+                        </div>
+                        <div class="symbol-info">
+                            <div class="symbol-name">${symbol.toUpperCase()}</div>
+                            <div class="symbol-fullname">${coinData.name || 'Unknown'}</div>
+                        </div>
+                    </div>
+
+                    <div class="price-section">
+                        <div class="price-item">
+                            <div class="price-label">قیمت فعلی</div>
+                            <div class="price-value">$${price.toLocaleString()}</div>
+                        </div>
+                        <div class="price-item">
+                            <div class="price-label">تغییر 24h</div>
+                            <div class="price-value change ${changeClass}">
+                                ${changeSymbol} ${Math.abs(change).toFixed(2)}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="analysis-section">
+                        <div class="signal-badge ${signalClass}">${signalText}</div>
+                        
+                        <div style="margin-bottom: 0.5rem;">
+                            <small style="color: var(--text-light);">اعتماد: ${Math.round(confidence * 100)}%</small>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-light);">
+                            <span>روند: ${getTrendText(trend)}</span>
+                            <span>نوسان: ${volatility}%</span>
+                        </div>
+
+                        <div class="risk-tag risk-${riskLevel.toLowerCase()}">
+                            ریسک: ${getRiskText(riskLevel)}
+                        </div>
+                    </div>
+
+                    ${aiMode ? `
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                            <small style="color: var(--primary);">🤖 حالت AI - داده خام</small>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function createErrorCard(symbol, error) {
+            return `
+                <div class="symbol-card">
+                    <div class="symbol-header">
+                        <div class="coin-icon">❌</div>
+                        <div class="symbol-info">
+                            <div class="symbol-name">${symbol.toUpperCase()}</div>
+                            <div class="symbol-fullname">خطا در دریافت داده</div>
+                        </div>
+                    </div>
+                    <div style="color: var(--error); text-align: center; padding: 1rem;">
+                        ${error}
                     </div>
                 </div>
             `;
         }
 
         // توابع کمکی
-        function toggleAIMode() {
-            aiMode = !aiMode;
-            document.querySelector('.toggle-switch').classList.toggle('active', aiMode);
-            loadScanResults();
+        function getCoinIcon(symbol) {
+            // در حالت واقعی اینجا آدرس تصویر کوین را برمی‌گرداند
+            const icons = {
+                'bitcoin': '₿',
+                'ethereum': 'Ξ',
+                'tether': '₮',
+                'ripple': 'X',
+                'solana': 'S',
+                'cardano': 'A',
+                'polkadot': 'D',
+                'chainlink': '●'
+            };
+            return icons[symbol] || symbol.charAt(0).toUpperCase();
         }
 
-        async function loadScanResults() {
-            const symbols = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot', 'chainlink'];
-            const resultsContainer = document.getElementById('scanResults');
-            
-            if (!resultsContainer) return;
-
-            try {
-                resultsContainer.innerHTML = `
-                    <div class="loading">
-                        <div class="loading-spinner"></div>
-                        <p>در حال اسکن بازار...</p>
-                    </div>
-                `;
-
-                const endpoint = aiMode ? '/api/scan/ai/' : '/api/scan/basic/';
-                const results = [];
-
-                for (const symbol of symbols) {
-                    try {
-                        const response = await fetch(endpoint + symbol);
-                        if (response.ok) {
-                            const data = await response.json();
-                            results.push(createSymbolCard(data, symbol));
-                        }
-                    } catch (error) {
-                        results.push(`
-                            <div class="symbol-card">
-                                <div class="symbol-name">${symbol.toUpperCase()}</div>
-                                <div class="price-info">
-                                    <div class="price">خطا در دریافت</div>
-                                </div>
-                                <div class="signal hold">خطا</div>
-                            </div>
-                        `);
-                    }
-                }
-
-                resultsContainer.innerHTML = results.join('');
-
-            } catch (error) {
-                resultsContainer.innerHTML = `
-                    <div class="error-message">
-                        <h3>خطا در اسکن بازار</h3>
-                        <p>${error.message}</p>
-                        <button class="btn" onclick="loadScanResults()" style="margin-top: 1rem;">تلاش مجدد</button>
-                    </div>
-                `;
-            }
+        function getSignalText(signal) {
+            const signals = {
+                'STRONG_BUY': 'خرید قوی',
+                'BUY': 'خرید',
+                'HOLD': 'نگهداری',
+                'SELL': 'فروش',
+                'STRONG_SELL': 'فروش قوی'
+            };
+            return signals[signal] || signal;
         }
 
-        function createSymbolCard(data, symbol) {
-            const details = aiMode ? 
-                data.data?.raw_data?.coin_details : 
-                data.data?.display_data;
+        function getSignalClass(signal) {
+            const classes = {
+                'STRONG_BUY': 'signal-buy',
+                'BUY': 'signal-buy',
+                'HOLD': 'signal-hold',
+                'SELL': 'signal-sell',
+                'STRONG_SELL': 'signal-sell'
+            };
+            return classes[signal] || 'signal-hold';
+        }
 
-            if (!details) {
-                return `
-                    <div class="symbol-card">
-                        <div class="symbol-name">${symbol.toUpperCase()}</div>
-                        <div class="price-info">
-                            <div class="price">داده نامعتبر</div>
-                        </div>
-                        <div class="signal hold">خطا</div>
-                    </div>
-                `;
-            }
+        function getTrendText(trend) {
+            const trends = {
+                'STRONG_UPTREND': 'صعودی قوی',
+                'UPTREND': 'صعودی',
+                'SIDEWAYS': 'خنثی',
+                'DOWNTREND': 'نزولی',
+                'STRONG_DOWNTREND': 'نزولی قوی'
+            };
+            return trends[trend] || trend;
+        }
 
-            const price = details.price || 0;
-            const change = details.priceChange1d || 0;
-            const changeClass = change > 0 ? 'positive' : 'negative';
-            const changeSymbol = change > 0 ? '▲' : '▼';
+        function getRiskText(risk) {
+            const risks = {
+                'LOW': 'کم',
+                'MEDIUM': 'متوسط',
+                'HIGH': 'زیاد',
+                'VERY_HIGH': 'بسیار زیاد'
+            };
+            return risks[risk] || risk;
+        }
 
-            // سیگنال ساده بر اساس تغییرات قیمت
-            let signal = 'hold';
-            if (change > 2) signal = 'buy';
-            else if (change < -2) signal = 'sell';
-
-            return `
-                <div class="symbol-card">
-                    <div class="symbol-name">${symbol.toUpperCase()}</div>
-                    <div class="price-info">
-                        <div class="price">$${price.toLocaleString()}</div>
-                        <div class="change ${changeClass}">${changeSymbol} ${Math.abs(change).toFixed(2)}%</div>
-                    </div>
-                    <div class="signal ${signal}">${signal === 'buy' ? 'خرید' : signal === 'sell' ? 'فروش' : 'نگهداری'}</div>
+        function clearResults() {
+            document.getElementById('scanResults').innerHTML = `
+                <div class="loading">
+                    <p>نتایج پاکسازی شد</p>
                 </div>
             `;
+            document.getElementById('resultsCount').textContent = '0 ارز';
         }
 
         async function clearCache() {
@@ -1090,11 +1381,16 @@
             const info = {
                 aiMode,
                 apiStatus,
+                scanProgress,
                 lastUpdate: new Date().toISOString(),
                 userAgent: navigator.userAgent
             };
             
             alert('اطلاعات دیباگ:\n' + JSON.stringify(info, null, 2));
+        }
+
+        function exportData() {
+            alert('قابلیت خروجی داده‌ها به زودی اضافه خواهد شد');
         }
 
         function showError(title, message) {
@@ -1112,7 +1408,6 @@
 
         // راه‌اندازی اولیه
         window.addEventListener('load', async function() {
-            showLoading();
             await checkAPIStatus();
             loadSection('dashboard');
             
