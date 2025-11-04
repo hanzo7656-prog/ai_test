@@ -1,7 +1,8 @@
-# main.py - سرور اصلی VortexAI با سیستم اسکن دسته‌ای
+# main.py - سرور اصلی VortexAI با پشتیبانی از ساختار frontend/static/
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -10,12 +11,14 @@ import logging
 import time
 import psutil
 from pathlib import Path
+import json
+import asyncio
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VortexAI API", version="2.0.0")
+app = FastAPI(title="VortexAI API", version="2.1.0")
 
 # CORS
 app.add_middleware(
@@ -26,30 +29,178 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ایمپورت مدیر CoinStats
+# سرو فایل‌های استاتیک
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+
+# ایمپورت مدیر CoinStats (Mock - برای تست)
 try:
     from complete_coinstats_manager import coin_stats_manager
     COINSTATS_AVAILABLE = True
     logger.info("✅ CoinStats Manager loaded successfully")
 except ImportError as e:
     COINSTATS_AVAILABLE = False
-    logger.error(f"❌ CoinStats Manager import failed: {e}")
+    logger.warning(f"🔶 CoinStats Manager not available: {e}")
+    
+    # ایجاد Mock برای تست
+    class MockCoinStatsManager:
+        def get_coin_details(self, symbol, currency="USD"):
+            """داده‌های mock برای تست"""
+            return {
+                "id": symbol,
+                "name": symbol.capitalize(),
+                "symbol": symbol.upper(),
+                "price": round(1000 + hash(symbol) % 50000, 2),
+                "priceChange1d": round((hash(symbol) % 40) - 20, 2),
+                "volume": round(1000000 + hash(symbol) % 100000000, 2),
+                "marketCap": round(10000000 + hash(symbol) % 1000000000, 2),
+                "rank": (hash(symbol) % 100) + 1,
+                "websiteUrl": f"https://{symbol}.com",
+                "twitterUrl": f"https://twitter.com/{symbol}",
+                "redditUrl": f"https://reddit.com/r/{symbol}"
+            }
+        
+        def get_coin_charts(self, symbol, period="1w"):
+            """چارت mock"""
+            return {
+                "prices": [[int(time.time() * 1000) - i * 3600000, 1000 + hash(symbol + str(i)) % 500] 
+                          for i in range(168)],
+                "market_caps": [[int(time.time() * 1000) - i * 3600000, 1000000 + hash(symbol + str(i)) % 1000000] 
+                               for i in range(168)]
+            }
+        
+        def get_coins_list(self, limit=100):
+            """لیست ارزها"""
+            symbols = ["bitcoin", "ethereum", "tether", "ripple", "binance-coin", "solana"]
+            return [self.get_coin_details(symbol) for symbol in symbols[:limit]]
+        
+        def test_all_endpoints(self):
+            """تست سلامت"""
+            return {
+                "coin_details": {"status": "success", "response_time": 150},
+                "coin_charts": {"status": "success", "response_time": 200},
+                "coins_list": {"status": "success", "response_time": 100}
+            }
+        
+        def get_system_metrics(self):
+            """متریک‌های سیستم"""
+            return {
+                "api_calls": {"total": 1000, "successful": 950, "failed": 50},
+                "cache": {"hits": 800, "misses": 200, "hit_rate": 0.8}
+            }
+        
+        def clear_cache(self):
+            """پاکسازی کش"""
+            logger.info("Cache cleared successfully")
+            return True
+    
+    coin_stats_manager = MockCoinStatsManager()
 
-# ایمپورت سیستم GitHub DB
-try:
-    from github_db import GitHubDBCache, BatchScanner, DataCompressor, ProgressTracker
-    GITHUB_DB_AVAILABLE = True
-    logger.info("✅ GitHub DB System loaded successfully")
+# سیستم کش ساده
+class SimpleCache:
+    def __init__(self):
+        self.cache = {}
+        self.cache_dir = Path("./coinstats_cache")
+        self.cache_dir.mkdir(exist_ok=True)
     
-    # ایجاد نمونه‌ها
-    github_cache = GitHubDBCache()
-    batch_scanner = BatchScanner(github_cache)
-    data_compressor = DataCompressor()
-    progress_tracker = ProgressTracker()
+    def get(self, key):
+        """دریافت از کش"""
+        # اول از حافظه بررسی کن
+        if key in self.cache:
+            item = self.cache[key]
+            if time.time() < item['expiry']:
+                return item['data']
+            else:
+                del self.cache[key]
+        
+        # سپس از فایل بررسی کن
+        file_path = self.cache_dir / f"{key}.json"
+        if file_path.exists():
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    item = json.load(f)
+                if time.time() < item['expiry']:
+                    # به حافظه برگردون
+                    self.cache[key] = item
+                    return item['data']
+                else:
+                    file_path.unlink()  # فایل منقضی شده رو پاک کن
+            except Exception as e:
+                logger.error(f"Error reading cache file {key}: {e}")
+        
+        return None
     
-except ImportError as e:
-    GITHUB_DB_AVAILABLE = False
-    logger.error(f"❌ GitHub DB import failed: {e}")
+    def set(self, key, data, ttl=300):  # 5 دقیقه پیش‌فرض
+        """ذخیره در کش"""
+        item = {
+            'data': data,
+            'expiry': time.time() + ttl,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # در حافظه
+        self.cache[key] = item
+        
+        # در فایل
+        try:
+            file_path = self.cache_dir / f"{key}.json"
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(item, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Error writing cache file {key}: {e}")
+    
+    def clear(self):
+        """پاکسازی کامل کش"""
+        self.cache.clear()
+        for file in self.cache_dir.glob("*.json"):
+            try:
+                file.unlink()
+            except Exception as e:
+                logger.error(f"Error deleting cache file {file}: {e}")
+    
+    def get_cache_stats(self):
+        """آمار کش"""
+        cache_files = list(self.cache_dir.glob("*.json"))
+        cache_size = sum(f.stat().st_size for f in cache_files)
+        
+        return {
+            "memory_cache_size": len(self.cache),
+            "file_cache_size": len(cache_files),
+            "total_size_mb": round(cache_size / (1024 * 1024), 2)
+        }
+
+# سیستم پیگیری پیشرفت
+class ProgressTracker:
+    def __init__(self):
+        self.current_progress = {
+            "total_symbols": 0,
+            "scanned": 0,
+            "current_batch": 0,
+            "status": "idle",
+            "start_time": None,
+            "current_symbols": []
+        }
+    
+    def update_progress(self, total_symbols, scanned, current_batch, status, current_symbols=None):
+        """بروزرسانی پیشرفت"""
+        self.current_progress.update({
+            "total_symbols": total_symbols,
+            "scanned": scanned,
+            "current_batch": current_batch,
+            "status": status,
+            "current_symbols": current_symbols or [],
+            "last_update": datetime.now().isoformat()
+        })
+        
+        if status.startswith("running") and self.current_progress["start_time"] is None:
+            self.current_progress["start_time"] = datetime.now().isoformat()
+    
+    def get_progress(self):
+        """دریافت پیشرفت فعلی"""
+        return self.current_progress
+
+# ایجاد نمونه‌ها
+cache_manager = SimpleCache()
+progress_tracker = ProgressTracker()
 
 # مدل‌های درخواست
 class ScanRequest(BaseModel):
@@ -61,7 +212,7 @@ class MultiScanRequest(BaseModel):
     scan_type: str = "basic"
     limit: Optional[int] = 100
 
-# پردازشگر داده‌ها
+# پردازشگر داده‌های بهینه‌شده
 class DataProcessor:
     """پردازشگر داده‌های کوین"""
     
@@ -70,14 +221,14 @@ class DataProcessor:
         """داده خام برای هوش مصنوعی تحلیلگر تکنیکال - کامل"""
         try:
             start_time = time.time()
-        
-            # ✅ دریافت همه داده‌های خام برای AI
+            
+            # دریافت همه داده‌های خام برای AI
             raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
             raw_charts = coin_stats_manager.get_coin_charts(symbol, "1w")
             market_context = coin_stats_manager.get_coins_list(limit=min(limit, 1000))
-        
+            
             response_time = round((time.time() - start_time) * 1000, 2)
-        
+            
             # ساختار داده خام برای AI
             ai_data = {
                 "data_type": "raw",
@@ -85,14 +236,14 @@ class DataProcessor:
                 "symbol": symbol,
                 "timestamp": datetime.now().isoformat(),
                 "response_time_ms": response_time,
-            
-                # ✅ همه داده‌های خام برای AI
+                
+                # همه داده‌های خام برای AI
                 "raw_data": {
                     "coin_details": raw_details,
                     "price_charts": raw_charts,
                     "market_context": market_context
                 },
-            
+                
                 "technical_metadata": {
                     "data_sources": ["coinstats_api"],
                     "update_frequency": "real_time",
@@ -100,9 +251,9 @@ class DataProcessor:
                     "fields_available": list(raw_details.keys()) if isinstance(raw_details, dict) else []
                 }
             }
-        
+            
             return ai_data
-          
+            
         except Exception as e:
             logger.error(f"خطا در دریافت داده AI برای {symbol}: {e}")
             return {
@@ -118,10 +269,10 @@ class DataProcessor:
         """داده پردازش شده برای نمایش معمولی - بهینه‌شده"""
         try:
             start_time = time.time()
-        
-            # دریافت فقط داده‌های ضروری - نه همه چیز
+            
+            # دریافت داده‌های ضروری
             raw_details = coin_stats_manager.get_coin_details(symbol, "USD")
-        
+            
             # بررسی خطا
             if isinstance(raw_details, dict) and "error" in raw_details:
                 return {
@@ -129,16 +280,16 @@ class DataProcessor:
                     "error": raw_details["error"],
                     "symbol": symbol
                 }
-        
+            
             # اگر داده یک لیست باشد
             if isinstance(raw_details, list):
                 coin_data = raw_details[0] if len(raw_details) > 0 else {}
             else:
                 coin_data = raw_details
-        
+            
             response_time = round((time.time() - start_time) * 1000, 2)
-        
-            # ✅ فقط فیلدهای ضروری برای Manual
+            
+            # فقط فیلدهای ضروری برای Manual
             processed_data = {
                 "data_type": "processed",
                 "purpose": "basic_display",
@@ -146,7 +297,7 @@ class DataProcessor:
                 "symbol": symbol,
                 "response_time_ms": response_time,
                 "timestamp": datetime.now().isoformat(),
-            
+                
                 # داده‌های نمایشی - فقط ضروری‌ها
                 "display_data": {
                     "name": coin_data.get('name', 'Unknown'),
@@ -157,7 +308,7 @@ class DataProcessor:
                     "market_cap": coin_data.get('marketCap', 0),
                     "rank": coin_data.get('rank', 0)
                 },
-            
+                
                 # تحلیل‌های ساده
                 "analysis": {
                     "signal": DataProcessor._generate_signal(coin_data),
@@ -167,9 +318,9 @@ class DataProcessor:
                     "volatility": DataProcessor._calculate_volatility(coin_data)
                 }
             }
-         
+            
             return processed_data
-          
+            
         except Exception as e:
             logger.error(f"خطا در پردازش داده {symbol}: {e}")
             return {
@@ -179,20 +330,6 @@ class DataProcessor:
                 "symbol": symbol,
                 "timestamp": datetime.now().isoformat()
             }
-
-
-    @staticmethod
-    def get_essential_fields(coin_data: Dict) -> Dict[str, Any]:
-        """فقط فیلدهای ضروری برای نمایش Manual"""
-        return {
-            "name": coin_data.get('name'),
-            "symbol": coin_data.get('symbol'),
-            "price": coin_data.get('price'),
-            "price_change_24h": coin_data.get('priceChange1d'),
-            "volume_24h": coin_data.get('volume'),
-            "market_cap": coin_data.get('marketCap'),
-            "rank": coin_data.get('rank')
-        }
     
     @staticmethod
     def _generate_signal(coin_data: Dict) -> str:
@@ -216,8 +353,8 @@ class DataProcessor:
         market_cap = coin_data.get('marketCap', 0)
         
         base_confidence = 0.5
-        volume_boost = min(0.3, volume / 10000000000)  # نرمال‌سازی حجم
-        market_cap_boost = min(0.2, market_cap / 1000000000000)  # نرمال‌سازی مارکت کپ
+        volume_boost = min(0.3, volume / 10000000000)
+        market_cap_boost = min(0.2, market_cap / 1000000000000)
         
         return round(base_confidence + volume_boost + market_cap_boost, 2)
     
@@ -261,7 +398,7 @@ class DataProcessor:
         ]
         return round(sum(changes) / len(changes), 2)
 
-# ==================== روت‌های اسکن دسته‌ای جدید ====================
+# ==================== روت‌های اسکن دسته‌ای ====================
 
 @app.post("/api/scan/batch/raw")
 async def batch_scan_raw(
@@ -274,7 +411,7 @@ async def batch_scan_raw(
             raise HTTPException(status_code=503, detail="CoinStats service unavailable")
         
         # بررسی سایز دسته
-        batch_size = min(request.limit, 25)  # حداکثر 25 تایی
+        batch_size = min(request.limit, 25)
         symbols_to_scan = request.symbols[:request.limit]
         
         # شروع اسکن در پس‌زمینه
@@ -333,16 +470,12 @@ async def batch_scan_processed(
 async def get_scan_progress():
     """دریافت پیشرفت اسکن‌های جاری"""
     try:
-        if not GITHUB_DB_AVAILABLE:
-            return {"status": "github_db_unavailable"}
-        
         progress = progress_tracker.get_progress()
-        cache_stats = github_cache.get_cache_stats()
         
         return {
             "status": "success",
             "progress": progress,
-            "cache_stats": cache_stats,
+            "cache_stats": cache_manager.get_cache_stats(),
             "timestamp": datetime.now().isoformat()
         }
         
@@ -376,12 +509,9 @@ async def process_raw_batch_scan(symbols: List[str], batch_size: int):
                     # دریافت داده خام
                     raw_data = DataProcessor.get_ai_scan_data(symbol)
                     
-                    # ذخیره در GitHub DB
-                    github_cache.save_live_data(symbol, {
-                        "scan_type": "raw",
-                        "data": raw_data,
-                        "batch_number": batch_num + 1
-                    })
+                    # کش کردن نتیجه
+                    cache_key = f"raw_{symbol}"
+                    cache_manager.set(cache_key, raw_data, 300)  # 5 دقیقه
                     
                     batch_results.append({
                         "symbol": symbol,
@@ -402,10 +532,12 @@ async def process_raw_batch_scan(symbols: List[str], batch_size: int):
                 total_symbols=len(symbols),
                 scanned=current_scanned,
                 current_batch=batch_num + 1,
-                status="running_raw"
+                status="running_raw",
+                current_symbols=batch_symbols
             )
             
             logger.info(f"✅ دسته {batch_num + 1} کامل شد: {len(batch_symbols)} ارز")
+            await asyncio.sleep(0.1)  # کمی تاخیر برای جلوگیری از overload
             
         # تکمیل اسکن
         progress_tracker.update_progress(
@@ -426,9 +558,8 @@ async def process_raw_batch_scan(symbols: List[str], batch_size: int):
             status="error"
         )
 
-
 async def process_processed_batch_scan(symbols: List[str], batch_size: int):
-    """پردازش اسکن دسته‌ای پردازش شده - بهینه‌شده"""
+    """پردازش اسکن دسته‌ای پردازش شده"""
     try:
         logger.info(f"🚀 شروع اسکن دسته‌ای پردازش شده برای {len(symbols)} ارز")
         
@@ -446,16 +577,12 @@ async def process_processed_batch_scan(symbols: List[str], batch_size: int):
             
             for symbol in batch_symbols:
                 try:
-                    # ✅ استفاده از داده‌های بهینه‌شده
+                    # دریافت داده پردازش شده
                     processed_data = DataProcessor.get_basic_scan_data(symbol)
                     
-                    # ذخیره در GitHub DB
-                    github_cache.save_live_data(symbol, {
-                        "scan_type": "processed", 
-                        "data": processed_data,
-                        "batch_number": batch_num + 1,
-                        "timestamp": datetime.now().isoformat()
-                    })
+                    # کش کردن نتیجه
+                    cache_key = f"processed_{symbol}"
+                    cache_manager.set(cache_key, processed_data, 300)  # 5 دقیقه
                     
                     batch_results.append({
                         "symbol": symbol,
@@ -475,10 +602,12 @@ async def process_processed_batch_scan(symbols: List[str], batch_size: int):
                 total_symbols=len(symbols),
                 scanned=current_scanned,
                 current_batch=batch_num + 1, 
-                status="running_processed"
+                status="running_processed",
+                current_symbols=batch_symbols
             )
             
             logger.info(f"✅ دسته {batch_num + 1} کامل شد: {len(batch_symbols)} ارز")
+            await asyncio.sleep(0.1)
             
         progress_tracker.update_progress(
             total_symbols=len(symbols),
@@ -497,6 +626,7 @@ async def process_processed_batch_scan(symbols: List[str], batch_size: int):
             current_batch=0,
             status="error"
         )
+
 # ==================== روت‌های اصلی API ====================
 
 @app.get("/")
@@ -510,7 +640,7 @@ async def root():
             content={
                 "message": "VortexAI API Server",
                 "status": "running",
-                "version": "2.0.0",
+                "version": "2.1.0",
                 "timestamp": datetime.now().isoformat(),
                 "endpoints": {
                     "ai_scan": "GET /api/scan/ai/{symbol}",
@@ -534,7 +664,26 @@ async def ai_scan(
         if not COINSTATS_AVAILABLE:
             raise HTTPException(status_code=503, detail="CoinStats service unavailable")
         
+        # بررسی کش
+        cache_key = f"raw_{symbol}"
+        cached_data = cache_manager.get(cache_key)
+        if cached_data:
+            logger.info(f"✅ داده AI برای {symbol} از کش بازیابی شد")
+            return {
+                "status": "success",
+                "data_type": "raw",
+                "purpose": "ai_technical_analysis",
+                "symbol": symbol,
+                "limit": limit,
+                "data": cached_data,
+                "cached": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
         ai_data = DataProcessor.get_ai_scan_data(symbol.lower(), limit)
+        
+        # کش کردن نتیجه
+        cache_manager.set(cache_key, ai_data, 300)  # 5 دقیقه
         
         return {
             "status": "success" if "error" not in ai_data else "error",
@@ -543,6 +692,7 @@ async def ai_scan(
             "symbol": symbol,
             "limit": limit,
             "data": ai_data,
+            "cached": False,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -560,7 +710,26 @@ async def basic_scan(
         if not COINSTATS_AVAILABLE:
             raise HTTPException(status_code=503, detail="CoinStats service unavailable")
         
+        # بررسی کش
+        cache_key = f"processed_{symbol}"
+        cached_data = cache_manager.get(cache_key)
+        if cached_data:
+            logger.info(f"✅ داده Manual برای {symbol} از کش بازیابی شد")
+            return {
+                "status": "success",
+                "data_type": "processed", 
+                "purpose": "basic_display",
+                "symbol": symbol,
+                "limit": limit,
+                "data": cached_data,
+                "cached": True,
+                "timestamp": datetime.now().isoformat()
+            }
+        
         basic_data = DataProcessor.get_basic_scan_data(symbol.lower(), limit)
+        
+        # کش کردن نتیجه
+        cache_manager.set(cache_key, basic_data, 300)  # 5 دقیقه
         
         return {
             "status": "success" if basic_data.get("success") else "error",
@@ -569,6 +738,7 @@ async def basic_scan(
             "symbol": symbol,
             "limit": limit,
             "data": basic_data,
+            "cached": False,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -590,14 +760,9 @@ async def system_status():
         if COINSTATS_AVAILABLE:
             system_metrics = coin_stats_manager.get_system_metrics()
         
-        # آمار کش - نسخه اصلاح شده
-        cache_files = []
-        cache_size = 0
-        if os.path.exists("./coinstats_cache"):
-            cache_files = [f for f in os.listdir("./coinstats_cache") if f.endswith('.json')]
-            for file in cache_files:
-                file_path = os.path.join("./coinstats_cache", file)
-                cache_size += os.path.getsize(file_path)
+        # آمار کش
+        cache_files = list(Path("./coinstats_cache").glob("*.json"))
+        cache_size = sum(f.stat().st_size for f in cache_files)
         
         # اطلاعات سیستم
         memory = psutil.virtual_memory()
@@ -607,11 +772,10 @@ async def system_status():
         return {
             "status": "operational",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.0.0",
+            "version": "2.1.0",
             
             "services": {
                 "coinstats_api": COINSTATS_AVAILABLE,
-                "github_db": GITHUB_DB_AVAILABLE,
                 "total_healthy_endpoints": sum(1 for r in endpoint_health.values() if r.get('status') == 'success'),
                 "total_endpoints": len(endpoint_health)
             },
@@ -640,8 +804,6 @@ async def system_status():
                 "cache_dir": "./coinstats_cache"
             },
             
-            "github_db_stats": github_cache.get_cache_stats() if GITHUB_DB_AVAILABLE else {},
-            
             "usage_stats": {
                 "active_connections": 0,
                 "uptime_seconds": int(time.time() - psutil.boot_time())
@@ -660,26 +822,19 @@ async def system_status():
 async def clear_cache():
     """پاک کردن کش (فقط برای دیباگ)"""
     try:
-        if COINSTATS_AVAILABLE:
-            coin_stats_manager.clear_cache()
-            return {
-                "status": "success", 
-                "message": "Cache cleared successfully",
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            return {
-                "status": "error", 
-                "message": "CoinStats not available",
-                "timestamp": datetime.now().isoformat()
-            }
+        cache_manager.clear()
+        return {
+            "status": "success", 
+            "message": "Cache cleared successfully",
+            "timestamp": datetime.now().isoformat()
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # مدیریت روت‌های SPA برای frontend
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    """سرو کردن frontend برای تمام مسیرها"""
+    """سرو کردن SPA - همه مسیرها به index.html می‌روند"""
     try:
         return FileResponse("frontend/index.html")
     except:
@@ -691,4 +846,5 @@ async def serve_spa(full_path: str):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 10000))
+    logger.info(f"🚀 Starting VortexAI Server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port, access_log=True)
