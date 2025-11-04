@@ -1,8 +1,7 @@
-# main.py - سرور اصلی VortexAI
-from fastapi import FastAPI, HTTPException, Query
+# main.py - سرور اصلی VortexAI با سیستم اسکن دسته‌ای
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -16,7 +15,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="VortexAI API", version="1.0.0")
+app = FastAPI(title="VortexAI API", version="2.0.0")
 
 # CORS
 app.add_middleware(
@@ -35,6 +34,22 @@ try:
 except ImportError as e:
     COINSTATS_AVAILABLE = False
     logger.error(f"❌ CoinStats Manager import failed: {e}")
+
+# ایمپورت سیستم GitHub DB
+try:
+    from github_db import GitHubDBCache, BatchScanner, DataCompressor, ProgressTracker
+    GITHUB_DB_AVAILABLE = True
+    logger.info("✅ GitHub DB System loaded successfully")
+    
+    # ایجاد نمونه‌ها
+    github_cache = GitHubDBCache()
+    batch_scanner = BatchScanner(github_cache)
+    data_compressor = DataCompressor()
+    progress_tracker = ProgressTracker()
+    
+except ImportError as e:
+    GITHUB_DB_AVAILABLE = False
+    logger.error(f"❌ GitHub DB import failed: {e}")
 
 # مدل‌های درخواست
 class ScanRequest(BaseModel):
@@ -254,6 +269,241 @@ class DataProcessor:
         ]
         return round(sum(changes) / len(changes), 2)
 
+# ==================== روت‌های اسکن دسته‌ای جدید ====================
+
+@app.post("/api/scan/batch/raw")
+async def batch_scan_raw(
+    request: ScanRequest,
+    background_tasks: BackgroundTasks
+):
+    """اسکن دسته‌ای خام - برای هوش مصنوعی"""
+    try:
+        if not COINSTATS_AVAILABLE:
+            raise HTTPException(status_code=503, detail="CoinStats service unavailable")
+        
+        # بررسی سایز دسته
+        batch_size = min(request.limit, 25)  # حداکثر 25 تایی
+        symbols_to_scan = request.symbols[:request.limit]
+        
+        # شروع اسکن در پس‌زمینه
+        background_tasks.add_task(
+            process_raw_batch_scan,
+            symbols_to_scan,
+            batch_size
+        )
+        
+        return {
+            "status": "started",
+            "scan_type": "raw",
+            "total_symbols": len(symbols_to_scan),
+            "batch_size": batch_size,
+            "message": "اسکن دسته‌ای خام شروع شد",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در شروع اسکن دسته‌ای خام: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/scan/batch/processed")
+async def batch_scan_processed(
+    request: ScanRequest,
+    background_tasks: BackgroundTasks
+):
+    """اسکن دسته‌ای پردازش شده - برای نمایش"""
+    try:
+        if not COINSTATS_AVAILABLE:
+            raise HTTPException(status_code=503, detail="CoinStats service unavailable")
+        
+        batch_size = min(request.limit, 25)
+        symbols_to_scan = request.symbols[:request.limit]
+        
+        background_tasks.add_task(
+            process_processed_batch_scan,
+            symbols_to_scan,
+            batch_size
+        )
+        
+        return {
+            "status": "started", 
+            "scan_type": "processed",
+            "total_symbols": len(symbols_to_scan),
+            "batch_size": batch_size,
+            "message": "اسکن دسته‌ای پردازش شده شروع شد",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در شروع اسکن دسته‌ای پردازش شده: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/scan/progress")
+async def get_scan_progress():
+    """دریافت پیشرفت اسکن‌های جاری"""
+    try:
+        if not GITHUB_DB_AVAILABLE:
+            return {"status": "github_db_unavailable"}
+        
+        progress = progress_tracker.get_progress()
+        cache_stats = github_cache.get_cache_stats()
+        
+        return {
+            "status": "success",
+            "progress": progress,
+            "cache_stats": cache_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت پیشرفت: {e}")
+        return {"status": "error", "error": str(e)}
+
+# ==================== توابع پردازش دسته‌ای ====================
+
+async def process_raw_batch_scan(symbols: List[str], batch_size: int):
+    """پردازش اسکن دسته‌ای خام"""
+    try:
+        logger.info(f"🚀 شروع اسکن دسته‌ای خام برای {len(symbols)} ارز")
+        
+        # بروزرسانی پیشرفت
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=0,
+            current_batch=0,
+            status="running_raw"
+        )
+        
+        # تقسیم به دسته‌ها
+        batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+        
+        for batch_num, batch_symbols in enumerate(batches):
+            batch_results = []
+            
+            for symbol in batch_symbols:
+                try:
+                    # دریافت داده خام
+                    raw_data = DataProcessor.get_ai_scan_data(symbol)
+                    
+                    # ذخیره در GitHub DB
+                    github_cache.save_live_data(symbol, {
+                        "scan_type": "raw",
+                        "data": raw_data,
+                        "batch_number": batch_num + 1
+                    })
+                    
+                    batch_results.append({
+                        "symbol": symbol,
+                        "status": "success",
+                        "data_type": "raw"
+                    })
+                    
+                except Exception as e:
+                    batch_results.append({
+                        "symbol": symbol,
+                        "status": "error", 
+                        "error": str(e)
+                    })
+            
+            # بروزرسانی پیشرفت
+            current_scanned = (batch_num * batch_size) + len(batch_symbols)
+            progress_tracker.update_progress(
+                total_symbols=len(symbols),
+                scanned=current_scanned,
+                current_batch=batch_num + 1,
+                status="running_raw"
+            )
+            
+            logger.info(f"✅ دسته {batch_num + 1} کامل شد: {len(batch_symbols)} ارز")
+            
+        # تکمیل اسکن
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=len(symbols),
+            current_batch=len(batches),
+            status="completed_raw"
+        )
+        
+        logger.info(f"🎉 اسکن دسته‌ای خام کامل شد: {len(symbols)} ارز")
+        
+    except Exception as e:
+        logger.error(f"❌ خطا در اسکن دسته‌ای خام: {e}")
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=0,
+            current_batch=0,
+            status="error"
+        )
+
+async def process_processed_batch_scan(symbols: List[str], batch_size: int):
+    """پردازش اسکن دسته‌ای پردازش شده"""
+    try:
+        logger.info(f"🚀 شروع اسکن دسته‌ای پردازش شده برای {len(symbols)} ارز")
+        
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=0,
+            current_batch=0,
+            status="running_processed"
+        )
+        
+        batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+        
+        for batch_num, batch_symbols in enumerate(batches):
+            batch_results = []
+            
+            for symbol in batch_symbols:
+                try:
+                    # دریافت داده پردازش شده
+                    processed_data = DataProcessor.get_basic_scan_data(symbol)
+                    
+                    # ذخیره در GitHub DB
+                    github_cache.save_live_data(symbol, {
+                        "scan_type": "processed", 
+                        "data": processed_data,
+                        "batch_number": batch_num + 1
+                    })
+                    
+                    batch_results.append({
+                        "symbol": symbol,
+                        "status": "success",
+                        "data_type": "processed"
+                    })
+                    
+                except Exception as e:
+                    batch_results.append({
+                        "symbol": symbol,
+                        "status": "error",
+                        "error": str(e)
+                    })
+            
+            current_scanned = (batch_num * batch_size) + len(batch_symbols)
+            progress_tracker.update_progress(
+                total_symbols=len(symbols),
+                scanned=current_scanned,
+                current_batch=batch_num + 1, 
+                status="running_processed"
+            )
+            
+            logger.info(f"✅ دسته {batch_num + 1} کامل شد: {len(batch_symbols)} ارز")
+            
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=len(symbols),
+            current_batch=len(batches),
+            status="completed_processed"
+        )
+        
+        logger.info(f"🎉 اسکن دسته‌ای پردازش شده کامل شد: {len(symbols)} ارز")
+        
+    except Exception as e:
+        logger.error(f"❌ خطا در اسکن دسته‌ای پردازش شده: {e}")
+        progress_tracker.update_progress(
+            total_symbols=len(symbols),
+            scanned=0, 
+            current_batch=0,
+            status="error"
+        )
+
 # ==================== روت‌های اصلی API ====================
 
 @app.get("/")
@@ -267,11 +517,14 @@ async def root():
             content={
                 "message": "VortexAI API Server",
                 "status": "running",
-                "version": "1.0.0",
+                "version": "2.0.0",
                 "timestamp": datetime.now().isoformat(),
                 "endpoints": {
                     "ai_scan": "GET /api/scan/ai/{symbol}",
-                    "basic_scan": "GET /api/scan/basic/{symbol}", 
+                    "basic_scan": "GET /api/scan/basic/{symbol}",
+                    "batch_raw": "POST /api/scan/batch/raw",
+                    "batch_processed": "POST /api/scan/batch/processed",
+                    "scan_progress": "GET /api/scan/progress",
                     "system_status": "GET /api/system/status",
                     "clear_cache": "GET /api/debug/clear-cache"
                 }
@@ -361,10 +614,11 @@ async def system_status():
         return {
             "status": "operational",
             "timestamp": datetime.now().isoformat(),
-            "version": "1.0.0",
+            "version": "2.0.0",
             
             "services": {
                 "coinstats_api": COINSTATS_AVAILABLE,
+                "github_db": GITHUB_DB_AVAILABLE,
                 "total_healthy_endpoints": sum(1 for r in endpoint_health.values() if r.get('status') == 'success'),
                 "total_endpoints": len(endpoint_health)
             },
@@ -392,6 +646,8 @@ async def system_status():
                 "total_size_mb": round(cache_size / (1024 * 1024), 2),
                 "cache_dir": "./coinstats_cache"
             },
+            
+            "github_db_stats": github_cache.get_cache_stats() if GITHUB_DB_AVAILABLE else {},
             
             "usage_stats": {
                 "active_connections": 0,
@@ -426,9 +682,6 @@ async def clear_cache():
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# سرو کردن فایل‌های استاتیک frontend
-#app.mount("/assets", StaticFiles(directory="frontend/assets"), name="assets")
 
 # مدیریت روت‌های SPA برای frontend
 @app.get("/{full_path:path}")
