@@ -1,9 +1,10 @@
-# api/ai_routes.py - API Routes برای ارتباط با Trading AI
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, List
 import logging
 import time
+from datetime import datetime
+from trading_ai.main_trading_system import main_trading_system  # ✅ ایمپورت مستقیم
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -16,8 +17,7 @@ class AIAnalysisRequest(BaseModel):
 async def ai_analyze(request: AIAnalysisRequest):
     """آنالیز نماد توسط هوش مصنوعی"""
     try:
-        from trading_ai.main_trading_system import main_trading_system
-        
+        # استفاده مستقیم از main_trading_system
         if not main_trading_system.is_initialized:
             success = main_trading_system.initialize_system()
             if not success:
@@ -48,11 +48,9 @@ async def ai_analyze(request: AIAnalysisRequest):
 async def ai_status():
     """وضعیت سیستم AI"""
     try:
-        from trading_ai.main_trading_system import main_trading_system
         status = main_trading_system.get_system_status()
         
-        # تضمین نوع داده‌ای برای جلوگیری از خطای Any
-        response_data = {
+        return {
             "status": "success",
             "ai_system": {
                 "initialized": bool(status.get('initialized', False)),
@@ -67,8 +65,6 @@ async def ai_status():
             "timestamp": status.get('last_analysis_time')
         }
         
-        return response_data
-        
     except Exception as e:
         logger.error(f"خطا در دریافت وضعیت AI: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -77,7 +73,6 @@ async def ai_status():
 async def ai_initialize():
     """راه‌اندازی سیستم AI"""
     try:
-        from trading_ai.main_trading_system import main_trading_system
         success = main_trading_system.initialize_system()
         return {
             "status": "success" if success else "error",
@@ -87,20 +82,6 @@ async def ai_initialize():
     except Exception as e:
         logger.error(f"خطا در راه‌اندازی AI: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# اضافه کردن routeهای اصلی برای تست
-@router.get("/")
-async def ai_root():
-    """صفحه اصلی AI"""
-    return {
-        "message": "VortexAI Trading System API",
-        "version": "1.0.0",
-        "endpoints": {
-            "status": "GET /api/ai/status",
-            "initialize": "POST /api/ai/initialize", 
-            "analyze": "POST /api/ai/analyze"
-        }
-    }
 
 @router.get("/test")
 async def ai_test():
