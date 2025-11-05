@@ -41,6 +41,7 @@ class VortexApp {
         this.loadSettings();
         this.checkAPIStatus();
         this.showSection('scan');
+        this.addVisualEffects(); // ✅ اضافه شد
     }
 
     bindEvents() {
@@ -158,6 +159,7 @@ class VortexApp {
         const topSymbols = this.top100Symbols.slice(0, count);
         this.selectedSymbols = topSymbols;
         this.updateSymbolsInput();
+        this.showNotification(`✅ ${count} ارز برتر انتخاب شد`, 'success');
     }
 
     updateSelectedSymbols(text) {
@@ -183,7 +185,7 @@ class VortexApp {
 
     async startSmartScan() {
         if (this.isScanning) {
-            alert('اسکن در حال انجام است!');
+            this.showNotification('اسکن در حال انجام است!', 'warning');
             return;
         }
 
@@ -191,7 +193,7 @@ class VortexApp {
             this.selectedSymbols : this.top100Symbols.slice(0, 100);
 
         if (symbolsToScan.length === 0) {
-            alert('لطفاً حداقل یک ارز انتخاب کنید');
+            this.showNotification('لطفاً حداقل یک ارز انتخاب کنید', 'error');
             return;
         }
 
@@ -202,6 +204,7 @@ class VortexApp {
             batchSize: this.batchSize
         });
 
+        this.showNotification(`🚀 شروع اسکن ${symbolsToScan.length} ارز`, 'info');
         await this.currentScan.start();
         this.isScanning = false;
     }
@@ -209,6 +212,7 @@ class VortexApp {
     cancelScan() {
         if (this.currentScan) {
             this.currentScan.cancel();
+            this.showNotification('اسکن لغو شد', 'warning');
         }
         this.hideLoading();
     }
@@ -235,6 +239,7 @@ class VortexApp {
         if (resultsCount) {
             resultsCount.textContent = '0 مورد';
         }
+        this.showNotification('نتایج پاکسازی شد', 'info');
     }
 
     async checkAPIStatus() {
@@ -430,13 +435,13 @@ class VortexApp {
         localStorage.setItem('vortex_cacheTTL', cacheTTL);
         
         this.batchSize = parseInt(batchSize);
-        alert('تنظیمات با موفقیت ذخیره شد');
+        this.showNotification('تنظیمات با موفقیت ذخیره شد', 'success');
     }
 
     clearCache() {
         // پاکسازی کش
         localStorage.clear();
-        alert('کش سیستم با موفقیت پاکسازی شد');
+        this.showNotification('کش سیستم با موفقیت پاکسازی شد', 'success');
     }
 
     async testAPIEndpoints() {
@@ -466,11 +471,136 @@ class VortexApp {
         }
         
         console.log('✅ تست API تکمیل شد');
-        alert('تست API انجام شد. نتیجه را در console ببینید.');
+        this.showNotification('تست API انجام شد. نتیجه را در console ببینید.', 'info');
     }
 
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 🔥 توابع جدید اضافه شده
+    addVisualEffects() {
+        // افکت hover روی دکمه‌ها
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-2px)';
+            });
+            btn.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+
+        // افکت اسکرول نرم برای لینک‌ها
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // افکت کلیک روی کارت‌ها
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.coin-card')) {
+                const card = e.target.closest('.coin-card');
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = '';
+                }, 150);
+            }
+        });
+    }
+
+    showNotification(message, type = 'info') {
+        // ایجاد المان نوتیفیکیشن
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-message">${message}</span>
+                <button class="notification-close">&times;</button>
+            </div>
+        `;
+        
+        // اضافه کردن استایل‌های لازم
+        if (!document.querySelector('.notification')) {
+            const style = document.createElement('style');
+            style.textContent = `
+                .notification {
+                    position: fixed;
+                    top: 120px;
+                    right: 2rem;
+                    background: var(--surface);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius);
+                    padding: 1rem 1.5rem;
+                    box-shadow: var(--shadow-lg);
+                    transform: translateX(400px);
+                    transition: transform 0.3s ease;
+                    z-index: 10000;
+                    backdrop-filter: blur(20px);
+                    max-width: 400px;
+                }
+                .notification.show {
+                    transform: translateX(0);
+                }
+                .notification-content {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+                .notification-close {
+                    background: none;
+                    border: none;
+                    color: var(--text-light);
+                    font-size: 1.2rem;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                .notification-success {
+                    border-left: 4px solid var(--success);
+                }
+                .notification-error {
+                    border-left: 4px solid var(--error);
+                }
+                .notification-warning {
+                    border-left: 4px solid var(--warning);
+                }
+                .notification-info {
+                    border-left: 4px solid var(--primary);
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(notification);
+        
+        // نمایش با انیمیشن
+        setTimeout(() => notification.classList.add('show'), 100);
+        
+        // حذف خودکار بعد از 5 ثانیه
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }, 5000);
+        
+        // بستن دستی
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        });
     }
 }
 
@@ -515,11 +645,12 @@ class ScanSession {
             if (!this.isCancelled) {
                 this.displayResults();
                 this.showCompletionMessage();
+                vortexApp.showNotification(`✅ اسکن ${this.symbols.length} ارز تکمیل شد`, 'success');
             }
 
         } catch (error) {
             console.error('خطا در اسکن:', error);
-            this.showError('خطا در انجام اسکن: ' + error.message);
+            vortexApp.showNotification('خطا در انجام اسکن: ' + error.message, 'error');
         } finally {
             vortexApp.hideLoading();
         }
@@ -950,10 +1081,6 @@ class ScanSession {
         if (successCount > 0) {
             console.log(`🎉 اسکن با موفقیت تکمیل شد: ${successCount}/${totalCount} ارز`);
         }
-    }
-
-    showError(message) {
-        alert(message);
     }
 
     cancel() {
