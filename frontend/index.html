@@ -3,22 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexAI - سیستم تحلیل هوشمند</title>
+    <title>VortexAI • سیستم تحلیل هوشمند بازار</title>
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- هدر مدرن -->
     <header class="header">
         <div class="header-content">
             <div class="nav-brand">
-                <span class="brand-symbol">V</span>
+                <div class="brand-symbol">V</div>
                 <span class="brand-text">VortexAI</span>
             </div>
             
             <nav class="nav-menu">
-                <button class="nav-btn active" data-section="scan">اسکن بازار</button>
-                <button class="nav-btn" data-section="dashboard">داشبورد</button>
-                <button class="nav-btn" data-section="health">سلامت سیستم</button>
-                <button class="nav-btn" data-section="ai">هوش مصنوعی</button>
+                <button class="nav-btn active" data-section="scan">
+                    📊 اسکن بازار
+                </button>
+                <button class="nav-btn" data-section="dashboard">
+                    📈 داشبورد
+                </button>
+                <button class="nav-btn" data-section="health">
+                    🛡️ سلامت سیستم
+                </button>
+                <button class="nav-btn" data-section="ai">
+                    🤖 تحلیل AI
+                </button>
             </nav>
 
             <div class="system-status">
@@ -28,20 +38,16 @@
         </div>
     </header>
 
+    <!-- محتوای اصلی -->
     <main class="main-content">
-        <!-- بخش اسکن -->
+        <!-- بخش اسکن بازار -->
         <section id="scan-section" class="content-section active">
             <div class="section-header">
-                <h1>اسکنر بازار ارز</h1>
+                <h1>🔍 اسکنر پیشرفته بازار</h1>
                 <div class="header-actions">
-                    <div class="currency-filter">
-                        <button class="filter-btn" id="filterToggle">تعداد ارز</button>
-                        <div class="filter-menu" id="filterMenu">
-                            <button class="filter-option" data-count="10">10 ارز</button>
-                            <button class="filter-option" data-count="50">50 ارز</button>
-                            <button class="filter-option" data-count="100">100 ارز</button>
-                        </div>
-                    </div>
+                    <button class="btn btn-secondary" id="filterToggle">
+                        🎯 فیلتر ارزها
+                    </button>
                 </div>
             </div>
 
@@ -49,11 +55,11 @@
                 <div class="mode-selector">
                     <label class="mode-option">
                         <input type="radio" name="scanMode" value="basic" checked>
-                        <span class="mode-label">داده بهینه</span>
+                        <span class="mode-label">📈 داده بهینه</span>
                     </label>
                     <label class="mode-option">
                         <input type="radio" name="scanMode" value="ai">
-                        <span class="mode-label">تحلیل AI</span>
+                        <span class="mode-label">🤖 تحلیل هوش مصنوعی</span>
                     </label>
                 </div>
 
@@ -68,18 +74,18 @@
                     </div>
                 </div>
 
-                <button class="primary-btn" id="startScan">
-                    شروع اسکن هوشمند
+                <button class="btn btn-primary btn-lg" id="startScan">
+                    🚀 شروع اسکن هوشمند
                 </button>
             </div>
 
             <div class="results-container">
                 <div class="results-header">
-                    <h3>نتایج اسکن</h3>
+                    <h3>📊 نتایج اسکن</h3>
                     <div class="results-actions">
                         <span id="resultsCount">0 مورد</span>
-                        <button class="secondary-btn" id="clearResults">پاکسازی</button>
-                        <button class="secondary-btn" id="exportData">خروجی داده</button>
+                        <button class="btn btn-secondary" id="clearResults">🗑️ پاکسازی</button>
+                        <button class="btn btn-secondary" id="exportData">📥 خروجی</button>
                     </div>
                 </div>
                 <div class="results-grid" id="resultsGrid">
@@ -94,8 +100,10 @@
         <!-- بخش داشبورد -->
         <section id="dashboard-section" class="content-section">
             <div class="section-header">
-                <h1>داشبورد سیستم</h1>
-                <button class="secondary-btn" id="refreshDashboard">بروزرسانی</button>
+                <h1>📈 داشبورد عملکرد</h1>
+                <button class="btn btn-secondary" id="refreshDashboard">
+                    🔄 بروزرسانی
+                </button>
             </div>
             
             <div class="stats-grid">
@@ -116,48 +124,30 @@
                     <div class="stat-label">تحلیل AI</div>
                 </div>
             </div>
-
-            <div class="dashboard-cards">
-                <div class="dashboard-card">
-                    <h3>آخرین فعالیت‌ها</h3>
-                    <div class="activity-list" id="activityList">
-                        <div class="activity-item">سیستم راه‌اندازی شد</div>
-                    </div>
-                </div>
-                
-                <div class="dashboard-card">
-                    <h3>وضعیت AI</h3>
-                    <div class="ai-status" id="aiStatus">
-                        <div class="status-item">در حال بارگذاری...</div>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- بخش سلامت سیستم -->
         <section id="health-section" class="content-section">
             <div class="section-header">
-                <h1>سلامت سیستم</h1>
-                <button class="secondary-btn" id="refreshHealth">بروزرسانی</button>
+                <h1>🛡️ سلامت سیستم</h1>
+                <button class="btn btn-secondary" id="refreshHealth">
+                    🔄 بروزرسانی
+                </button>
             </div>
 
             <div class="health-grid">
                 <div class="health-card">
-                    <h3>وضعیت سرویس‌ها</h3>
+                    <h3>🌐 وضعیت سرویس‌ها</h3>
                     <div class="endpoints-list" id="endpointsList">
                         <div class="endpoint-item">
                             <span class="endpoint-name">API اصلی</span>
                             <span class="endpoint-status status-success">فعال</span>
                         </div>
-                        <div class="endpoint-item">
-                            <span class="endpoint-name">هوش مصنوعی</span>
-                            <span class="endpoint-status status-connecting">در حال بررسی</span>
-                        </div>
                     </div>
                 </div>
                 
                 <div class="health-card">
-                    <h3>متریک‌های سیستم</h3>
+                    <h3>📊 متریک‌های سیستم</h3>
                     <div class="system-metrics" id="systemMetrics">
                         <div class="metric-item">مصرف CPU: 0%</div>
                         <div class="metric-item">مصرف RAM: 0%</div>
@@ -165,29 +155,19 @@
                     </div>
                 </div>
             </div>
-
-            <div class="logs-section">
-                <div class="logs-header">
-                    <h3>لاگ‌های زنده سیستم</h3>
-                    <button class="secondary-btn" id="clearLogs">پاکسازی لاگ</button>
-                </div>
-                <div class="logs-container" id="logsContainer">
-                    <div class="log-entry">
-                        <span class="log-time">--:--:--</span>
-                        <span class="log-level">INFO</span>
-                        <span class="log-message">سیستم راه‌اندازی شد</span>
-                    </div>
-                </div>
-            </div>
         </section>
 
-        <!-- بخش هوش مصنوعی (جدید) -->
+        <!-- بخش هوش مصنوعی -->
         <section id="ai-section" class="content-section">
             <div class="section-header">
-                <h1>تحلیل هوش مصنوعی</h1>
+                <h1>🤖 تحلیل هوش مصنوعی</h1>
                 <div class="ai-controls">
-                    <button class="secondary-btn" id="initAI">راه‌اندازی AI</button>
-                    <button class="primary-btn" id="analyzeWithAI">تحلیل انتخابی</button>
+                    <button class="btn btn-secondary" id="initAI">
+                        ⚡ راه‌اندازی AI
+                    </button>
+                    <button class="btn btn-primary" id="analyzeWithAI">
+                        🧠 تحلیل انتخابی
+                    </button>
                 </div>
             </div>
 
@@ -199,24 +179,6 @@
                             <span class="indicator-label">موتور تکنیکال</span>
                             <span class="indicator-value">--</span>
                         </div>
-                        <div class="indicator">
-                            <span class="indicator-label">تحلیل روند</span>
-                            <span class="indicator-value">--</span>
-                        </div>
-                        <div class="indicator">
-                            <span class="indicator-label">داده‌های زنده</span>
-                            <span class="indicator-value">--</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="analysis-controls">
-                    <h3>تحلیل سریع</h3>
-                    <div class="quick-symbols">
-                        <button class="symbol-btn" data-symbol="bitcoin">Bitcoin</button>
-                        <button class="symbol-btn" data-symbol="ethereum">Ethereum</button>
-                        <button class="symbol-btn" data-symbol="solana">Solana</button>
-                        <button class="symbol-btn" data-symbol="cardano">Cardano</button>
                     </div>
                 </div>
             </div>
@@ -230,7 +192,7 @@
         </section>
     </main>
 
-    <!-- لودینگ شیشه‌ای -->
+    <!-- لودینگ شیشه‌ای مدرن -->
     <div class="glass-loading" id="glassLoading">
         <div class="glass-content">
             <div class="loading-spinner"></div>
@@ -242,19 +204,7 @@
                     <div class="progress-fill" id="loadingFill"></div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- مدال جزئیات AI -->
-    <div class="ai-modal" id="aiModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">تحلیل AI</h3>
-                <button class="close-btn" id="closeModal">×</button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- محتوای مدال -->
-            </div>
+            <button class="btn btn-secondary" id="cancelScan">لغو عملیات</button>
         </div>
     </div>
 
