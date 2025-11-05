@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from api.ai_routes import router as ai_router
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
@@ -19,6 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VortexAI API", version="2.1.0")
+
+app.include_router(ai_router, prefix="/api/ai", tags=["AI Analysis"])
 
 # CORS
 app.add_middleware(
