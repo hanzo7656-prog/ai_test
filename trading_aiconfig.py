@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict
 
 @dataclass
@@ -6,7 +6,7 @@ class TradingConfig:
     """تنظیمات اصلی سیستم تحلیل تکنیکال"""
     
     # نمادهای تحت پوشش - استفاده از لیست 100 تایی از app.js
-    SYMBOLS: List[str] = None
+    SYMBOLS: List[str] = field(default_factory=list)  # ✅ اصلاح شد
     
     # تنظیمات معماری اسپارس
     SPARSE_NEURONS: int = 2500
@@ -20,11 +20,11 @@ class TradingConfig:
     LEARNING_RATE: float = 0.001
     
     # تنظیمات تحلیل تکنیکال
-    TECHNICAL_INDICATORS: List[str] = ['RSI', 'MACD', 'BBANDS', 'STOCH', 'ATR', 'OBV']
-    LOOKBACK_DAYS: int = 100  # کاهش به 100 روز برای عملکرد بهتر
+    TECHNICAL_INDICATORS: List[str] = field(default_factory=lambda: ['RSI', 'MACD', 'BBANDS', 'STOCH', 'ATR', 'OBV'])  # ✅ اصلاح شد
+    LOOKBACK_DAYS: int = 100
     
     # تنظیمات اسکن
-    SCAN_INTERVAL: int = 300  # ثانیه
+    SCAN_INTERVAL: int = 300
     CONFIDENCE_THRESHOLD: float = 0.7
 
 @dataclass
