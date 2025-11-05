@@ -1,8 +1,9 @@
 # main_trading_system.py - سیستم اصلی تحلیل تکنیکال هوشمند با داده‌های خام
 
 import logging
+import time  # ✅ اضافه شد
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Any  # ✅ اضافه شد
 import pandas as pd
 import numpy as np
 from trading_ai.database_manager import trading_db
@@ -577,20 +578,3 @@ class MainTradingSystem:
 
 # ایجاد نمونه گلوبال
 main_trading_system = MainTradingSystem()
-
-if __name__ == "__main__":
-    # تست سیستم
-    system = MainTradingSystem()
-    
-    if system.initialize_system():
-        print("✅ سیستم معاملاتی راه‌اندازی شد")
-        
-        # تحلیل نمونه
-        result = system.analyze_symbol('bitcoin')
-        print("\n📊 نتایج تحلیل:")
-        print(f"نماد: {result['symbol']}")
-        print(f"سیگنال: {result['trading_signal']['action']}")
-        print(f"اطمینان: {result['system_confidence']:.2f}")
-        print(f"توصیه: {result['recommendations'][:2]}")
-        
-        print(f"\n📈 وضعیت سیستم: {system.get_system_status()}")
