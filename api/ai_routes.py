@@ -1,6 +1,7 @@
+# api/ai_routes.py - API Routes برای ارتباط با Trading AI
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Union, List
 import logging
 import time
 
@@ -49,11 +50,25 @@ async def ai_status():
     try:
         from trading_ai.main_trading_system import main_trading_system
         status = main_trading_system.get_system_status()
-        return {
+        
+        # تضمین نوع داده‌ای برای جلوگیری از خطای Any
+        response_data = {
             "status": "success",
-            "ai_system": status,
+            "ai_system": {
+                "initialized": bool(status.get('initialized', False)),
+                "market_state": status.get('market_state', {}),
+                "active_symbols": list(status.get('active_symbols', [])),
+                "supported_analysis": list(status.get('supported_analysis', [])),
+                "last_analysis_time": status.get('last_analysis_time'),
+                "raw_data_mode": bool(status.get('raw_data_mode', True)),
+                "cache_size": int(status.get('cache_size', 0)),
+                "data_sources": list(status.get('data_sources', []))
+            },
             "timestamp": status.get('last_analysis_time')
         }
+        
+        return response_data
+        
     except Exception as e:
         logger.error(f"خطا در دریافت وضعیت AI: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -66,9 +81,32 @@ async def ai_initialize():
         success = main_trading_system.initialize_system()
         return {
             "status": "success" if success else "error",
-            "initialized": success,
+            "initialized": bool(success),
             "message": "سیستم AI راه‌اندازی شد" if success else "خطا در راه‌اندازی AI"
         }
     except Exception as e:
         logger.error(f"خطا در راه‌اندازی AI: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# اضافه کردن routeهای اصلی برای تست
+@router.get("/")
+async def ai_root():
+    """صفحه اصلی AI"""
+    return {
+        "message": "VortexAI Trading System API",
+        "version": "1.0.0",
+        "endpoints": {
+            "status": "GET /api/ai/status",
+            "initialize": "POST /api/ai/initialize", 
+            "analyze": "POST /api/ai/analyze"
+        }
+    }
+
+@router.get("/test")
+async def ai_test():
+    """تست ساده AI"""
+    return {
+        "status": "success",
+        "message": "AI API فعال است",
+        "timestamp": datetime.now().isoformat()
+    }
