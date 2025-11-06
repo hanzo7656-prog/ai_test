@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- هدر مدرن -->
+    <!-- هدر -->
     <header class="header">
         <div class="header-content">
             <div class="nav-brand">
@@ -29,6 +29,9 @@
                 <button class="nav-btn" data-section="ai">
                     🤖 تحلیل AI
                 </button>
+                <button class="nav-btn" data-section="settings">
+                    ⚙️ تنظیمات
+                </button>
             </nav>
 
             <div class="system-status">
@@ -43,55 +46,69 @@
         <!-- بخش اسکن بازار -->
         <section id="scan-section" class="content-section active">
             <div class="section-header">
-                <h1>🔍 اسکنر پیشرفته بازار</h1>
-                <div class="header-actions">
-                    <button class="btn btn-secondary" id="filterToggle">
-                        🎯 فیلتر ارزها
+                <h1>🔍 اسکنر بازار ارز</h1>
+            </div>
+
+            <div class="scan-section">
+                <div class="scan-controls">
+                    <div class="control-group">
+                        <label class="control-label">جستجوی ارزها</label>
+                        <div class="search-box">
+                            <textarea 
+                                id="symbolsInput" 
+                                class="search-input"
+                                placeholder="نام ارزها را وارد کنید (هر خط یک ارز)&#10;مثال:&#10;bitcoin&#10;ethereum&#10;solana"
+                                rows="4"
+                            ></textarea>
+                        </div>
+                        <div class="input-info">
+                            <span id="selectedCount">0 ارز انتخاب شده</span>
+                            <div class="currency-filter">
+                                <button class="filter-btn" id="filterToggle">
+                                    🎯 فیلتر تعداد
+                                </button>
+                                <div class="filter-menu" id="filterMenu">
+                                    <button class="filter-option" data-count="10">10 ارز برتر</button>
+                                    <button class="filter-option" data-count="25">25 ارز برتر</button>
+                                    <button class="filter-option" data-count="50">50 ارز برتر</button>
+                                    <button class="filter-option" data-count="100">100 ارز برتر</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">نوع اسکن</label>
+                        <div class="mode-selector">
+                            <label class="mode-option">
+                                <input type="radio" name="scanMode" value="basic" checked>
+                                <span class="mode-label">📈 داده بهینه</span>
+                            </label>
+                            <label class="mode-option">
+                                <input type="radio" name="scanMode" value="ai">
+                                <span class="mode-label">🤖 تحلیل هوش مصنوعی</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-block" id="startScan">
+                        🚀 شروع اسکن هوشمند
                     </button>
                 </div>
-            </div>
 
-            <div class="scan-controls">
-                <div class="mode-selector">
-                    <label class="mode-option">
-                        <input type="radio" name="scanMode" value="basic" checked>
-                        <span class="mode-label">📈 داده بهینه</span>
-                    </label>
-                    <label class="mode-option">
-                        <input type="radio" name="scanMode" value="ai">
-                        <span class="mode-label">🤖 تحلیل هوش مصنوعی</span>
-                    </label>
-                </div>
-
-                <div class="symbols-input">
-                    <textarea 
-                        id="symbolsInput" 
-                        placeholder="نام ارزها را وارد کنید (هر خط یک ارز) یا از فیلتر تعداد استفاده کنید"
-                        rows="4"
-                    ></textarea>
-                    <div class="input-info">
-                        <span id="selectedCount">0 ارز انتخاب شده</span>
+                <div class="results-container">
+                    <div class="results-header">
+                        <h3>نتایج اسکن</h3>
+                        <div class="results-actions">
+                            <span class="results-count" id="resultsCount">0 مورد</span>
+                            <button class="btn btn-secondary" id="clearResults">پاکسازی</button>
+                        </div>
                     </div>
-                </div>
-
-                <button class="btn btn-primary btn-lg" id="startScan">
-                    🚀 شروع اسکن هوشمند
-                </button>
-            </div>
-
-            <div class="results-container">
-                <div class="results-header">
-                    <h3>📊 نتایج اسکن</h3>
-                    <div class="results-actions">
-                        <span id="resultsCount">0 مورد</span>
-                        <button class="btn btn-secondary" id="clearResults">🗑️ پاکسازی</button>
-                        <button class="btn btn-secondary" id="exportData">📥 خروجی</button>
-                    </div>
-                </div>
-                <div class="results-grid" id="resultsGrid">
-                    <div class="empty-state">
-                        <p>هنوز اسکنی انجام نشده است</p>
-                        <small>برای شروع از دکمه بالا استفاده کنید</small>
+                    <div class="results-grid" id="resultsGrid">
+                        <div class="empty-state">
+                            <p>هنوز اسکنی انجام نشده است</p>
+                            <small>برای شروع از دکمه بالا استفاده کنید</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -106,22 +123,22 @@
                 </button>
             </div>
             
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="cacheCount">0</div>
-                    <div class="stat-label">آیتم در کش</div>
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="dashboard-value" id="cacheCount">0</div>
+                    <div class="dashboard-label">آیتم در کش</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalSymbols">100</div>
-                    <div class="stat-label">ارز پشتیبانی شده</div>
+                <div class="dashboard-card">
+                    <div class="dashboard-value" id="totalSymbols">100</div>
+                    <div class="dashboard-label">ارز پشتیبانی شده</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="scanCount">0</div>
-                    <div class="stat-label">اسکن امروز</div>
+                <div class="dashboard-card">
+                    <div class="dashboard-value" id="scanCount">0</div>
+                    <div class="dashboard-label">اسکن امروز</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="aiAnalysisCount">0</div>
-                    <div class="stat-label">تحلیل AI</div>
+                <div class="dashboard-card">
+                    <div class="dashboard-value" id="aiAnalysisCount">0</div>
+                    <div class="dashboard-label">تحلیل AI</div>
                 </div>
             </div>
         </section>
@@ -137,21 +154,77 @@
 
             <div class="health-grid">
                 <div class="health-card">
-                    <h3>🌐 وضعیت سرویس‌ها</h3>
+                    <h3>وضعیت سرویس‌ها</h3>
                     <div class="endpoints-list" id="endpointsList">
                         <div class="endpoint-item">
-                            <span class="endpoint-name">API اصلی</span>
-                            <span class="endpoint-status status-success">فعال</span>
+                            <div class="endpoint-info">
+                                <div class="endpoint-name">API اصلی</div>
+                                <div class="endpoint-details">
+                                    <span class="response-time">--</span>
+                                </div>
+                            </div>
+                            <span class="endpoint-status status-success">در حال تست...</span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="health-card">
-                    <h3>📊 متریک‌های سیستم</h3>
+                    <h3>متریک‌های سیستم</h3>
                     <div class="system-metrics" id="systemMetrics">
-                        <div class="metric-item">مصرف CPU: 0%</div>
-                        <div class="metric-item">مصرف RAM: 0%</div>
-                        <div class="metric-item">فضای دیسک: 0%</div>
+                        <div class="metric-item">مصرف CPU: <strong>0%</strong></div>
+                        <div class="metric-item">مصرف RAM: <strong>0%</strong></div>
+                        <div class="metric-item">فضای دیسک: <strong>0%</strong></div>
+                        <div class="metric-item">آپتایم: <strong>0h</strong></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="health-grid">
+                <div class="health-card">
+                    <h3>وضعیت هوش مصنوعی</h3>
+                    <div class="status-indicators" id="aiEngineStatus">
+                        <div class="indicator">
+                            <span class="indicator-label">موتور تکنیکال</span>
+                            <span class="indicator-value status-error">در حال تست...</span>
+                        </div>
+                        <div class="indicator">
+                            <span class="indicator-label">تحلیل روند</span>
+                            <span class="indicator-value status-error">در حال تست...</span>
+                        </div>
+                        <div class="indicator">
+                            <span class="indicator-label">داده‌های زنده</span>
+                            <span class="indicator-value status-error">در حال تست...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="health-card">
+                    <h3>تست API</h3>
+                    <div class="endpoints-list">
+                        <div class="endpoint-item">
+                            <div class="endpoint-info">
+                                <div class="endpoint-name">تست کامل سیستم</div>
+                            </div>
+                            <button class="btn btn-secondary" id="testAPI" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">
+                                اجرای تست
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="logs-section">
+                <div class="logs-header">
+                    <h3>لاگ‌های زنده سیستم</h3>
+                    <button class="btn btn-secondary" id="clearLogs" style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+                        پاکسازی لاگ
+                    </button>
+                </div>
+                <div class="logs-container" id="logsContainer">
+                    <div class="log-entry">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-level">INFO</span>
+                        <span class="log-message">سیستم راه‌اندازی شد</span>
                     </div>
                 </div>
             </div>
@@ -172,39 +245,146 @@
             </div>
 
             <div class="ai-status-panel">
-                <div class="status-card">
-                    <h3>وضعیت موتور AI</h3>
-                    <div class="status-indicators" id="aiEngineStatus">
-                        <div class="indicator">
-                            <span class="indicator-label">موتور تکنیکال</span>
-                            <span class="indicator-value">--</span>
-                        </div>
+                <h3>وضعیت موتور AI</h3>
+                <div class="status-indicators" id="aiStatusIndicators">
+                    <div class="indicator">
+                        <span class="indicator-label">موتور تکنیکال</span>
+                        <span class="indicator-value status-error">غیرفعال</span>
+                    </div>
+                    <div class="indicator">
+                        <span class="indicator-label">تحلیل روند</span>
+                        <span class="indicator-value status-error">غیرفعال</span>
+                    </div>
+                    <div class="indicator">
+                        <span class="indicator-label">داده‌های زنده</span>
+                        <span class="indicator-value status-error">غیرفعال</span>
                     </div>
                 </div>
             </div>
 
-            <div class="ai-results" id="aiResults">
-                <div class="empty-state">
-                    <p>هنوز تحلیلی انجام نشده است</p>
-                    <small>برای تحلیل از دکمه‌های بالا استفاده کنید</small>
+            <div class="scan-controls">
+                <div class="control-group">
+                    <label class="control-label">تحلیل سریع ارزها</label>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-secondary symbol-btn" data-symbol="bitcoin" style="padding: 0.5rem 1rem;">
+                            Bitcoin
+                        </button>
+                        <button class="btn btn-secondary symbol-btn" data-symbol="ethereum" style="padding: 0.5rem 1rem;">
+                            Ethereum
+                        </button>
+                        <button class="btn btn-secondary symbol-btn" data-symbol="solana" style="padding: 0.5rem 1rem;">
+                            Solana
+                        </button>
+                        <button class="btn btn-secondary symbol-btn" data-symbol="cardano" style="padding: 0.5rem 1rem;">
+                            Cardano
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-container">
+                <div class="results-header">
+                    <h3>نتایج تحلیل AI</h3>
+                    <div class="results-actions">
+                        <span class="results-count" id="aiResultsCount">0 مورد</span>
+                        <button class="btn btn-secondary" id="clearAIResults">پاکسازی</button>
+                    </div>
+                </div>
+                <div class="results-grid" id="aiResults">
+                    <div class="empty-state">
+                        <p>هنوز تحلیلی انجام نشده است</p>
+                        <small>برای تحلیل از دکمه‌های بالا استفاده کنید</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- بخش تنظیمات -->
+        <section id="settings-section" class="content-section">
+            <div class="section-header">
+                <h1>⚙️ تنظیمات سیستم</h1>
+            </div>
+
+            <div class="settings-panel">
+                <div class="setting-group">
+                    <h3>تنظیمات اسکن</h3>
+                    <div class="setting-item">
+                        <span class="setting-label">اندازه دسته اسکن</span>
+                        <div class="setting-control">
+                            <select class="select-control" id="batchSize">
+                                <option value="10">10 ارز</option>
+                                <option value="25" selected>25 ارز</option>
+                                <option value="50">50 ارز</option>
+                                <option value="100">100 ارز</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">زمان انقضای کش (ثانیه)</span>
+                        <div class="setting-control">
+                            <select class="select-control" id="cacheTTL">
+                                <option value="60">1 دقیقه</option>
+                                <option value="300" selected>5 دقیقه</option>
+                                <option value="600">10 دقیقه</option>
+                                <option value="1800">30 دقیقه</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <h3>مدیریت سیستم</h3>
+                    <div class="setting-item">
+                        <span class="setting-label">پاکسازی حافظه کش</span>
+                        <div class="setting-control">
+                            <button class="btn btn-secondary" id="clearCache" style="padding: 0.5rem 1rem;">
+                                پاکسازی کش
+                            </button>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">ذخیره تنظیمات</span>
+                        <div class="setting-control">
+                            <button class="btn btn-primary" id="saveSettings" style="padding: 0.5rem 1rem;">
+                                ذخیره تغییرات
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- لودینگ شیشه‌ای مدرن -->
-    <div class="glass-loading" id="glassLoading">
+    <!-- لودینگ شیشه‌ای -->
+    <div class="glass-loading" id="loadingOverlay">
         <div class="glass-content">
             <div class="loading-spinner"></div>
             <h3 id="loadingTitle">در حال پردازش</h3>
             <p id="loadingMessage">لطفاً منتظر بمانید...</p>
+            
             <div class="progress-info">
-                <span id="loadingProgress">0%</span>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span id="progressText">0/0</span>
+                    <span id="progressPercent">0%</span>
+                </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" id="loadingFill"></div>
+                    <div class="progress-fill" id="progressFill"></div>
                 </div>
             </div>
-            <button class="btn btn-secondary" id="cancelScan">لغو عملیات</button>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; font-size: 0.8rem;">
+                <div>زمان سپری شده: <strong id="elapsedTime">0:00</strong></div>
+                <div>سرعت اسکن: <strong id="scanSpeed">0/دقیقه</strong></div>
+            </div>
+
+            <div style="margin: 1rem 0;">
+                <div style="font-size: 0.8rem; color: var(--text-light); margin-bottom: 0.5rem;">در حال اسکن:</div>
+                <div id="scanningList" style="display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;"></div>
+            </div>
+
+            <button class="btn btn-secondary" id="cancelScan" style="margin-top: 1rem;">
+                لغو عملیات
+            </button>
         </div>
     </div>
 
