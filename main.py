@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VortexAI API", version="2.1.0")
 
-app.include_router(ai_router, prefix="/api/ai", tags=["AI Analysis"])
 
 # CORS
 app.add_middleware(
