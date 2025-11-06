@@ -3,7 +3,6 @@ from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from api.ai_routes import router as ai_router
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
