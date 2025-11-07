@@ -1,4 +1,4 @@
-// سیستم اصلی VortexAI - نسخه اصلاح شده و سازگار با بک‌اند
+// سیستم اصلی VortexAI - نسخه کامل و اصلاح شده
 class VortexApp {
     constructor() {
         this.currentSection = 'scan';
@@ -25,6 +25,12 @@ class VortexApp {
         this.uiManager = new UIManager();
         
         this.logs = [];
+        
+        // bind methods
+        this.boundHandleDocumentClick = this.handleDocumentClick.bind(this);
+        this.boundHandleKeydown = this.handleKeydown.bind(this);
+        this.boundHandleBeforeUnload = this.handleBeforeUnload.bind(this);
+        
         this.init();
     }
 
@@ -48,15 +54,22 @@ class VortexApp {
         });
 
         // منوی موبایل
-        document.getElementById('mobileMenuBtn').addEventListener('click', () => {
-            this.toggleMobileMenu();
-        });
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleMobileMenu();
+            });
+        }
 
         // فیلتر ارز
-        document.getElementById('filterToggle').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.toggleFilterMenu();
-        });
+        const filterToggle = document.getElementById('filterToggle');
+        if (filterToggle) {
+            filterToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.toggleFilterMenu();
+            });
+        }
 
         document.querySelectorAll('.filter-option').forEach(option => {
             option.addEventListener('click', (e) => {
@@ -75,316 +88,216 @@ class VortexApp {
         });
 
         // ورود ارزها
-        document.getElementById('symbolsInput').addEventListener('input', (e) => {
-            this.updateSelectedSymbols(e.target.value);
-        });
+        const symbolsInput = document.getElementById('symbolsInput');
+        if (symbolsInput) {
+            symbolsInput.addEventListener('input', (e) => {
+                this.updateSelectedSymbols(e.target.value);
+            });
+        }
 
         // شروع اسکن
-        document.getElementById('startScan').addEventListener('click', () => {
-            this.startSmartScan();
-        });
+        const startScan = document.getElementById('startScan');
+        if (startScan) {
+            startScan.addEventListener('click', () => {
+                this.startSmartScan();
+            });
+        }
 
         // مدیریت نتایج
-        document.getElementById('clearResults').addEventListener('click', () => {
-            this.clearResults();
-        });
+        const clearResults = document.getElementById('clearResults');
+        if (clearResults) {
+            clearResults.addEventListener('click', () => {
+                this.clearResults();
+            });
+        }
 
-        document.getElementById('exportResults').addEventListener('click', () => {
-            this.exportResults();
-        });
+        const exportResults = document.getElementById('exportResults');
+        if (exportResults) {
+            exportResults.addEventListener('click', () => {
+                this.exportResults();
+            });
+        }
 
         // سلامت سیستم
-        document.getElementById('refreshHealth').addEventListener('click', () => {
-            this.loadHealthStatus();
-        });
+        const refreshHealth = document.getElementById('refreshHealth');
+        if (refreshHealth) {
+            refreshHealth.addEventListener('click', () => {
+                this.loadHealthStatus();
+            });
+        }
 
-        document.getElementById('testAPI').addEventListener('click', () => {
-            this.testAPIEndpoints();
-        });
+        const testAPI = document.getElementById('testAPI');
+        if (testAPI) {
+            testAPI.addEventListener('click', () => {
+                this.testAPIEndpoints();
+            });
+        }
 
         // AI
-        document.getElementById('initAI').addEventListener('click', () => {
-            this.initAIEngine();
-        });
+        const initAI = document.getElementById('initAI');
+        if (initAI) {
+            initAI.addEventListener('click', () => {
+                this.initAIEngine();
+            });
+        }
 
-        document.getElementById('analyzeWithAI').addEventListener('click', () => {
-            this.analyzeWithAI();
-        });
+        const analyzeWithAI = document.getElementById('analyzeWithAI');
+        if (analyzeWithAI) {
+            analyzeWithAI.addEventListener('click', () => {
+                this.analyzeWithAI();
+            });
+        }
 
         // سیستم لاگ
-        document.getElementById('clearLogs').addEventListener('click', () => {
-            this.clearLogs();
-        });
+        const clearLogs = document.getElementById('clearLogs');
+        if (clearLogs) {
+            clearLogs.addEventListener('click', () => {
+                this.clearLogs();
+            });
+        }
 
-        document.getElementById('exportLogs').addEventListener('click', () => {
-            this.exportLogs();
-        });
+        const exportLogs = document.getElementById('exportLogs');
+        if (exportLogs) {
+            exportLogs.addEventListener('click', () => {
+                this.exportLogs();
+            });
+        }
 
         // لودینگ
-        document.getElementById('cancelScan').addEventListener('click', () => {
-            this.cancelScan();
-        });
-
-        // سیستم مدیریت event listenerهای VortexApp - نسخه اصلاح شده
-        bindEvents() {
-            // ذخیره referenceهای bind شده
-            this.boundHandleDocumentClick = this.handleDocumentClick.bind(this);
-            this.boundHandleKeydown = this.handleKeydown.bind(this);
-            this.boundHandleBeforeUnload = this.handleBeforeUnload.bind(this);
-
-            // Navigation
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    this.showSection(e.target.closest('.nav-btn').dataset.section);
-                    this.toggleMobileMenu(false);
-                });
+        const cancelScan = document.getElementById('cancelScan');
+        if (cancelScan) {
+            cancelScan.addEventListener('click', () => {
+                this.cancelScan();
             });
+        }
 
-            // منوی موبایل
-            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-            if (mobileMenuBtn) {
-                    mobileMenuBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleMobileMenu();
-                });
-            }
-
-            // فیلتر ارز
-            const filterToggle = document.getElementById('filterToggle');
-            if (filterToggle) {
-                filterToggle.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.toggleFilterMenu();
-                });
-            }
-
-            document.querySelectorAll('.filter-option').forEach(option => {
-                option.addEventListener('click', (e) => {
-                    const count = parseInt(e.target.dataset.count);
-                    this.selectTopSymbols(count);
-                    this.hideFilterMenu();
-                });
+        const cancelLoading = document.getElementById('cancelLoading');
+        if (cancelLoading) {
+            cancelLoading.addEventListener('click', () => {
+                this.cancelScan();
             });
+        }
 
-            // حالت اسکن
-            document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    this.scanMode = e.target.value;
-                    this.log('DEBUG', `حالت اسکن تغییر کرد به: ${this.scanMode}`);
-                });
+        // تنظیمات
+        const saveSettings = document.getElementById('saveSettings');
+        if (saveSettings) {
+            saveSettings.addEventListener('click', () => {
+                this.saveSettings();
             });
+        }
 
-            // ورود ارزها
-            const symbolsInput = document.getElementById('symbolsInput');
-            if (symbolsInput) {
-                symbolsInput.addEventListener('input', (e) => {
-                    this.updateSelectedSymbols(e.target.value);
-                });
-            }
+        const clearCache = document.getElementById('clearCache');
+        if (clearCache) {
+            clearCache.addEventListener('click', () => {
+                this.clearCache();
+            });
+        }
 
-    // شروع اسکن
-            const startScan = document.getElementById('startScan');
-            if (startScan) {
-                startScan.addEventListener('click', () => {
-                    this.startSmartScan();
-                });
-            }
+        const resetSettings = document.getElementById('resetSettings');
+        if (resetSettings) {
+            resetSettings.addEventListener('click', () => {
+                this.resetSettings();
+            });
+        }
 
-            // مدیریت نتایج
-            const clearResults = document.getElementById('clearResults');
-            if (clearResults) {
-                clearResults.addEventListener('click', () => {
-                    this.clearResults();
-                });
-            }
+        const backupSettings = document.getElementById('backupSettings');
+        if (backupSettings) {
+            backupSettings.addEventListener('click', () => {
+                this.backupSettings();
+            });
+        }
 
-            const exportResults = document.getElementById('exportResults');
-            if (exportResults) {
-                exportResults.addEventListener('click', () => {
-                    this.exportResults();
-                });
-            }
+        // دکمه آمار سریع
+        const quickStats = document.getElementById('quickStats');
+        if (quickStats) {
+            quickStats.addEventListener('click', () => {
+                this.showQuickStats();
+            });
+        }
 
-            // سلامت سیستم
-            const refreshHealth = document.getElementById('refreshHealth');
-            if (refreshHealth) {
-                refreshHealth.addEventListener('click', () => {
-                    this.loadHealthStatus();
-                });
-            }
+        // دکمه بروزرسانی داشبورد
+        const refreshDashboard = document.getElementById('refreshDashboard');
+        if (refreshDashboard) {
+            refreshDashboard.addEventListener('click', () => {
+                this.loadDashboard();
+            });
+        }
 
-            const testAPI = document.getElementById('testAPI');
-            if (testAPI) {
-                testAPI.addEventListener('click', () => {
-                    this.testAPIEndpoints();
-                });
-            }
+        // Event listenerهای全局
+        document.addEventListener('click', this.boundHandleDocumentClick);
+        document.addEventListener('keydown', this.boundHandleKeydown);
+        window.addEventListener('beforeunload', this.boundHandleBeforeUnload);
 
-            // AI
-            const initAI = document.getElementById('initAI');
-            if (initAI) {
-                initAI.addEventListener('click', () => {
-                    this.initAIEngine();
-                });
-            }
+        this.log('DEBUG', 'Event listeners initialized successfully');
+    }
 
-            const analyzeWithAI = document.getElementById('analyzeWithAI');
-            if (analyzeWithAI) {
-                analyzeWithAI.addEventListener('click', () => {
-                    this.analyzeWithAI();
-                });
-            }
+    // متدهای handle جداگانه
+    handleDocumentClick(e) {
+        // بستن منو فیلتر با کلیک خارج
+        if (!e.target.closest('.currency-filter')) {
+            this.hideFilterMenu();
+        }
 
-            // سیستم لاگ
-            const clearLogs = document.getElementById('clearLogs');
-            if (clearLogs) {
-                clearLogs.addEventListener('click', () => {
+        // بستن منوی موبایل با کلیک خارج
+        if (!e.target.closest('.nav-menu') && !e.target.closest('.mobile-menu-btn')) {
+            this.toggleMobileMenu(false);
+        }
+    }
+
+    handleKeydown(e) {
+        this.handleKeyboard(e);
+    }
+
+    handleBeforeUnload(e) {
+        if (this.isScanning) {
+            e.preventDefault();
+            e.returnValue = 'اسکن در حال انجام است. آیا مطمئنید که می‌خواهید صفحه را ترک کنید؟';
+        }
+    }
+
+    // مدیریت کلیدهای کیبورد
+    handleKeyboard(e) {
+        // کلیدهای میانبر
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case '1':
+                    e.preventDefault();
+                    this.showSection('scan');
+                    break;
+                case '2':
+                    e.preventDefault();
+                    this.showSection('dashboard');
+                    break;
+                case '3':
+                    e.preventDefault();
+                    this.showSection('health');
+                    break;
+                case '4':
+                    e.preventDefault();
+                    this.showSection('ai');
+                    break;
+                case '5':
+                    e.preventDefault();
+                    this.showSection('settings');
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    const symbolsInput = document.getElementById('symbolsInput');
+                    if (symbolsInput) symbolsInput.focus();
+                    break;
+                case 'l':
+                    e.preventDefault();
                     this.clearLogs();
-                });
-            }
-
-            const exportLogs = document.getElementById('exportLogs');
-            if (exportLogs) {
-                exportLogs.addEventListener('click', () => {
-                    this.exportLogs();
-                });
-            }
-
-            // لودینگ
-            const cancelScan = document.getElementById('cancelScan');
-            if (cancelScan) {
-                cancelScan.addEventListener('click', () => {
-                    this.cancelScan();
-                });
-            }
-
-            const cancelLoading = document.getElementById('cancelLoading');
-            if (cancelLoading) {
-                cancelLoading.addEventListener('click', () => {
-                    this.cancelScan();
-                });
-            }
-
-            // تنظیمات
-            const saveSettings = document.getElementById('saveSettings');
-            if (saveSettings) {
-                saveSettings.addEventListener('click', () => {
-                    this.saveSettings();
-                });
-            }
-
-            const clearCache = document.getElementById('clearCache');
-            if (clearCache) {
-                clearCache.addEventListener('click', () => {
-                    this.clearCache();
-                });
-            }
-
-            const resetSettings = document.getElementById('resetSettings');
-            if (resetSettings) {
-                resetSettings.addEventListener('click', () => {
-                    this.resetSettings();
-                });
-            }
-
-            const backupSettings = document.getElementById('backupSettings');
-            if (backupSettings) {
-                backupSettings.addEventListener('click', () => {
-                    this.backupSettings();
-                });
-            }
-
-            // دکمه آمار سریع
-            const quickStats = document.getElementById('quickStats');
-                if (quickStats) {
-                quickStats.addEventListener('click', () => {
-                    this.showQuickStats();
-                });
-            }
-
-            // دکمه بروزرسانی داشبورد
-            const refreshDashboard = document.getElementById('refreshDashboard');
-                if (refreshDashboard) {
-                refreshDashboard.addEventListener('click', () => {
-                    this.loadDashboard();
-                });
-            }
-
-            // Event listenerهای全局
-            document.addEventListener('click', this.boundHandleDocumentClick);
-            document.addEventListener('keydown', this.boundHandleKeydown);
-            window.addEventListener('beforeunload', this.boundHandleBeforeUnload);
-
-            this.log('DEBUG', 'Event listeners initialized successfully');
-        }
-
-        // متدهای handle جداگانه
-        handleDocumentClick(e) {
-            // بستن منو فیلتر با کلیک خارج
-            if (!e.target.closest('.currency-filter')) {
-                this.hideFilterMenu();
-            }
-    
-            // بستن منوی موبایل با کلیک خارج
-            if (!e.target.closest('.nav-menu') && !e.target.closest('.mobile-menu-btn')) {
-                this.toggleMobileMenu(false);
+                    break;
             }
         }
 
-        handleKeydown(e) {
-            this.handleKeyboard(e);
+        // Escape برای بستن منوها
+        if (e.key === 'Escape') {
+            this.hideFilterMenu();
+            this.toggleMobileMenu(false);
         }
-
-        handleBeforeUnload(e) {
-            if (this.isScanning) {
-                e.preventDefault();
-                e.returnValue = 'اسکن در حال انجام است. آیا مطمئنید که می‌خواهید صفحه را ترک کنید؟';
-            }
-        }
-
-        // مدیریت کلیدهای کیبورد
-        handleKeyboard(e) {
-            // کلیدهای میانبر
-            if (e.ctrlKey || e.metaKey) {
-                switch(e.key) {
-                    case '1':
-                        e.preventDefault();
-                        this.showSection('scan');
-                        break;
-                    case '2':
-                        e.preventDefault();
-                        this.showSection('dashboard');
-                        break;
-                    case '3':
-                        e.preventDefault();
-                        this.showSection('health');
-                        break;
-                    case '4':
-                        e.preventDefault();
-                        this.showSection('ai');
-                        break;
-                    case '5':
-                        e.preventDefault();
-                        this.showSection('settings');
-                        break;
-                    case 'k':
-                        e.preventDefault();
-                        const symbolsInput = document.getElementById('symbolsInput');
-                        if (symbolsInput) symbolsInput.focus();
-                        break;
-                    case 'l':
-                        e.preventDefault();
-                        this.clearLogs();
-                        break;
-                }
-            }
-
-            // Escape برای بستن منوها
-            if (e.key === 'Escape') {
-                this.hideFilterMenu();
-                this.toggleMobileMenu(false);
-            }
-        }
+    }
 
     // ===== مدیریت ناوبری و UI =====
     showSection(section) {
@@ -584,7 +497,8 @@ class VortexApp {
         
         // تغییر حالت به AI و شروع اسکن
         this.scanMode = 'ai';
-        document.querySelector('input[name="scanMode"][value="ai"]').checked = true;
+        const aiRadio = document.querySelector('input[name="scanMode"][value="ai"]');
+        if (aiRadio) aiRadio.checked = true;
         this.startSmartScan();
     }
 
@@ -594,7 +508,8 @@ class VortexApp {
         
         this.selectedSymbols = [symbol];
         this.scanMode = 'ai';
-        document.querySelector('input[name="scanMode"][value="ai"]').checked = true;
+        const aiRadio = document.querySelector('input[name="scanMode"][value="ai"]');
+        if (aiRadio) aiRadio.checked = true;
         
         this.startSmartScan();
     }
@@ -714,7 +629,6 @@ class VortexApp {
         try {
             this.log('DEBUG', 'دریافت وضعیت سلامت سیستم...');
             
-            // ✅ اصلاح شده: endpoint صحیح
             const response = await fetch('/api/status');
             const data = await response.json();
             
@@ -734,11 +648,17 @@ class VortexApp {
         const settings = this.getStoredSettings();
         
         // بارگذاری تنظیمات در UI
-        document.getElementById('batchSize').value = settings.batchSize;
-        document.getElementById('cacheTTL').value = settings.cacheTTL;
-        document.getElementById('resultsPerPage').value = settings.resultsPerPage;
-        document.getElementById('aiPrecision').value = settings.aiPrecision;
-        document.getElementById('autoLearning').checked = settings.autoLearning;
+        const batchSize = document.getElementById('batchSize');
+        const cacheTTL = document.getElementById('cacheTTL');
+        const resultsPerPage = document.getElementById('resultsPerPage');
+        const aiPrecision = document.getElementById('aiPrecision');
+        const autoLearning = document.getElementById('autoLearning');
+        
+        if (batchSize) batchSize.value = settings.batchSize;
+        if (cacheTTL) cacheTTL.value = settings.cacheTTL;
+        if (resultsPerPage) resultsPerPage.value = settings.resultsPerPage;
+        if (aiPrecision) aiPrecision.value = settings.aiPrecision;
+        if (autoLearning) autoLearning.checked = settings.autoLearning;
 
         // آپدیت اطلاعات سیستم
         this.updateSystemInfo();
@@ -748,11 +668,11 @@ class VortexApp {
 
     saveSettings() {
         const settings = {
-            batchSize: document.getElementById('batchSize').value,
-            cacheTTL: document.getElementById('cacheTTL').value,
-            resultsPerPage: document.getElementById('resultsPerPage').value,
-            aiPrecision: document.getElementById('aiPrecision').value,
-            autoLearning: document.getElementById('autoLearning').checked,
+            batchSize: document.getElementById('batchSize')?.value || '25',
+            cacheTTL: document.getElementById('cacheTTL')?.value || '300',
+            resultsPerPage: document.getElementById('resultsPerPage')?.value || '25',
+            aiPrecision: document.getElementById('aiPrecision')?.value || 'medium',
+            autoLearning: document.getElementById('autoLearning')?.checked || true,
             lastUpdated: new Date().toISOString()
         };
 
@@ -864,48 +784,6 @@ class VortexApp {
         URL.revokeObjectURL(url);
     }
 
-    handleKeyboard(e) {
-        // کلیدهای میانبر
-        if (e.ctrlKey || e.metaKey) {
-            switch(e.key) {
-                case '1':
-                    e.preventDefault();
-                    this.showSection('scan');
-                    break;
-                case '2':
-                    e.preventDefault();
-                    this.showSection('dashboard');
-                    break;
-                case '3':
-                    e.preventDefault();
-                    this.showSection('health');
-                    break;
-                case '4':
-                    e.preventDefault();
-                    this.showSection('ai');
-                    break;
-                case '5':
-                    e.preventDefault();
-                    this.showSection('settings');
-                    break;
-                case 'k':
-                    e.preventDefault();
-                    document.getElementById('symbolsInput').focus();
-                    break;
-                case 'l':
-                    e.preventDefault();
-                    this.clearLogs();
-                    break;
-            }
-        }
-
-        // Escape برای بستن منوها
-        if (e.key === 'Escape') {
-            this.hideFilterMenu();
-            this.toggleMobileMenu(false);
-        }
-    }
-
     // ===== کنسول توسعه =====
     initConsole() {
         // پیاده‌سازی کنسول توسعه‌دهنده
@@ -999,7 +877,6 @@ class VortexApp {
     async testAPIEndpoints() {
         this.log('INFO', '🧪 شروع تست API endpoints...');
         
-        // ✅ اصلاح شده: endpointهای سازگار با بک‌اند
         const testEndpoints = [
             { name: 'System Status', url: '/api/status' },
             { name: 'AI Status', url: '/api/ai/status' },
