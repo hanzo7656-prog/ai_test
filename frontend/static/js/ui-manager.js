@@ -487,11 +487,10 @@ class UIManager {
         if (!container) return;
 
         const testEndpoints = [
-            { name: 'API اصلی سیستم', url: '/api/system/status' },
-            { name: 'اسکن پایه', url: '/api/scan/basic/bitcoin' },
-            { name: 'اسکن AI', url: '/api/scan/ai/bitcoin' },
-            { name: 'وضعیت AI', url: '/api/ai/status' },
-            { name: 'داده‌های بازار', url: '/api/market/data' }
+            { name: 'داده خام', url: '/api/raw/bitcoin' },
+            { name: 'داده پردازش شده', url: '/api/processed/bitcoin' },
+            { name: 'تحلیل AI', url: '/api/ai/analyze/bitcoin' },
+            { name: 'وضعیت سیستم', url: '/api/status' }
         ];
 
         container.innerHTML = '';
