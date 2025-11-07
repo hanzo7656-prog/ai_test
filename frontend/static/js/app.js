@@ -125,15 +125,14 @@ class VortexApp {
             this.cancelScan();
         });
 
-        // بستن منو با کلیک خارج
         // سیستم مدیریت event listenerهای VortexApp - نسخه اصلاح شده
         bindEvents() {
-    // ذخیره referenceهای bind شده
+            // ذخیره referenceهای bind شده
             this.boundHandleDocumentClick = this.handleDocumentClick.bind(this);
             this.boundHandleKeydown = this.handleKeydown.bind(this);
             this.boundHandleBeforeUnload = this.handleBeforeUnload.bind(this);
 
-    // Navigation
+            // Navigation
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     this.showSection(e.target.closest('.nav-btn').dataset.section);
@@ -150,7 +149,7 @@ class VortexApp {
                 });
             }
 
-    // فیلتر ارز
+            // فیلتر ارز
             const filterToggle = document.getElementById('filterToggle');
             if (filterToggle) {
                 filterToggle.addEventListener('click', (e) => {
@@ -167,7 +166,7 @@ class VortexApp {
                 });
             });
 
-    // حالت اسکن
+            // حالت اسکن
             document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
                     this.scanMode = e.target.value;
