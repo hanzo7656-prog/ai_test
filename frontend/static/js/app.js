@@ -777,10 +777,10 @@ class VortexApp {
         this.log('INFO', '🧪 شروع تست API endpoints...');
         
         const testEndpoints = [
-            { name: 'System Status', url: '/api/system/status' },
-            { name: 'Basic Scan', url: '/api/scan/basic/bitcoin' },
-            { name: 'AI Scan', url: '/api/scan/ai/bitcoin' },
-            { name: 'AI Status', url: '/api/ai/status' }
+            { name: 'Raw Data', url: '/api/raw/bitcoin' },
+            { name: 'Processed Data', url: '/api/processed/bitcoin' },
+            { name: 'AI Analysis', url: '/api/ai/analyze/bitcoin' },
+            { name: 'System Status', url: '/api/status' }
         ];
         
         for (const endpoint of testEndpoints) {
