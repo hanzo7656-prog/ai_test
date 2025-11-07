@@ -1,8 +1,8 @@
-// سیستم اسکن پیشرفته
+// سیستم اسکن پیشرفته VortexAI - سازگار با روت‌های جدید
 class ScanSession {
     constructor(options) {
         this.symbols = options.symbols;
-        this.mode = options.mode;
+        this.mode = options.mode; // 'ai' یا 'basic'
         this.batchSize = options.batchSize;
         this.onProgress = options.onProgress;
         this.onComplete = options.onComplete;
@@ -72,8 +72,9 @@ class ScanSession {
 
     async scanSymbol(symbol) {
         try {
+            // استفاده از روت‌های جدید
             const endpoint = this.mode === 'ai' ? 
-                `/api/scan/ai/${symbol}` : `/api/scan/basic/${symbol}`;
+                `/api/raw/${symbol}` : `/api/processed/${symbol}`;
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -96,8 +97,9 @@ class ScanSession {
             return {
                 symbol,
                 success: true,
-                data: data,
-                timestamp: new Date().toISOString()
+                data: data.data || data, // سازگاری با ساختار جدید
+                timestamp: new Date().toISOString(),
+                scanMode: this.mode
             };
 
         } catch (error) {
@@ -105,7 +107,8 @@ class ScanSession {
                 symbol,
                 success: false,
                 error: error.message,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                scanMode: this.mode
             };
         }
     }
@@ -124,8 +127,49 @@ class ScanSession {
             speed,
             currentBatch,
             batchNumber,
-            totalBatches
+            totalBatches,
+            mode: this.mode
         });
+    }
+
+    async batchScan(symbols, mode = 'basic') {
+        // اسکن دسته‌ای مستقیم - برای استفاده سریع
+        const endpoint = mode === 'ai' ? '/api/raw/batch' : '/api/processed/batch';
+        
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    symbols: symbols,
+                    data_type: mode === 'ai' ? 'raw' : 'processed'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Batch scan failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            // تبدیل به فرمت سازگار
+            const formattedResults = result.results.map(item => ({
+                symbol: item.symbol,
+                success: item.status === 'success',
+                data: item.data,
+                error: item.error,
+                timestamp: new Date().toISOString(),
+                scanMode: mode
+            }));
+
+            return formattedResults;
+
+        } catch (error) {
+            console.error('خطا در اسکن دسته‌ای:', error);
+            throw error;
+        }
     }
 
     cancel() {
@@ -134,5 +178,28 @@ class ScanSession {
 
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // ابزارهای کمکی
+    getStats() {
+        const successful = this.results.filter(r => r.success).length;
+        const failed = this.results.filter(r => !r.success).length;
+        const totalTime = this.startTime ? Date.now() - this.startTime : 0;
+
+        return {
+            total: this.results.length,
+            successful,
+            failed,
+            successRate: this.results.length > 0 ? (successful / this.results.length * 100).toFixed(1) + '%' : '0%',
+            totalTime: Math.round(totalTime / 1000) + 's',
+            mode: this.mode,
+            batchSize: this.batchSize
+        };
+    }
+
+    clear() {
+        this.results = [];
+        this.completed = 0;
+        this.isCancelled = false;
     }
 }
