@@ -9,31 +9,22 @@
     <meta name="theme-color" content="#0052ff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
-    <style>
-        .debug-panel {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.9);
-            color: #00ff00;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            font-size: 12px;
-            z-index: 99999;
-            max-width: 300px;
-            max-height: 200px;
-            overflow: auto;
-            border: 1px solid #00ff00;
-        }
-    </style>
 </head>
 <body>
+    <!-- دکمه toggle دیباگ -->
+    <button id="debugToggle" style="position:fixed; top:10px; left:10px; background:#000; color:#0f0; border:1px solid #0f0; border-radius:50%; width:35px; height:35px; z-index:99999; cursor:pointer; font-size:16px;">🐛</button>
+
     <!-- پنل دیباگ -->
-    <div id="debugPanel" class="debug-panel" style="display: none;">
-        <div><strong>VortexAI Debug</strong></div>
+    <div id="debugPanel" style="position:fixed; top:60px; left:10px; background:rgba(0,0,0,0.95); color:#00ff00; padding:15px; border-radius:8px; font-family:monospace; font-size:12px; z-index:99998; max-width:350px; max-height:250px; overflow:auto; border:1px solid #00ff00; display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <strong>VortexAI Debug</strong>
+            <button onclick="toggleDebugPanel()" style="background:none; border:none; color:#00ff00; cursor:pointer; font-size:16px;">✕</button>
+        </div>
         <div id="debugLog"></div>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #00ff00; font-size:10px;">
+            <button onclick="clearDebugLog()" style="background:#333; color:#0f0; border:1px solid #0f0; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer;">پاکسازی</button>
+            <button onclick="testAllButtons()" style="background:#333; color:#0f0; border:1px solid #0f0; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; margin-right:10px;">تست دکمه‌ها</button>
+        </div>
     </div>
 
     <!-- هدر ریسپانسیو -->
@@ -45,28 +36,28 @@
             </div>
             
             <!-- دکمه منوی موبایل -->
-            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="منو" onclick="debugLog('منو کلیک شد'); toggleMobileMenuManual()">
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="منو" onclick="handleMenuClick()">
                 ☰
             </button>
 
             <nav class="nav-menu" id="navMenu">
-                <button class="nav-btn active" data-section="scan" onclick="debugLog('اسکن کلیک شد'); showSectionManual('scan')">
+                <button class="nav-btn active" data-section="scan" onclick="handleNavClick('scan')">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">اسکن بازار</span>
                 </button>
-                <button class="nav-btn" data-section="dashboard" onclick="debugLog('داشبورد کلیک شد'); showSectionManual('dashboard')">
+                <button class="nav-btn" data-section="dashboard" onclick="handleNavClick('dashboard')">
                     <span class="nav-icon">📈</span>
                     <span class="nav-text">داشبورد</span>
                 </button>
-                <button class="nav-btn" data-section="health" onclick="debugLog('سلامت کلیک شد'); showSectionManual('health')">
+                <button class="nav-btn" data-section="health" onclick="handleNavClick('health')">
                     <span class="nav-icon">🛡️</span>
                     <span class="nav-text">سلامت سیستم</span>
                 </button>
-                <button class="nav-btn" data-section="ai" onclick="debugLog('AI کلیک شد'); showSectionManual('ai')">
+                <button class="nav-btn" data-section="ai" onclick="handleNavClick('ai')">
                     <span class="nav-icon">🤖</span>
                     <span class="nav-text">تحلیل AI</span>
                 </button>
-                <button class="nav-btn" data-section="settings" onclick="debugLog('تنظیمات کلیک شد'); showSectionManual('settings')">
+                <button class="nav-btn" data-section="settings" onclick="handleNavClick('settings')">
                     <span class="nav-icon">⚙️</span>
                     <span class="nav-text">تنظیمات</span>
                 </button>
@@ -86,7 +77,7 @@
             <div class="section-header">
                 <h1>🔍 اسکنر بازار ارز</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="quickStats" onclick="debugLog('آمار کلیک شد')">
+                    <button class="btn btn-secondary" id="quickStats" onclick="handleQuickStats()">
                         📊 آمار سریع
                     </button>
                 </div>
@@ -103,21 +94,21 @@
                                 placeholder="نام ارزها را وارد کنید (هر خط یک ارز)&#10;مثال:&#10;bitcoin&#10;ethereum&#10;solana"
                                 rows="4"
                                 aria-label="لیست ارزها برای اسکن"
-                                oninput="debugLog('متن تغییر کرد')"
+                                oninput="updateSymbolsCount()"
                             ></textarea>
                         </div>
                         <div class="input-info">
                             <span id="selectedCount">0 ارز انتخاب شده</span>
                             <div class="currency-filter">
-                                <button class="filter-btn" id="filterToggle" onclick="debugLog('فیلتر کلیک شد'); toggleFilterMenuManual()">
+                                <button class="filter-btn" id="filterToggle" onclick="handleFilterToggle()">
                                     <span>🎯 فیلتر تعداد</span>
                                     <span class="filter-arrow">▼</span>
                                 </button>
                                 <div class="filter-menu" id="filterMenu">
-                                    <button class="filter-option" data-count="10" onclick="debugLog('10 ارز انتخاب شد'); selectTopSymbolsManual(10)">10 ارز برتر</button>
-                                    <button class="filter-option" data-count="25" onclick="debugLog('25 ارز انتخاب شد'); selectTopSymbolsManual(25)">25 ارز برتر</button>
-                                    <button class="filter-option" data-count="50" onclick="debugLog('50 ارز انتخاب شد'); selectTopSymbolsManual(50)">50 ارز برتر</button>
-                                    <button class="filter-option" data-count="100" onclick="debugLog('100 ارز انتخاب شد'); selectTopSymbolsManual(100)">100 ارز برتر</button>
+                                    <button class="filter-option" data-count="10" onclick="handleFilterSelect(10)">10 ارز برتر</button>
+                                    <button class="filter-option" data-count="25" onclick="handleFilterSelect(25)">25 ارز برتر</button>
+                                    <button class="filter-option" data-count="50" onclick="handleFilterSelect(50)">50 ارز برتر</button>
+                                    <button class="filter-option" data-count="100" onclick="handleFilterSelect(100)">100 ارز برتر</button>
                                 </div>
                             </div>
                         </div>
@@ -127,14 +118,14 @@
                         <label class="control-label">نوع اسکن</label>
                         <div class="mode-selector">
                             <label class="mode-option">
-                                <input type="radio" name="scanMode" value="basic" checked onchange="debugLog('حالت پایه انتخاب شد')">
+                                <input type="radio" name="scanMode" value="basic" checked onchange="handleScanModeChange('basic')">
                                 <span class="mode-label">
                                     <span class="mode-icon">📈</span>
                                     <span class="mode-text">داده بهینه</span>
                                 </span>
                             </label>
                             <label class="mode-option">
-                                <input type="radio" name="scanMode" value="ai" onchange="debugLog('حالت AI انتخاب شد')">
+                                <input type="radio" name="scanMode" value="ai" onchange="handleScanModeChange('ai')">
                                 <span class="mode-label">
                                     <span class="mode-icon">🤖</span>
                                     <span class="mode-text">تحلیل هوش مصنوعی</span>
@@ -144,11 +135,11 @@
                     </div>
 
                     <div class="control-group">
-                        <button class="btn btn-primary btn-block" id="startScan" onclick="debugLog('شروع اسکن کلیک شد'); startScanManual()">
+                        <button class="btn btn-primary btn-block" id="startScan" onclick="handleStartScan()">
                             <span class="btn-icon">🚀</span>
                             <span class="btn-text">شروع اسکن هوشمند</span>
                         </button>
-                        <button class="btn btn-secondary btn-block" id="cancelScan" style="display: none;" onclick="debugLog('لغو اسکن کلیک شد')">
+                        <button class="btn btn-secondary btn-block" id="cancelScan" style="display: none;" onclick="handleCancelScan()">
                             <span class="btn-icon">⏹️</span>
                             <span class="btn-text">لغو اسکن</span>
                         </button>
@@ -161,10 +152,10 @@
                         <div class="results-actions">
                             <span class="results-count" id="resultsCount">0 مورد</span>
                             <div class="results-controls">
-                                <button class="btn btn-secondary" id="exportResults" onclick="debugLog('خروجی کلیک شد')">
+                                <button class="btn btn-secondary" id="exportResults" onclick="handleExportResults()">
                                     📥 خروجی
                                 </button>
-                                <button class="btn btn-secondary" id="clearResults" onclick="debugLog('پاکسازی کلیک شد')">
+                                <button class="btn btn-secondary" id="clearResults" onclick="handleClearResults()">
                                     🗑️ پاکسازی
                                 </button>
                             </div>
@@ -186,7 +177,7 @@
             <div class="section-header">
                 <h1>📈 داشبورد عملکرد</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="refreshDashboard" onclick="debugLog('بروزرسانی داشبورد کلیک شد')">
+                    <button class="btn btn-secondary" id="refreshDashboard" onclick="handleRefreshDashboard()">
                         <span class="btn-icon">🔄</span>
                         <span class="btn-text">بروزرسانی</span>
                     </button>
@@ -248,7 +239,7 @@
             <div class="section-header">
                 <h1>🛡️ سلامت سیستم</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="refreshHealth" onclick="debugLog('بروزرسانی سلامت کلیک شد')">
+                    <button class="btn btn-secondary" id="refreshHealth" onclick="handleRefreshHealth()">
                         <span class="btn-icon">🔄</span>
                         <span class="btn-text">بروزرسانی</span>
                     </button>
@@ -316,7 +307,7 @@
                                     <span class="test-progress">آماده</span>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary" id="testAPI" onclick="debugLog('تست API کلیک شد')">
+                            <button class="btn btn-secondary" id="testAPI" onclick="handleTestAPI()">
                                 🚀 اجرای تست
                             </button>
                         </div>
@@ -324,7 +315,7 @@
                             <div class="endpoint-info">
                                 <div class="endpoint-name">پاکسازی کش</div>
                             </div>
-                            <button class="btn btn-secondary" id="clearHealthCache" onclick="debugLog('پاکسازی کش کلیک شد')">
+                            <button class="btn btn-secondary" id="clearHealthCache" onclick="handleClearHealthCache()">
                                 🗑️ پاکسازی
                             </button>
                         </div>
@@ -337,13 +328,13 @@
                 <div class="logs-header">
                     <h3>📝 لاگ‌های زنده سیستم</h3>
                     <div class="logs-actions">
-                        <button class="btn btn-secondary" id="toggleAutoRefresh" onclick="debugLog('اتوماتیک کلیک شد')">
+                        <button class="btn btn-secondary" id="toggleAutoRefresh" onclick="handleToggleAutoRefresh()">
                             🔄 اتوماتیک
                         </button>
-                        <button class="btn btn-secondary" id="exportLogs" onclick="debugLog('ذخیره لاگ کلیک شد')">
+                        <button class="btn btn-secondary" id="exportLogs" onclick="handleExportLogs()">
                             📥 ذخیره
                         </button>
-                        <button class="btn btn-secondary" id="clearLogs" onclick="debugLog('پاکسازی لاگ کلیک شد')">
+                        <button class="btn btn-secondary" id="clearLogs" onclick="handleClearLogs()">
                             🗑️ پاکسازی
                         </button>
                     </div>
@@ -365,11 +356,11 @@
                 <h1>🤖 تحلیل هوش مصنوعی</h1>
                 <div class="section-actions">
                     <div class="ai-controls">
-                        <button class="btn btn-secondary" id="initAI" onclick="debugLog('راه‌اندازی AI کلیک شد')">
+                        <button class="btn btn-secondary" id="initAI" onclick="handleInitAI()">
                             <span class="btn-icon">⚡</span>
                             <span class="btn-text">راه‌اندازی AI</span>
                         </button>
-                        <button class="btn btn-primary" id="analyzeWithAI" onclick="debugLog('تحلیل AI کلیک شد')">
+                        <button class="btn btn-primary" id="analyzeWithAI" onclick="handleAnalyzeWithAI()">
                             <span class="btn-icon">🧠</span>
                             <span class="btn-text">تحلیل انتخابی</span>
                         </button>
@@ -432,7 +423,7 @@
             <div class="section-header">
                 <h1>⚙️ تنظیمات سیستم</h1>
                 <div class="section-actions">
-                    <button class="btn btn-primary" id="saveSettings" onclick="debugLog('ذخیره تنظیمات کلیک شد')">
+                    <button class="btn btn-primary" id="saveSettings" onclick="handleSaveSettings()">
                         <span class="btn-icon">💾</span>
                         <span class="btn-text">ذخیره تنظیمات</span>
                     </button>
@@ -444,7 +435,7 @@
                     <h3>🔧 تنظیمات اسکن</h3>
                     <div class="setting-group">
                         <label for="batchSize" class="setting-label">اندازه دسته اسکن</label>
-                        <select id="batchSize" class="setting-input" onchange="debugLog('اندازه دسته تغییر کرد')">
+                        <select id="batchSize" class="setting-input" onchange="handleBatchSizeChange()">
                             <option value="10">10 ارز</option>
                             <option value="25" selected>25 ارز</option>
                             <option value="50">50 ارز</option>
@@ -456,7 +447,7 @@
                 <div class="settings-card">
                     <h3>💾 مدیریت سیستم</h3>
                     <div class="setting-actions">
-                        <button class="btn btn-secondary btn-block" id="clearCache" onclick="debugLog('پاکسازی کش کلیک شد')">
+                        <button class="btn btn-secondary btn-block" id="clearCache" onclick="handleClearCache()">
                             <span class="btn-icon">🗑️</span>
                             <span class="btn-text">پاکسازی کش</span>
                         </button>
@@ -471,115 +462,197 @@
         <div class="loading-content">
             <div class="loading-spinner"></div>
             <h3 id="loadingTitle">در حال اسکن...</h3>
-            <button class="btn btn-secondary" onclick="debugLog('لغو لودینگ کلیک شد')">
+            <button class="btn btn-secondary" onclick="handleCancelLoading()">
                 <span class="btn-icon">⏹️</span>
                 <span class="btn-text">لغو اسکن</span>
             </button>
         </div>
     </div>
 
-    <!-- اسکریپت‌های دیباگ و فانکشن‌های دستی -->
+    <!-- اسکریپت‌های اصلی -->
     <script>
         // سیستم دیباگ
+        let debugVisible = false;
+
+        function toggleDebugPanel() {
+            debugVisible = !debugVisible;
+            const debugPanel = document.getElementById('debugPanel');
+            if (debugPanel) {
+                debugPanel.style.display = debugVisible ? 'block' : 'none';
+            }
+        }
+
         function debugLog(message) {
             console.log('🔧 ' + message);
             
-            // نمایش در پنل دیباگ
-            const debugPanel = document.getElementById('debugPanel');
-            const debugLog = document.getElementById('debugLog');
-            
-            if (debugPanel && debugLog) {
-                debugPanel.style.display = 'block';
-                const logEntry = document.createElement('div');
-                logEntry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
-                debugLog.appendChild(logEntry);
-                
-                // محدود کردن تعداد logها
-                if (debugLog.children.length > 10) {
-                    debugLog.removeChild(debugLog.firstChild);
+            if (debugVisible) {
+                const debugLog = document.getElementById('debugLog');
+                if (debugLog) {
+                    const logEntry = document.createElement('div');
+                    logEntry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+                    debugLog.appendChild(logEntry);
+                    
+                    if (debugLog.children.length > 6) {
+                        debugLog.removeChild(debugLog.firstChild);
+                    }
                 }
             }
         }
 
-        // فانکشن‌های دستی برای تست
-        function toggleMobileMenuManual() {
-            debugLog('toggleMobileMenuManual اجرا شد');
+        function clearDebugLog() {
+            const debugLog = document.getElementById('debugLog');
+            if (debugLog) {
+                debugLog.innerHTML = '';
+            }
+        }
+
+        function testAllButtons() {
+            debugLog('تست تمام دکمه‌ها شروع شد');
+            // تست ساده عملکردها
+            handleMenuClick();
+            setTimeout(() => handleMenuClick(), 500);
+            setTimeout(() => handleNavClick('dashboard'), 1000);
+            setTimeout(() => handleNavClick('scan'), 1500);
+            debugLog('تست دکمه‌ها کامل شد');
+        }
+
+        // هندلرهای ساده برای تست
+        function handleMenuClick() {
+            debugLog('منوی همبرگر کلیک شد');
             const menu = document.getElementById('navMenu');
             const btn = document.getElementById('mobileMenuBtn');
-            
             if (menu && btn) {
                 menu.classList.toggle('active');
                 const isExpanded = menu.classList.contains('active');
                 btn.setAttribute('aria-expanded', isExpanded);
                 btn.innerHTML = isExpanded ? '✕' : '☰';
-                debugLog('منو ' + (isExpanded ? 'باز' : 'بسته') + ' شد');
-            } else {
-                debugLog('خطا: منو یا دکمه پیدا نشد');
             }
         }
 
-        function showSectionManual(section) {
-            debugLog('showSectionManual اجرا شد: ' + section);
-            
+        function handleNavClick(section) {
+            debugLog('ناوبری به بخش: ' + section);
             // آپدیت navigation
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.section === section);
             });
-
             // آپدیت محتوا
             document.querySelectorAll('.content-section').forEach(sect => {
                 sect.classList.toggle('active', sect.id === `${section}-section`);
             });
-
-            debugLog('بخش ' + section + ' فعال شد');
         }
 
-        function toggleFilterMenuManual() {
-            debugLog('toggleFilterMenuManual اجرا شد');
+        function handleFilterToggle() {
+            debugLog('فیلتر کلیک شد');
             const menu = document.getElementById('filterMenu');
-            const btn = document.getElementById('filterToggle');
-            
-            if (menu && btn) {
+            if (menu) {
                 menu.classList.toggle('show');
-                const isExpanded = menu.classList.contains('show');
-                btn.setAttribute('aria-expanded', isExpanded);
-                debugLog('منو فیلتر ' + (isExpanded ? 'باز' : 'بسته') + ' شد');
             }
         }
 
-        function selectTopSymbolsManual(count) {
-            debugLog('selectTopSymbolsManual اجرا شد: ' + count);
-            // اینجا منطق انتخاب ارزها رو اضافه کنید
+        function handleFilterSelect(count) {
+            debugLog('انتخاب فیلتر: ' + count + ' ارز');
             const input = document.getElementById('symbolsInput');
             if (input) {
-                input.value = 'bitcoin\nethereum\nsolana\n'; // نمونه
-                debugLog(count + ' ارز نمونه انتخاب شد');
+                // نمونه ارزها
+                const sampleSymbols = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot'].slice(0, count);
+                input.value = sampleSymbols.join('\n');
+                updateSymbolsCount();
             }
-            toggleFilterMenuManual(); // بستن منو
+            handleFilterToggle(); // بستن منو
         }
 
-        function startScanManual() {
-            debugLog('startScanManual اجرا شد');
-            // نمایش لودینگ
+        function updateSymbolsCount() {
+            const input = document.getElementById('symbolsInput');
+            const countElement = document.getElementById('selectedCount');
+            if (input && countElement) {
+                const symbols = input.value.split('\n').filter(s => s.trim().length > 0);
+                countElement.textContent = symbols.length + ' ارز انتخاب شده';
+            }
+        }
+
+        function handleScanModeChange(mode) {
+            debugLog('حالت اسکن تغییر کرد به: ' + mode);
+        }
+
+        function handleStartScan() {
+            debugLog('شروع اسکن کلیک شد');
             const loading = document.getElementById('loadingOverlay');
             if (loading) {
                 loading.style.display = 'flex';
                 setTimeout(() => {
                     loading.style.display = 'none';
-                    debugLog('اسکن شبیه‌سازی شده کامل شد');
+                    // نمایش نتایج نمونه
+                    const resultsGrid = document.getElementById('resultsGrid');
+                    if (resultsGrid) {
+                        resultsGrid.innerHTML = `
+                            <div class="coin-grid">
+                                <div class="coin-card">
+                                    <div class="coin-header">
+                                        <div class="coin-icon">₿</div>
+                                        <div class="coin-basic-info">
+                                            <div class="coin-symbol">BTC</div>
+                                            <div class="coin-name">Bitcoin</div>
+                                        </div>
+                                    </div>
+                                    <div class="price-section">
+                                        <div class="coin-price">$45,231.50</div>
+                                        <div class="price-change positive">▲ 2.34%</div>
+                                    </div>
+                                    <div class="coin-analysis">
+                                        <div class="signal-badge signal-buy">خرید</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
                 }, 2000);
             }
         }
 
-        // تست اولیه
-        debugLog('صفحه لود شد');
+        // هندلرهای دیگر...
+        function handleQuickStats() { debugLog('آمار سریع کلیک شد'); }
+        function handleCancelScan() { debugLog('لغو اسکن کلیک شد'); }
+        function handleExportResults() { debugLog('خروجی نتایج کلیک شد'); }
+        function handleClearResults() { 
+            debugLog('پاکسازی نتایج کلیک شد');
+            const resultsGrid = document.getElementById('resultsGrid');
+            if (resultsGrid) {
+                resultsGrid.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>هنوز اسکنی انجام نشده است</p><small>برای شروع از دکمه بالا استفاده کنید</small></div>';
+            }
+        }
+        function handleRefreshDashboard() { debugLog('بروزرسانی داشبورد کلیک شد'); }
+        function handleRefreshHealth() { debugLog('بروزرسانی سلامت کلیک شد'); }
+        function handleTestAPI() { debugLog('تست API کلیک شد'); }
+        function handleClearHealthCache() { debugLog('پاکسازی کش سلامت کلیک شد'); }
+        function handleToggleAutoRefresh() { debugLog('اتوماتیک لاگ کلیک شد'); }
+        function handleExportLogs() { debugLog('ذخیره لاگ کلیک شد'); }
+        function handleClearLogs() { 
+            debugLog('پاکسازی لاگ کلیک شد');
+            const logsContainer = document.getElementById('logsContainer');
+            if (logsContainer) {
+                logsContainer.innerHTML = '<div class="log-entry"><span class="log-time">' + new Date().toLocaleTimeString() + '</span><span class="log-level INFO">INFO</span><span class="log-message">لاگ‌ها پاکسازی شدند</span></div>';
+            }
+        }
+        function handleInitAI() { debugLog('راه‌اندازی AI کلیک شد'); }
+        function handleAnalyzeWithAI() { debugLog('تحلیل AI کلیک شد'); }
+        function handleSaveSettings() { debugLog('ذخیره تنظیمات کلیک شد'); }
+        function handleBatchSizeChange() { debugLog('اندازه دسته تغییر کرد'); }
+        function handleClearCache() { debugLog('پاکسازی کش کلیک شد'); }
+        function handleCancelLoading() { 
+            debugLog('لغو لودینگ کلیک شد');
+            const loading = document.getElementById('loadingOverlay');
+            if (loading) loading.style.display = 'none';
+        }
+
+        // راه‌اندازی اولیه
         document.addEventListener('DOMContentLoaded', function() {
-            debugLog('DOM آماده است');
+            debugLog('سیستم VortexAI راه‌اندازی شد');
+            updateSymbolsCount();
             
-            // نمایش پنل دیباگ
-            const debugPanel = document.getElementById('debugPanel');
-            if (debugPanel) {
-                debugPanel.style.display = 'block';
+            // تنظیم دکمه دیباگ
+            const debugToggle = document.getElementById('debugToggle');
+            if (debugToggle) {
+                debugToggle.onclick = toggleDebugPanel;
             }
         });
 
@@ -595,17 +668,5 @@
     <script src="/static/js/scan_session.js"></script>
     <script src="/static/js/ui_manager.js"></script>
     <script src="/static/js/app.js"></script>
-
-    <script>
-        // تست نهایی
-        setTimeout(() => {
-            debugLog('تست نهایی: همه اسکریپت‌ها لود شدند');
-            if (window.vortexApp) {
-                debugLog('vortexApp موجود است');
-            } else {
-                debugLog('⚠️ vortexApp موجود نیست - خطای JavaScript داریم');
-            }
-        }, 1000);
-    </script>
 </body>
 </html>
