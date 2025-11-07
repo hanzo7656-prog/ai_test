@@ -47,7 +47,7 @@ async def get_markets():
         raw_data = coin_stats_manager.get_markets()
         
         processed_markets = []
-        for market in raw_data.get('result', []):
+        for market in raw_data.get('data', []):
             processed_markets.append({
                 'exchange_id': market.get('exchangeId'),
                 'base_asset': market.get('baseAsset'),
@@ -75,7 +75,7 @@ async def get_fiats():
         raw_data = coin_stats_manager.get_fiats()
         
         processed_fiats = []
-        for fiat in raw_data.get('result', []):
+        for fiat in raw_data.get('data', []):
             processed_fiats.append({
                 'symbol': fiat.get('symbol'),
                 'name': fiat.get('name'),
