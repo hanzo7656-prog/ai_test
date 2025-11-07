@@ -1,4 +1,4 @@
-// کلاینت هوش مصنوعی VortexAI - ارتباط با backend پایتون
+// کلاینت هوش مصنوعی VortexAI - نسخه اصلاح شده و سازگار با بک‌اند
 class AIClient {
     constructor() {
         this.isInitialized = false;
@@ -94,18 +94,7 @@ class AIClient {
 
             console.log(`🧠 Starting technical analysis for ${symbol}`);
 
-            // اگر داده‌ای ارائه نشده، از سرور بگیر
-            let rawData = data;
-            if (!rawData) {
-                const rawResponse = await fetch(`/api/raw/${symbol}`);
-                if (!rawResponse.ok) {
-                    throw new Error(`Failed to get raw data: ${rawResponse.status}`);
-                }
-                const result = await rawResponse.json();
-                rawData = result.data;
-            }
-
-            // ارسال درخواست به AI backend با روت جدید
+            // ✅ اصلاح شده: پارامتر period حذف شد
             const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=technical`, {
                 method: 'GET',
                 headers: {
@@ -162,17 +151,7 @@ class AIClient {
                 return cached;
             }
 
-            // اگر داده‌ای ارائه نشده، از سرور بگیر
-            let rawData = data;
-            if (!rawData) {
-                const rawResponse = await fetch(`/api/raw/${symbol}`);
-                if (!rawResponse.ok) {
-                    throw new Error(`Failed to get raw data: ${rawResponse.status}`);
-                }
-                const result = await rawResponse.json();
-                rawData = result.data;
-            }
-
+            // ✅ اصلاح شده: پارامتر period حذف شد
             const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=sentiment`, {
                 method: 'GET',
                 headers: {
@@ -226,18 +205,8 @@ class AIClient {
                 return cached;
             }
 
-            // اگر داده‌ای ارائه نشده، از سرور بگیر
-            let rawData = data;
-            if (!rawData) {
-                const rawResponse = await fetch(`/api/raw/${symbol}`);
-                if (!rawResponse.ok) {
-                    throw new Error(`Failed to get raw data: ${rawResponse.status}`);
-                }
-                const result = await rawResponse.json();
-                rawData = result.data;
-            }
-
-            const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=prediction&period=${period}`, {
+            // ✅ اصلاح شده: پارامتر period از query string حذف شد
+            const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=prediction`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
