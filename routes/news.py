@@ -12,10 +12,16 @@ news_router = APIRouter(prefix="/api/news", tags=["News"])
 async def get_news(limit: int = Query(50, ge=1, le=100)):
     """دریافت اخبار پردازش شده عمومی"""
     try:
-        raw_data = coin_stats_manager.get_news(limit)
+        raw_data = coin_stats_manager.get_news()
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # محدود کردن نتایج بر اساس limit
+        news_items = raw_data.get('result', [])[:limit]
         
         processed_news = []
-        for news_item in raw_data.get('result', []):
+        for news_item in news_items:
             processed_news.append({
                 'id': news_item.get('id'),
                 'title': news_item.get('title'),
@@ -33,6 +39,7 @@ async def get_news(limit: int = Query(50, ge=1, le=100)):
             'status': 'success',
             'data': processed_news,
             'total': len(processed_news),
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -47,10 +54,16 @@ async def get_news_by_type(
 ):
     """دریافت اخبار پردازش شده بر اساس نوع"""
     try:
-        raw_data = coin_stats_manager.get_news_by_type(news_type, limit)
+        raw_data = coin_stats_manager.get_news_by_type(news_type)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # محدود کردن نتایج
+        news_items = raw_data.get('result', [])[:limit]
         
         processed_news = []
-        for news_item in raw_data.get('result', []):
+        for news_item in news_items:
             processed_news.append({
                 'id': news_item.get('id'),
                 'title': news_item.get('title'),
@@ -69,6 +82,7 @@ async def get_news_by_type(
             'data': processed_news,
             'type': news_type,
             'total': len(processed_news),
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -81,6 +95,9 @@ async def get_news_sources():
     """دریافت منابع خبری پردازش شده"""
     try:
         raw_data = coin_stats_manager.get_news_sources()
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         processed_sources = []
         for source in raw_data.get('result', []):
@@ -97,6 +114,7 @@ async def get_news_sources():
             'status': 'success',
             'data': processed_sources,
             'total': len(processed_sources),
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -109,6 +127,9 @@ async def get_news_detail(news_id: str):
     """دریافت جزئیات پردازش شده یک خبر"""
     try:
         raw_data = coin_stats_manager.get_news_detail(news_id)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         processed_detail = {
             'id': raw_data.get('id'),
@@ -128,6 +149,7 @@ async def get_news_detail(news_id: str):
         return {
             'status': 'success',
             'data': processed_detail,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
