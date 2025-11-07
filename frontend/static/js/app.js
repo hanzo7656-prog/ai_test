@@ -779,8 +779,10 @@ class VortexApp {
         const testEndpoints = [
             { name: 'Raw Data', url: '/api/raw/bitcoin' },
             { name: 'Processed Data', url: '/api/processed/bitcoin' },
-            { name: 'AI Analysis', url: '/api/ai/analyze/bitcoin' },
-            { name: 'System Status', url: '/api/status' }
+            { name: 'AI Technical', url: '/api/ai/analyze/bitcoin?analysis_type=technical' },
+            { name: 'AI Prediction', url: '/api/ai/analyze/bitcoin?analysis_type=prediction' },
+            { name: 'System Status', url: '/api/status' },
+            { name: 'AI Status', url: '/api/ai/status' }
         ];
         
         for (const endpoint of testEndpoints) {
