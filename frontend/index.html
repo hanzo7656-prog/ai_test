@@ -9,8 +9,33 @@
     <meta name="theme-color" content="#0052ff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        .debug-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 99999;
+            max-width: 300px;
+            max-height: 200px;
+            overflow: auto;
+            border: 1px solid #00ff00;
+        }
+    </style>
 </head>
 <body>
+    <!-- پنل دیباگ -->
+    <div id="debugPanel" class="debug-panel" style="display: none;">
+        <div><strong>VortexAI Debug</strong></div>
+        <div id="debugLog"></div>
+    </div>
+
     <!-- هدر ریسپانسیو -->
     <header class="header">
         <div class="header-content">
@@ -20,28 +45,28 @@
             </div>
             
             <!-- دکمه منوی موبایل -->
-            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="منو">
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="منو" onclick="debugLog('منو کلیک شد'); toggleMobileMenuManual()">
                 ☰
             </button>
 
             <nav class="nav-menu" id="navMenu">
-                <button class="nav-btn active" data-section="scan">
+                <button class="nav-btn active" data-section="scan" onclick="debugLog('اسکن کلیک شد'); showSectionManual('scan')">
                     <span class="nav-icon">📊</span>
                     <span class="nav-text">اسکن بازار</span>
                 </button>
-                <button class="nav-btn" data-section="dashboard">
+                <button class="nav-btn" data-section="dashboard" onclick="debugLog('داشبورد کلیک شد'); showSectionManual('dashboard')">
                     <span class="nav-icon">📈</span>
                     <span class="nav-text">داشبورد</span>
                 </button>
-                <button class="nav-btn" data-section="health">
+                <button class="nav-btn" data-section="health" onclick="debugLog('سلامت کلیک شد'); showSectionManual('health')">
                     <span class="nav-icon">🛡️</span>
                     <span class="nav-text">سلامت سیستم</span>
                 </button>
-                <button class="nav-btn" data-section="ai">
+                <button class="nav-btn" data-section="ai" onclick="debugLog('AI کلیک شد'); showSectionManual('ai')">
                     <span class="nav-icon">🤖</span>
                     <span class="nav-text">تحلیل AI</span>
                 </button>
-                <button class="nav-btn" data-section="settings">
+                <button class="nav-btn" data-section="settings" onclick="debugLog('تنظیمات کلیک شد'); showSectionManual('settings')">
                     <span class="nav-icon">⚙️</span>
                     <span class="nav-text">تنظیمات</span>
                 </button>
@@ -61,7 +86,7 @@
             <div class="section-header">
                 <h1>🔍 اسکنر بازار ارز</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="quickStats">
+                    <button class="btn btn-secondary" id="quickStats" onclick="debugLog('آمار کلیک شد')">
                         📊 آمار سریع
                     </button>
                 </div>
@@ -78,20 +103,21 @@
                                 placeholder="نام ارزها را وارد کنید (هر خط یک ارز)&#10;مثال:&#10;bitcoin&#10;ethereum&#10;solana"
                                 rows="4"
                                 aria-label="لیست ارزها برای اسکن"
+                                oninput="debugLog('متن تغییر کرد')"
                             ></textarea>
                         </div>
                         <div class="input-info">
                             <span id="selectedCount">0 ارز انتخاب شده</span>
                             <div class="currency-filter">
-                                <button class="filter-btn" id="filterToggle" aria-haspopup="true" aria-expanded="false">
+                                <button class="filter-btn" id="filterToggle" onclick="debugLog('فیلتر کلیک شد'); toggleFilterMenuManual()">
                                     <span>🎯 فیلتر تعداد</span>
                                     <span class="filter-arrow">▼</span>
                                 </button>
-                                <div class="filter-menu" id="filterMenu" role="menu">
-                                    <button class="filter-option" data-count="10" role="menuitem">10 ارز برتر</button>
-                                    <button class="filter-option" data-count="25" role="menuitem">25 ارز برتر</button>
-                                    <button class="filter-option" data-count="50" role="menuitem">50 ارز برتر</button>
-                                    <button class="filter-option" data-count="100" role="menuitem">100 ارز برتر</button>
+                                <div class="filter-menu" id="filterMenu">
+                                    <button class="filter-option" data-count="10" onclick="debugLog('10 ارز انتخاب شد'); selectTopSymbolsManual(10)">10 ارز برتر</button>
+                                    <button class="filter-option" data-count="25" onclick="debugLog('25 ارز انتخاب شد'); selectTopSymbolsManual(25)">25 ارز برتر</button>
+                                    <button class="filter-option" data-count="50" onclick="debugLog('50 ارز انتخاب شد'); selectTopSymbolsManual(50)">50 ارز برتر</button>
+                                    <button class="filter-option" data-count="100" onclick="debugLog('100 ارز انتخاب شد'); selectTopSymbolsManual(100)">100 ارز برتر</button>
                                 </div>
                             </div>
                         </div>
@@ -101,14 +127,14 @@
                         <label class="control-label">نوع اسکن</label>
                         <div class="mode-selector">
                             <label class="mode-option">
-                                <input type="radio" name="scanMode" value="basic" checked aria-checked="true">
+                                <input type="radio" name="scanMode" value="basic" checked onchange="debugLog('حالت پایه انتخاب شد')">
                                 <span class="mode-label">
                                     <span class="mode-icon">📈</span>
                                     <span class="mode-text">داده بهینه</span>
                                 </span>
                             </label>
                             <label class="mode-option">
-                                <input type="radio" name="scanMode" value="ai" aria-checked="false">
+                                <input type="radio" name="scanMode" value="ai" onchange="debugLog('حالت AI انتخاب شد')">
                                 <span class="mode-label">
                                     <span class="mode-icon">🤖</span>
                                     <span class="mode-text">تحلیل هوش مصنوعی</span>
@@ -118,11 +144,11 @@
                     </div>
 
                     <div class="control-group">
-                        <button class="btn btn-primary btn-block" id="startScan">
+                        <button class="btn btn-primary btn-block" id="startScan" onclick="debugLog('شروع اسکن کلیک شد'); startScanManual()">
                             <span class="btn-icon">🚀</span>
                             <span class="btn-text">شروع اسکن هوشمند</span>
                         </button>
-                        <button class="btn btn-secondary btn-block" id="cancelScan" style="display: none;">
+                        <button class="btn btn-secondary btn-block" id="cancelScan" style="display: none;" onclick="debugLog('لغو اسکن کلیک شد')">
                             <span class="btn-icon">⏹️</span>
                             <span class="btn-text">لغو اسکن</span>
                         </button>
@@ -135,10 +161,10 @@
                         <div class="results-actions">
                             <span class="results-count" id="resultsCount">0 مورد</span>
                             <div class="results-controls">
-                                <button class="btn btn-secondary" id="exportResults" title="خروجی نتایج">
+                                <button class="btn btn-secondary" id="exportResults" onclick="debugLog('خروجی کلیک شد')">
                                     📥 خروجی
                                 </button>
-                                <button class="btn btn-secondary" id="clearResults" title="پاکسازی نتایج">
+                                <button class="btn btn-secondary" id="clearResults" onclick="debugLog('پاکسازی کلیک شد')">
                                     🗑️ پاکسازی
                                 </button>
                             </div>
@@ -160,7 +186,7 @@
             <div class="section-header">
                 <h1>📈 داشبورد عملکرد</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="refreshDashboard">
+                    <button class="btn btn-secondary" id="refreshDashboard" onclick="debugLog('بروزرسانی داشبورد کلیک شد')">
                         <span class="btn-icon">🔄</span>
                         <span class="btn-text">بروزرسانی</span>
                     </button>
@@ -222,7 +248,7 @@
             <div class="section-header">
                 <h1>🛡️ سلامت سیستم</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="refreshHealth">
+                    <button class="btn btn-secondary" id="refreshHealth" onclick="debugLog('بروزرسانی سلامت کلیک شد')">
                         <span class="btn-icon">🔄</span>
                         <span class="btn-text">بروزرسانی</span>
                     </button>
@@ -290,7 +316,7 @@
                                     <span class="test-progress">آماده</span>
                                 </div>
                             </div>
-                            <button class="btn btn-secondary" id="testAPI" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                            <button class="btn btn-secondary" id="testAPI" onclick="debugLog('تست API کلیک شد')">
                                 🚀 اجرای تست
                             </button>
                         </div>
@@ -298,7 +324,7 @@
                             <div class="endpoint-info">
                                 <div class="endpoint-name">پاکسازی کش</div>
                             </div>
-                            <button class="btn btn-secondary" id="clearHealthCache" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                            <button class="btn btn-secondary" id="clearHealthCache" onclick="debugLog('پاکسازی کش کلیک شد')">
                                 🗑️ پاکسازی
                             </button>
                         </div>
@@ -311,50 +337,23 @@
                 <div class="logs-header">
                     <h3>📝 لاگ‌های زنده سیستم</h3>
                     <div class="logs-actions">
-                        <button class="btn btn-secondary" id="toggleAutoRefresh" style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+                        <button class="btn btn-secondary" id="toggleAutoRefresh" onclick="debugLog('اتوماتیک کلیک شد')">
                             🔄 اتوماتیک
                         </button>
-                        <button class="btn btn-secondary" id="exportLogs" style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+                        <button class="btn btn-secondary" id="exportLogs" onclick="debugLog('ذخیره لاگ کلیک شد')">
                             📥 ذخیره
                         </button>
-                        <button class="btn btn-secondary" id="clearLogs" style="padding: 0.5rem 1rem; font-size: 0.8rem;">
+                        <button class="btn btn-secondary" id="clearLogs" onclick="debugLog('پاکسازی لاگ کلیک شد')">
                             🗑️ پاکسازی
                         </button>
                     </div>
                 </div>
                 
-                <!-- فیلترهای لاگ -->
-                <div class="logs-filters">
-                    <div class="filter-group">
-                        <label class="filter-label">سطح لاگ:</label>
-                        <div class="filter-buttons">
-                            <button class="log-filter-btn active" data-level="ALL">همه</button>
-                            <button class="log-filter-btn" data-level="INFO">INFO</button>
-                            <button class="log-filter-btn" data-level="ERROR">ERROR</button>
-                            <button class="log-filter-btn" data-level="DEBUG">DEBUG</button>
-                        </div>
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">جستجو:</label>
-                        <input type="text" class="log-search-input" placeholder="جستجو در لاگ‌ها..." id="logSearch">
-                    </div>
-                </div>
-                
                 <div class="logs-container" id="logsContainer">
                     <div class="log-entry">
-                        <span class="log-time" id="currentTime">--:--:--</span>
+                        <span class="log-time">--:--:--</span>
                         <span class="log-level INFO">INFO</span>
                         <span class="log-message">سیستم راه‌اندازی شد. منتظر دستورات...</span>
-                    </div>
-                </div>
-                
-                <div class="logs-footer">
-                    <div class="logs-stats">
-                        <span id="logCount">1</span> لاگ نمایش داده می‌شود
-                    </div>
-                    <div class="logs-controls">
-                        <button class="btn-text" id="scrollToBottom">⬇️ پایین</button>
-                        <button class="btn-text" id="scrollToTop">⬆️ بالا</button>
                     </div>
                 </div>
             </div>
@@ -366,11 +365,11 @@
                 <h1>🤖 تحلیل هوش مصنوعی</h1>
                 <div class="section-actions">
                     <div class="ai-controls">
-                        <button class="btn btn-secondary" id="initAI">
+                        <button class="btn btn-secondary" id="initAI" onclick="debugLog('راه‌اندازی AI کلیک شد')">
                             <span class="btn-icon">⚡</span>
                             <span class="btn-text">راه‌اندازی AI</span>
                         </button>
-                        <button class="btn btn-primary" id="analyzeWithAI">
+                        <button class="btn btn-primary" id="analyzeWithAI" onclick="debugLog('تحلیل AI کلیک شد')">
                             <span class="btn-icon">🧠</span>
                             <span class="btn-text">تحلیل انتخابی</span>
                         </button>
@@ -413,41 +412,10 @@
                 </div>
             </div>
 
-            <!-- تحلیل‌های AI -->
-            <div class="health-grid">
-                <div class="health-card">
-                    <h3>🧠 تحلیل تکنیکال پیشرفته</h3>
-                    <div class="ai-analysis-info">
-                        <p>تحلیل تکنیکال با استفاده از شبکه عصبی اسپارس 100 نورونی</p>
-                        <div class="ai-features">
-                            <span class="feature-tag">📊 RSI</span>
-                            <span class="feature-tag">📈 MACD</span>
-                            <span class="feature-tag">🧠 Neural Network</span>
-                            <span class="feature-tag">⚡ Real-time</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="health-card">
-                    <h3>😊 تحلیل احساسات بازار</h3>
-                    <div class="ai-analysis-info">
-                        <p>تحلیل احساسات و روانشناسی بازار بر اساس داده‌های رفتاری</p>
-                        <div class="ai-features">
-                            <span class="feature-tag">📰 اخبار</span>
-                            <span class="feature-tag">👥 شبکه‌های اجتماعی</span>
-                            <span class="feature-tag">📊 حجم معاملات</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- نتایج تحلیل AI -->
             <div class="results-container">
                 <div class="results-header">
                     <h3>نتایج تحلیل AI</h3>
-                    <div class="results-actions">
-                        <span class="results-count" id="aiResultsCount">0 مورد</span>
-                    </div>
                 </div>
                 <div class="results-grid" id="aiResultsGrid">
                     <div class="empty-state">
@@ -464,7 +432,7 @@
             <div class="section-header">
                 <h1>⚙️ تنظیمات سیستم</h1>
                 <div class="section-actions">
-                    <button class="btn btn-primary" id="saveSettings">
+                    <button class="btn btn-primary" id="saveSettings" onclick="debugLog('ذخیره تنظیمات کلیک شد')">
                         <span class="btn-icon">💾</span>
                         <span class="btn-text">ذخیره تنظیمات</span>
                     </button>
@@ -476,89 +444,22 @@
                     <h3>🔧 تنظیمات اسکن</h3>
                     <div class="setting-group">
                         <label for="batchSize" class="setting-label">اندازه دسته اسکن</label>
-                        <select id="batchSize" class="setting-input">
+                        <select id="batchSize" class="setting-input" onchange="debugLog('اندازه دسته تغییر کرد')">
                             <option value="10">10 ارز</option>
                             <option value="25" selected>25 ارز</option>
                             <option value="50">50 ارز</option>
                             <option value="100">100 ارز</option>
                         </select>
                     </div>
-                    <div class="setting-group">
-                        <label for="cacheTTL" class="setting-label">مدت زمان کش (ثانیه)</label>
-                        <input type="number" id="cacheTTL" class="setting-input" value="300" min="60" max="3600">
-                    </div>
-                    <div class="setting-group">
-                        <label for="resultsPerPage" class="setting-label">نتایج در هر صفحه</label>
-                        <select id="resultsPerPage" class="setting-input">
-                            <option value="10">10 مورد</option>
-                            <option value="25" selected>25 مورد</option>
-                            <option value="50">50 مورد</option>
-                            <option value="100">100 مورد</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="settings-card">
-                    <h3>🤖 تنظیمات هوش مصنوعی</h3>
-                    <div class="setting-group">
-                        <label for="aiPrecision" class="setting-label">دقت تحلیل AI</label>
-                        <select id="aiPrecision" class="setting-input">
-                            <option value="low">پایین (سریع)</option>
-                            <option value="medium" selected>متوسط</option>
-                            <option value="high">بالا (دقیق)</option>
-                        </select>
-                    </div>
-                    <div class="setting-group">
-                        <label class="setting-label">
-                            <input type="checkbox" id="autoLearning" checked>
-                            <span class="check-label">یادگیری خودکار فعال</span>
-                        </label>
-                    </div>
-                    <div class="setting-group">
-                        <label class="setting-label">
-                            <input type="checkbox" id="realTimeAnalysis" checked>
-                            <span class="check-label">تحلیل بلادرنگ</span>
-                        </label>
-                    </div>
                 </div>
 
                 <div class="settings-card">
                     <h3>💾 مدیریت سیستم</h3>
                     <div class="setting-actions">
-                        <button class="btn btn-secondary btn-block" id="clearCache">
+                        <button class="btn btn-secondary btn-block" id="clearCache" onclick="debugLog('پاکسازی کش کلیک شد')">
                             <span class="btn-icon">🗑️</span>
                             <span class="btn-text">پاکسازی کش</span>
                         </button>
-                        <button class="btn btn-secondary btn-block" id="resetSettings">
-                            <span class="btn-icon">🔄</span>
-                            <span class="btn-text">بازنشانی تنظیمات</span>
-                        </button>
-                        <button class="btn btn-secondary btn-block" id="backupSettings">
-                            <span class="btn-icon">💾</span>
-                            <span class="btn-text">پشتیبان تنظیمات</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="settings-card">
-                    <h3>📊 اطلاعات سیستم</h3>
-                    <div class="system-info">
-                        <div class="info-item">
-                            <span class="info-label">نسخه:</span>
-                            <span class="info-value" id="systemVersion">1.0.0</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">آخرین بروزرسانی:</span>
-                            <span class="info-value" id="lastUpdate">--</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">استفاده از حافظه:</span>
-                            <span class="info-value" id="memoryUsed">--</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">مدت زمان اجرا:</span>
-                            <span class="info-value" id="sessionDuration">--</span>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -570,40 +471,141 @@
         <div class="loading-content">
             <div class="loading-spinner"></div>
             <h3 id="loadingTitle">در حال اسکن...</h3>
-            <div class="loading-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-                </div>
-                <div class="progress-info">
-                    <span id="progressText">0/0</span>
-                    <span id="progressPercent">0%</span>
-                </div>
-            </div>
-            <div class="loading-details">
-                <div class="detail-item">
-                    <span>زمان سپری شده:</span>
-                    <span id="elapsedTime">0:00</span>
-                </div>
-                <div class="detail-item">
-                    <span>سرعت اسکن:</span>
-                    <span id="scanSpeed">0/دقیقه</span>
-                </div>
-                <div class="detail-item">
-                    <span>در حال اسکن:</span>
-                    <div id="scanningList" class="scanning-list"></div>
-                </div>
-            </div>
-            <button class="btn btn-secondary" id="cancelLoading">
+            <button class="btn btn-secondary" onclick="debugLog('لغو لودینگ کلیک شد')">
                 <span class="btn-icon">⏹️</span>
                 <span class="btn-text">لغو اسکن</span>
             </button>
         </div>
     </div>
 
-    <!-- اسکریپت‌ها -->
+    <!-- اسکریپت‌های دیباگ و فانکشن‌های دستی -->
+    <script>
+        // سیستم دیباگ
+        function debugLog(message) {
+            console.log('🔧 ' + message);
+            
+            // نمایش در پنل دیباگ
+            const debugPanel = document.getElementById('debugPanel');
+            const debugLog = document.getElementById('debugLog');
+            
+            if (debugPanel && debugLog) {
+                debugPanel.style.display = 'block';
+                const logEntry = document.createElement('div');
+                logEntry.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+                debugLog.appendChild(logEntry);
+                
+                // محدود کردن تعداد logها
+                if (debugLog.children.length > 10) {
+                    debugLog.removeChild(debugLog.firstChild);
+                }
+            }
+        }
+
+        // فانکشن‌های دستی برای تست
+        function toggleMobileMenuManual() {
+            debugLog('toggleMobileMenuManual اجرا شد');
+            const menu = document.getElementById('navMenu');
+            const btn = document.getElementById('mobileMenuBtn');
+            
+            if (menu && btn) {
+                menu.classList.toggle('active');
+                const isExpanded = menu.classList.contains('active');
+                btn.setAttribute('aria-expanded', isExpanded);
+                btn.innerHTML = isExpanded ? '✕' : '☰';
+                debugLog('منو ' + (isExpanded ? 'باز' : 'بسته') + ' شد');
+            } else {
+                debugLog('خطا: منو یا دکمه پیدا نشد');
+            }
+        }
+
+        function showSectionManual(section) {
+            debugLog('showSectionManual اجرا شد: ' + section);
+            
+            // آپدیت navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.section === section);
+            });
+
+            // آپدیت محتوا
+            document.querySelectorAll('.content-section').forEach(sect => {
+                sect.classList.toggle('active', sect.id === `${section}-section`);
+            });
+
+            debugLog('بخش ' + section + ' فعال شد');
+        }
+
+        function toggleFilterMenuManual() {
+            debugLog('toggleFilterMenuManual اجرا شد');
+            const menu = document.getElementById('filterMenu');
+            const btn = document.getElementById('filterToggle');
+            
+            if (menu && btn) {
+                menu.classList.toggle('show');
+                const isExpanded = menu.classList.contains('show');
+                btn.setAttribute('aria-expanded', isExpanded);
+                debugLog('منو فیلتر ' + (isExpanded ? 'باز' : 'بسته') + ' شد');
+            }
+        }
+
+        function selectTopSymbolsManual(count) {
+            debugLog('selectTopSymbolsManual اجرا شد: ' + count);
+            // اینجا منطق انتخاب ارزها رو اضافه کنید
+            const input = document.getElementById('symbolsInput');
+            if (input) {
+                input.value = 'bitcoin\nethereum\nsolana\n'; // نمونه
+                debugLog(count + ' ارز نمونه انتخاب شد');
+            }
+            toggleFilterMenuManual(); // بستن منو
+        }
+
+        function startScanManual() {
+            debugLog('startScanManual اجرا شد');
+            // نمایش لودینگ
+            const loading = document.getElementById('loadingOverlay');
+            if (loading) {
+                loading.style.display = 'flex';
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                    debugLog('اسکن شبیه‌سازی شده کامل شد');
+                }, 2000);
+            }
+        }
+
+        // تست اولیه
+        debugLog('صفحه لود شد');
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('DOM آماده است');
+            
+            // نمایش پنل دیباگ
+            const debugPanel = document.getElementById('debugPanel');
+            if (debugPanel) {
+                debugPanel.style.display = 'block';
+            }
+        });
+
+        // هندل خطاهای جهانی
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            debugLog('خطای JavaScript: ' + msg + ' (خط ' + lineNo + ')');
+            return false;
+        };
+    </script>
+
+    <!-- اسکریپت‌های اصلی -->
     <script src="/static/js/ai_client.js"></script>
     <script src="/static/js/scan_session.js"></script>
     <script src="/static/js/ui_manager.js"></script>
     <script src="/static/js/app.js"></script>
+
+    <script>
+        // تست نهایی
+        setTimeout(() => {
+            debugLog('تست نهایی: همه اسکریپت‌ها لود شدند');
+            if (window.vortexApp) {
+                debugLog('vortexApp موجود است');
+            } else {
+                debugLog('⚠️ vortexApp موجود نیست - خطای JavaScript داریم');
+            }
+        }, 1000);
+    </script>
 </body>
 </html>
