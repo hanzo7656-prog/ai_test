@@ -126,28 +126,266 @@ class VortexApp {
         });
 
         // بستن منو با کلیک خارج
-        document.addEventListener('click', (e) => {
+        // سیستم مدیریت event listenerهای VortexApp - نسخه اصلاح شده
+        bindEvents() {
+    // ذخیره referenceهای bind شده
+            this.boundHandleDocumentClick = this.handleDocumentClick.bind(this);
+            this.boundHandleKeydown = this.handleKeydown.bind(this);
+            this.boundHandleBeforeUnload = this.handleBeforeUnload.bind(this);
+
+    // Navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    this.showSection(e.target.closest('.nav-btn').dataset.section);
+                    this.toggleMobileMenu(false);
+                });
+            });
+
+            // منوی موبایل
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            if (mobileMenuBtn) {
+                    mobileMenuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleMobileMenu();
+                });
+            }
+
+    // فیلتر ارز
+            const filterToggle = document.getElementById('filterToggle');
+            if (filterToggle) {
+                filterToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterMenu();
+                });
+            }
+
+            document.querySelectorAll('.filter-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    const count = parseInt(e.target.dataset.count);
+                    this.selectTopSymbols(count);
+                    this.hideFilterMenu();
+                });
+            });
+
+    // حالت اسکن
+            document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    this.scanMode = e.target.value;
+                    this.log('DEBUG', `حالت اسکن تغییر کرد به: ${this.scanMode}`);
+                });
+            });
+
+            // ورود ارزها
+            const symbolsInput = document.getElementById('symbolsInput');
+            if (symbolsInput) {
+                symbolsInput.addEventListener('input', (e) => {
+                    this.updateSelectedSymbols(e.target.value);
+                });
+            }
+
+    // شروع اسکن
+            const startScan = document.getElementById('startScan');
+            if (startScan) {
+                startScan.addEventListener('click', () => {
+                    this.startSmartScan();
+                });
+            }
+
+            // مدیریت نتایج
+            const clearResults = document.getElementById('clearResults');
+            if (clearResults) {
+                clearResults.addEventListener('click', () => {
+                    this.clearResults();
+                });
+            }
+
+            const exportResults = document.getElementById('exportResults');
+            if (exportResults) {
+                exportResults.addEventListener('click', () => {
+                    this.exportResults();
+                });
+            }
+
+            // سلامت سیستم
+            const refreshHealth = document.getElementById('refreshHealth');
+            if (refreshHealth) {
+                refreshHealth.addEventListener('click', () => {
+                    this.loadHealthStatus();
+                });
+            }
+
+            const testAPI = document.getElementById('testAPI');
+            if (testAPI) {
+                testAPI.addEventListener('click', () => {
+                    this.testAPIEndpoints();
+                });
+            }
+
+            // AI
+            const initAI = document.getElementById('initAI');
+            if (initAI) {
+                initAI.addEventListener('click', () => {
+                    this.initAIEngine();
+                });
+            }
+
+            const analyzeWithAI = document.getElementById('analyzeWithAI');
+            if (analyzeWithAI) {
+                analyzeWithAI.addEventListener('click', () => {
+                    this.analyzeWithAI();
+                });
+            }
+
+            // سیستم لاگ
+            const clearLogs = document.getElementById('clearLogs');
+            if (clearLogs) {
+                clearLogs.addEventListener('click', () => {
+                    this.clearLogs();
+                });
+            }
+
+            const exportLogs = document.getElementById('exportLogs');
+            if (exportLogs) {
+                exportLogs.addEventListener('click', () => {
+                    this.exportLogs();
+                });
+            }
+
+            // لودینگ
+            const cancelScan = document.getElementById('cancelScan');
+            if (cancelScan) {
+                cancelScan.addEventListener('click', () => {
+                    this.cancelScan();
+                });
+            }
+
+            const cancelLoading = document.getElementById('cancelLoading');
+            if (cancelLoading) {
+                cancelLoading.addEventListener('click', () => {
+                    this.cancelScan();
+                });
+            }
+
+            // تنظیمات
+            const saveSettings = document.getElementById('saveSettings');
+            if (saveSettings) {
+                saveSettings.addEventListener('click', () => {
+                    this.saveSettings();
+                });
+            }
+
+            const clearCache = document.getElementById('clearCache');
+            if (clearCache) {
+                clearCache.addEventListener('click', () => {
+                    this.clearCache();
+                });
+            }
+
+            const resetSettings = document.getElementById('resetSettings');
+            if (resetSettings) {
+                resetSettings.addEventListener('click', () => {
+                    this.resetSettings();
+                });
+            }
+
+            const backupSettings = document.getElementById('backupSettings');
+            if (backupSettings) {
+                backupSettings.addEventListener('click', () => {
+                    this.backupSettings();
+                });
+            }
+
+            // دکمه آمار سریع
+            const quickStats = document.getElementById('quickStats');
+                if (quickStats) {
+                quickStats.addEventListener('click', () => {
+                    this.showQuickStats();
+                });
+            }
+
+            // دکمه بروزرسانی داشبورد
+            const refreshDashboard = document.getElementById('refreshDashboard');
+                if (refreshDashboard) {
+                refreshDashboard.addEventListener('click', () => {
+                    this.loadDashboard();
+                });
+            }
+
+            // Event listenerهای全局
+            document.addEventListener('click', this.boundHandleDocumentClick);
+            document.addEventListener('keydown', this.boundHandleKeydown);
+            window.addEventListener('beforeunload', this.boundHandleBeforeUnload);
+
+            this.log('DEBUG', 'Event listeners initialized successfully');
+        }
+
+        // متدهای handle جداگانه
+        handleDocumentClick(e) {
+            // بستن منو فیلتر با کلیک خارج
             if (!e.target.closest('.currency-filter')) {
                 this.hideFilterMenu();
             }
+    
+            // بستن منوی موبایل با کلیک خارج
             if (!e.target.closest('.nav-menu') && !e.target.closest('.mobile-menu-btn')) {
                 this.toggleMobileMenu(false);
             }
-        });
+        }
 
-        // مدیریت کلیدهای کیبورد
-        document.addEventListener('keydown', (e) => {
+        handleKeydown(e) {
             this.handleKeyboard(e);
-        });
+        }
 
-        // پیشگیری از برگشت به عقب در موبایل
-        window.addEventListener('beforeunload', (e) => {
+        handleBeforeUnload(e) {
             if (this.isScanning) {
                 e.preventDefault();
                 e.returnValue = 'اسکن در حال انجام است. آیا مطمئنید که می‌خواهید صفحه را ترک کنید؟';
             }
-        });
-    }
+        }
+
+        // مدیریت کلیدهای کیبورد
+        handleKeyboard(e) {
+            // کلیدهای میانبر
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case '1':
+                        e.preventDefault();
+                        this.showSection('scan');
+                        break;
+                    case '2':
+                        e.preventDefault();
+                        this.showSection('dashboard');
+                        break;
+                    case '3':
+                        e.preventDefault();
+                        this.showSection('health');
+                        break;
+                    case '4':
+                        e.preventDefault();
+                        this.showSection('ai');
+                        break;
+                    case '5':
+                        e.preventDefault();
+                        this.showSection('settings');
+                        break;
+                    case 'k':
+                        e.preventDefault();
+                        const symbolsInput = document.getElementById('symbolsInput');
+                        if (symbolsInput) symbolsInput.focus();
+                        break;
+                    case 'l':
+                        e.preventDefault();
+                        this.clearLogs();
+                        break;
+                }
+            }
+
+            // Escape برای بستن منوها
+            if (e.key === 'Escape') {
+                this.hideFilterMenu();
+                this.toggleMobileMenu(false);
+            }
+        }
 
     // ===== مدیریت ناوبری و UI =====
     showSection(section) {
