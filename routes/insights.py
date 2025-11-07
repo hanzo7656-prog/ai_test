@@ -12,10 +12,13 @@ insights_router = APIRouter(prefix="/api/insights", tags=["Insights"])
 async def get_btc_dominance(type: str = Query("all")):
     """دریافت دامیننس بیت‌کوین پردازش شده"""
     try:
-        raw_data = coin_stats_manager.get_btc_dominance(period_type)
+        raw_data = coin_stats_manager.get_btc_dominance(type)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         processed_data = {
-            'period': period_type,
+            'period': type,
             'dominance_percentage': raw_data.get('dominance'),
             'trend': _analyze_dominance_trend(raw_data),
             'market_implication': _get_market_implication(raw_data),
@@ -25,6 +28,7 @@ async def get_btc_dominance(type: str = Query("all")):
         return {
             'status': 'success',
             'data': processed_data,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -36,23 +40,12 @@ async def get_btc_dominance(type: str = Query("all")):
 async def get_fear_greed():
     """دریافت شاخص ترس و طمع پردازش شده"""
     try:
-        raw_data = coin_stats_manager.get_fear_greed()
+        processed_data = coin_stats_manager.get_fear_greed_processed()
         
-        processed_data = {
-            'value': raw_data.get('value'),
-            'value_classification': raw_data.get('value_classification'),
-            'timestamp': raw_data.get('timestamp'),
-            'time_until_update': raw_data.get('time_until_update'),
-            'analysis': _analyze_fear_greed(raw_data),
-            'recommendation': _get_fear_greed_recommendation(raw_data),
-            'last_updated': datetime.now().isoformat()
-        }
+        if "error" in processed_data:
+            raise HTTPException(status_code=500, detail=processed_data["error"])
         
-        return {
-            'status': 'success',
-            'data': processed_data,
-            'timestamp': datetime.now().isoformat()
-        }
+        return processed_data
         
     except Exception as e:
         logger.error(f"Error in fear-greed: {e}")
@@ -64,6 +57,9 @@ async def get_fear_greed_chart():
     try:
         raw_data = coin_stats_manager.get_fear_greed_chart()
         
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
         processed_chart = {
             'data': raw_data.get('data', []),
             'analysis': _analyze_fear_greed_trend(raw_data),
@@ -74,6 +70,7 @@ async def get_fear_greed_chart():
         return {
             'status': 'success',
             'data': processed_chart,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -87,6 +84,9 @@ async def get_rainbow_chart(coin_id: str):
     try:
         raw_data = coin_stats_manager.get_rainbow_chart(coin_id)
         
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
         processed_chart = {
             'coin_id': coin_id,
             'data': raw_data.get('data', []),
@@ -98,6 +98,7 @@ async def get_rainbow_chart(coin_id: str):
         return {
             'status': 'success',
             'data': processed_chart,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -127,66 +128,6 @@ def _get_market_implication(dominance_data: Dict) -> str:
         return "Altcoin season likely, Bitcoin may underperform"
     else:
         return "Balanced market, watch for sector rotation"
-
-def _analyze_fear_greed(fear_greed_data: Dict) -> Dict[str, Any]:
-    """تحلیل شاخص ترس و طمع"""
-    value = fear_greed_data.get('value', 50)
-    classification = fear_greed_data.get('value_classification', '').lower()
-    
-    analysis = {
-        'current_sentiment': classification,
-        'market_condition': '',
-        'risk_level': '',
-        'suggested_action': ''
-    }
-    
-    if value >= 75:
-        analysis.update({
-            'market_condition': 'Extreme Greed - Market may be overbought',
-            'risk_level': 'High',
-            'suggested_action': 'Consider taking profits'
-        })
-    elif value >= 55:
-        analysis.update({
-            'market_condition': 'Greed - Bullish sentiment',
-            'risk_level': 'Medium',
-            'suggested_action': 'Monitor for entry points'
-        })
-    elif value >= 45:
-        analysis.update({
-            'market_condition': 'Neutral - Balanced market',
-            'risk_level': 'Low',
-            'suggested_action': 'Good for accumulation'
-        })
-    elif value >= 25:
-        analysis.update({
-            'market_condition': 'Fear - Bearish sentiment', 
-            'risk_level': 'Medium',
-            'suggested_action': 'Look for buying opportunities'
-        })
-    else:
-        analysis.update({
-            'market_condition': 'Extreme Fear - Market may be oversold',
-            'risk_level': 'High', 
-            'suggested_action': 'Potential buying opportunity'
-        })
-    
-    return analysis
-
-def _get_fear_greed_recommendation(fear_greed_data: Dict) -> str:
-    """دریافت توصیه بر اساس شاخص ترس و طمع"""
-    value = fear_greed_data.get('value', 50)
-    
-    if value >= 75:
-        return "CAUTION: Market shows extreme greed. Consider reducing exposure."
-    elif value >= 55:
-        return "OPTIMISTIC: Greed phase. Good for holding, be ready to take profits."
-    elif value >= 45:
-        return "NEUTRAL: Balanced market. Good for strategic accumulation."
-    elif value >= 25:
-        return "CAUTIOUS: Fear phase. Look for quality assets at discount."
-    else:
-        return "OPPORTUNITY: Extreme fear. Potential for strong rebounds."
 
 def _analyze_fear_greed_trend(chart_data: Dict) -> Dict[str, Any]:
     """تحلیل روند شاخص ترس و طمع"""
