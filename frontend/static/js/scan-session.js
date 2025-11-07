@@ -1,12 +1,12 @@
-// سیستم اسکن پیشرفته VortexAI - سازگار با روت‌های جدید
+// سیستم اسکن پیشرفته VortexAI - نسخه بهینه شده
 class ScanSession {
     constructor(options) {
-        this.symbols = options.symbols;
-        this.mode = options.mode; // 'ai' یا 'basic'
+        this.symbols = options.symbols || [];
+        this.mode = options.mode || 'basic';
         this.batchSize = options.batchSize || 25;
-        this.onProgress = options.onProgress;
-        this.onComplete = options.onComplete;
-        this.onError = options.onError;
+        this.onProgress = options.onProgress || (() => {});
+        this.onComplete = options.onComplete || (() => {});
+        this.onError = options.onError || (() => {});
         
         this.isCancelled = false;
         this.startTime = null;
@@ -28,11 +28,13 @@ class ScanSession {
     }
 
     async start() {
+        console.log('🚀 Starting scan session...');
         this.startTime = Date.now();
         this.isCancelled = false;
         this.completed = 0;
         this.results = [];
         this.failedScans = 0;
+        
         this.performanceStats = {
             totalRequests: 0,
             successfulRequests: 0,
@@ -42,8 +44,17 @@ class ScanSession {
         };
 
         try {
-            const batches = this.createBatches();
-            console.log(`🚀 Starting scan with ${batches.length} batches`);
+            // اعتبارسنجی سمبل‌ها
+            const validSymbols = this.symbols.filter(symbol => 
+                symbol && typeof symbol === 'string' && symbol.trim().length > 0
+            );
+            
+            if (validSymbols.length === 0) {
+                throw new Error('هیچ سمبل معتبری برای اسکن وجود ندارد');
+            }
+
+            const batches = this.createBatches(validSymbols);
+            console.log(`🔄 Processing ${batches.length} batches with ${validSymbols.length} symbols`);
             
             for (let i = 0; i < batches.length; i++) {
                 if (this.isCancelled) {
@@ -58,7 +69,7 @@ class ScanSession {
                 
                 // تاخیر بین batchها برای کاهش فشار
                 if (i < batches.length - 1 && !this.isCancelled) {
-                    await this.delay(1000);
+                    await VortexUtils.delay(500);
                 }
             }
 
@@ -67,21 +78,21 @@ class ScanSession {
                 this.calculatePerformanceStats();
                 
                 console.log(`✅ Scan completed: ${this.results.length} results, ${this.failedScans} failed`);
-                this.onComplete?.(this.results);
+                this.onComplete(this.results);
             } else {
                 console.log('⏹️ Scan was cancelled');
             }
 
         } catch (error) {
-            console.error('❌ Scan error:', error);
-            this.onError?.(error);
+            console.error('❌ Scan session error:', error);
+            this.onError(error);
         }
     }
 
-    createBatches() {
+    createBatches(symbols) {
         const batches = [];
-        for (let i = 0; i < this.symbols.length; i += this.batchSize) {
-            batches.push(this.symbols.slice(i, i + this.batchSize));
+        for (let i = 0; i < symbols.length; i += this.batchSize) {
+            batches.push(symbols.slice(i, i + this.batchSize));
         }
         return batches;
     }
@@ -101,33 +112,51 @@ class ScanSession {
             .filter(result => result.status === 'fulfilled' && !result.value.success)
             .map(result => result.value);
 
-        this.results.push(...successfulResults, ...failedResults);
+        // پردازش نتایج rejected
+        const rejectedResults = batchResults
+            .filter(result => result.status === 'rejected')
+            .map(result => ({
+                symbol: 'unknown',
+                success: false,
+                error: result.reason?.message || 'Unknown error',
+                timestamp: new Date().toISOString(),
+                scanMode: this.mode,
+                responseTime: 0
+            }));
+
+        this.results.push(...successfulResults, ...failedResults, ...rejectedResults);
         this.completed += batch.length;
-        this.failedScans += failedResults.length;
+        this.failedScans += (failedResults.length + rejectedResults.length);
 
         // آپدیت آمار
         this.performanceStats.successfulRequests += successfulResults.length;
-        this.performanceStats.failedRequests += failedResults.length;
+        this.performanceStats.failedRequests += (failedResults.length + rejectedResults.length);
         this.performanceStats.totalRequests += batch.length;
 
         const batchTime = Date.now() - batchStartTime;
         this.updateProgress(batch, batchNumber, totalBatches, batchTime);
 
-        console.log(`✅ Batch ${batchNumber} completed: ${successfulResults.length} success, ${failedResults.length} failed`);
+        console.log(`✅ Batch ${batchNumber} completed: ${successfulResults.length} success, ${failedResults.length + rejectedResults.length} failed`);
     }
 
     async scanSymbol(symbol) {
         const startTime = Date.now();
         
         try {
-            // ✅ استفاده از روت‌های جدید و سازگار
+            // اعتبارسنجی سمبل
+            if (!VortexUtils.isValidSymbol(symbol)) {
+                throw new Error(`سمبل نامعتبر: ${symbol}`);
+            }
+
+            // انتخاب endpoint بر اساس حالت
             const endpoint = this.mode === 'ai' ? 
-                `/api/raw/${symbol}` : `/api/processed/${symbol}`;
+                `/api/raw/${symbol.toLowerCase()}` : 
+                `/api/processed/${symbol.toLowerCase()}`;
+            
+            console.log(`🔍 Scanning ${symbol} via ${endpoint}`);
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
-            
-            console.log(`🔍 Scanning ${symbol} via ${endpoint}`);
             
             const response = await fetch(endpoint, {
                 signal: controller.signal,
@@ -146,15 +175,15 @@ class ScanSession {
             const data = await response.json();
             const responseTime = Date.now() - startTime;
             
-            // ✅ اعتبارسنجی پاسخ بهبود یافته
+            // اعتبارسنجی پاسخ
             if (!this.validateResponse(data)) {
-                throw new Error('Invalid response format');
+                throw new Error('پاسخ دریافتی معتبر نیست');
             }
             
             console.log(`✅ ${symbol} scanned successfully in ${responseTime}ms`);
             
             return {
-                symbol,
+                symbol: symbol.toLowerCase(),
                 success: true,
                 data: data.data || data,
                 timestamp: new Date().toISOString(),
@@ -168,7 +197,7 @@ class ScanSession {
             console.error(`❌ Failed to scan ${symbol}:`, error.message);
             
             return {
-                symbol,
+                symbol: symbol.toLowerCase(),
                 success: false,
                 error: error.message,
                 timestamp: new Date().toISOString(),
@@ -180,7 +209,6 @@ class ScanSession {
     }
 
     validateResponse(data) {
-        // ✅ اعتبارسنجی سازگار با ساختارهای مختلف بک‌اند
         if (!data) return false;
         
         // بررسی ساختارهای مختلف پاسخ
@@ -225,7 +253,7 @@ class ScanSession {
             performance: this.getCurrentPerformance()
         };
 
-        this.onProgress?.(progressData);
+        this.onProgress(progressData);
     }
 
     getCurrentPerformance() {
@@ -248,7 +276,7 @@ class ScanSession {
         }
     }
 
-    // اسکن دسته‌ای مستقیم - برای استفاده سریع
+    // اسکن دسته‌ای مستقیم
     async batchScan(symbols, mode = 'basic') {
         const endpoint = mode === 'ai' ? '/api/raw/batch' : '/api/processed/batch';
         const startTime = Date.now();
@@ -278,7 +306,7 @@ class ScanSession {
             console.log(`✅ Batch scan completed in ${totalTime}ms: ${result.successful || 0} successful`);
             
             // تبدیل به فرمت سازگار
-            const formattedResults = result.results.map(item => ({
+            const formattedResults = (result.results || []).map(item => ({
                 symbol: item.symbol,
                 success: item.status === 'success',
                 data: item.data,
@@ -316,18 +344,6 @@ class ScanSession {
         console.log('⏹️ Scan cancellation requested');
     }
 
-    pause() {
-        this.isCancelled = true;
-        console.log('⏸️ Scan paused');
-    }
-
-    resume() {
-        if (this.isCancelled) {
-            this.isCancelled = false;
-            console.log('▶️ Scan resumed');
-        }
-    }
-
     getStats() {
         const successful = this.results.filter(r => r.success).length;
         const failed = this.results.filter(r => !r.success).length;
@@ -347,7 +363,7 @@ class ScanSession {
     }
 
     getResultsBySymbol(symbol) {
-        return this.results.filter(result => result.symbol === symbol);
+        return this.results.filter(result => result.symbol === symbol.toLowerCase());
     }
 
     getSuccessfulResults() {
@@ -384,7 +400,8 @@ class ScanSession {
                 successfulResults: this.getSuccessfulResults().length,
                 failedResults: this.getFailedResults().length,
                 scanMode: this.mode,
-                batchSize: this.batchSize
+                batchSize: this.batchSize,
+                performance: this.performanceStats
             },
             results: this.results
         };
@@ -399,25 +416,45 @@ class ScanSession {
     }
 
     convertToCSV(results) {
-        const headers = ['Symbol', 'Success', 'Scan Mode', 'Response Time', 'Timestamp', 'Error'];
-        const rows = results.map(result => [
-            result.symbol,
-            result.success ? 'Yes' : 'No',
-            result.scanMode,
-            result.responseTime + 'ms',
-            result.timestamp,
-            result.error || 'N/A'
-        ]);
+        const headers = ['Symbol', 'Success', 'Price', 'Change%', 'Volume', 'MarketCap', 'Rank', 'Signal', 'Scan Mode', 'Response Time', 'Timestamp', 'Error'];
+        const rows = results.map(result => {
+            const data = result.data;
+            let price = 0, change = 0, volume = 0, marketCap = 0, rank = null, signal = 'N/A';
+            
+            if (data && data.data) {
+                const marketData = data.data.market_data || data.data.display_data || data.data;
+                price = marketData.price || marketData.current_price || 0;
+                change = marketData.priceChange1d || marketData.price_change_24h || 0;
+                volume = marketData.volume || marketData.total_volume || 0;
+                marketCap = marketData.marketCap || marketData.market_cap || 0;
+                rank = marketData.rank || null;
+                
+                if (data.data.analysis) {
+                    signal = data.data.analysis.signal || 'N/A';
+                }
+            }
+            
+            return [
+                result.symbol.toUpperCase(),
+                result.success ? 'Yes' : 'No',
+                VortexUtils.formatPrice(price),
+                change.toFixed(2) + '%',
+                VortexUtils.formatNumber(volume),
+                VortexUtils.formatNumber(marketCap),
+                rank || 'N/A',
+                signal,
+                result.scanMode,
+                result.responseTime + 'ms',
+                result.timestamp,
+                result.error || 'N/A'
+            ];
+        });
 
-        return [headers, ...rows].map(row => row.join(',')).join('\n');
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return [headers, ...rows].map(row => 
+            row.map(field => `"${field}"`).join(',')
+        ).join('\n');
     }
 }
 
-// ایجاد نمونه جهانی برای دسترسی آسان
-if (typeof window !== 'undefined') {
-    window.ScanSession = ScanSession;
-}
+// ایجاد نمونه جهانی
+window.ScanSession = ScanSession;
