@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 insights_router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
 @insights_router.get("/btc-dominance", summary="دامیننس بیت‌کوین")
-async def get_btc_dominance(period_type: str = Query("all")):
+async def get_btc_dominance(type: str = Query("all")):
     """دریافت دامیننس بیت‌کوین پردازش شده"""
     try:
         raw_data = coin_stats_manager.get_btc_dominance(period_type)
