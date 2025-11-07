@@ -120,7 +120,7 @@ class ScanSession {
         const startTime = Date.now();
         
         try {
-            // استفاده از روت‌های جدید
+            // ✅ استفاده از روت‌های جدید و سازگار
             const endpoint = this.mode === 'ai' ? 
                 `/api/raw/${symbol}` : `/api/processed/${symbol}`;
             
@@ -146,7 +146,7 @@ class ScanSession {
             const data = await response.json();
             const responseTime = Date.now() - startTime;
             
-            // اعتبارسنجی پاسخ
+            // ✅ اعتبارسنجی پاسخ بهبود یافته
             if (!this.validateResponse(data)) {
                 throw new Error('Invalid response format');
             }
@@ -180,16 +180,24 @@ class ScanSession {
     }
 
     validateResponse(data) {
-        // اعتبارسنجی ساختار پاسخ
+        // ✅ اعتبارسنجی سازگار با ساختارهای مختلف بک‌اند
         if (!data) return false;
         
-        if (this.mode === 'ai') {
-            // اعتبارسنجی داده‌های AI
-            return data.data && data.data.market_data;
-        } else {
-            // اعتبارسنجی داده‌های پردازش شده
-            return data.data && data.data.display_data;
+        // بررسی ساختارهای مختلف پاسخ
+        if (data.status === 'success' && data.data) {
+            return true;
         }
+        
+        if (data.data_type && data.data) {
+            return true;
+        }
+        
+        // برای حالت fallback
+        if (data.symbol || data.price !== undefined) {
+            return true;
+        }
+        
+        return false;
     }
 
     updateProgress(currentBatch, batchNumber, totalBatches, batchTime) {
@@ -317,7 +325,6 @@ class ScanSession {
         if (this.isCancelled) {
             this.isCancelled = false;
             console.log('▶️ Scan resumed');
-            // می‌توانید اینجا منطق restart اضافه کنید
         }
     }
 
