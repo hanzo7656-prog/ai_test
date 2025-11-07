@@ -16,6 +16,11 @@ import asyncio
 import logging
 import sys
 # ایمپورت ماژول‌های AI
+
+# تنظیمات
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 try:
     from trading_ai.neural_network import SparseNeuralNetwork, ModelTrainer, DataProcessor
     from trading_ai.technical_analysis import RSIAnalyzer, MACDAnalyzer, SignalGenerator
@@ -89,9 +94,6 @@ except ImportError as e:
     
     coin_stats_manager = MockCoinStatsManager()
 
-# تنظیمات
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = FastAPI(title="VortexAI API", version="3.0.0")
 
