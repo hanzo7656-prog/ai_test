@@ -1,4 +1,4 @@
-// سیستم مدیریت رابط کاربری VortexAI - نسخه اصلاح شده
+// سیستم مدیریت رابط کاربری VortexAI - نسخه یکپارچه
 class UIManager {
     constructor() {
         this.autoRefreshInterval = null;
@@ -7,6 +7,8 @@ class UIManager {
             level: 'ALL',
             search: ''
         };
+        
+        console.log('✅ UIManager initialized with VortexUtils');
     }
 
     // ===== مدیریت ناوبری و منو =====
@@ -51,46 +53,62 @@ class UIManager {
         if (loading) {
             loading.style.display = 'flex';
             document.body.style.overflow = 'hidden';
+            
+            // نمایش با انیمیشن
+            setTimeout(() => {
+                loading.style.opacity = '1';
+            }, 10);
         }
     }
 
     hideLoading() {
         const loading = document.getElementById('loadingOverlay');
         if (loading) {
-            loading.style.display = 'none';
-            document.body.style.overflow = '';
+            loading.style.opacity = '0';
+            setTimeout(() => {
+                loading.style.display = 'none';
+                document.body.style.overflow = '';
+            }, 300);
         }
     }
 
     showNotification(message, type = 'info') {
-        // ایجاد المان نوتیفیکیشن
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.setAttribute('role', 'alert');
-        notification.innerHTML = `
-            <div class="notification-content">
-                <span class="notification-message">${message}</span>
-                <button class="notification-close" aria-label="بستن">&times;</button>
-            </div>
-        `;
+        try {
+            // ایجاد المان نوتیفیکیشن
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.setAttribute('role', 'alert');
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <span class="notification-message">${VortexUtils.escapeHtml(message)}</span>
+                    <button class="notification-close" aria-label="بستن">&times;</button>
+                </div>
+            `;
 
-        document.body.appendChild(notification);
+            const container = document.getElementById('notificationsContainer') || document.body;
+            container.appendChild(notification);
 
-        // نمایش با انیمیشن
-        setTimeout(() => notification.classList.add('show'), 100);
+            // نمایش با انیمیشن
+            setTimeout(() => notification.classList.add('show'), 100);
 
-        // بستن دستی
-        notification.querySelector('.notification-close').addEventListener('click', () => {
-            this.hideNotification(notification);
-        });
+            // بستن دستی
+            notification.querySelector('.notification-close').addEventListener('click', () => {
+                this.hideNotification(notification);
+            });
 
-        // حذف خودکار
-        setTimeout(() => {
-            this.hideNotification(notification);
-        }, 5000);
+            // حذف خودکار
+            setTimeout(() => {
+                this.hideNotification(notification);
+            }, 5000);
+
+        } catch (error) {
+            console.error('Notification error:', error);
+        }
     }
 
     hideNotification(notification) {
+        if (!notification) return;
+        
         notification.classList.remove('show');
         setTimeout(() => {
             if (notification.parentNode) {
@@ -101,6 +119,8 @@ class UIManager {
 
     // ===== مدیریت پیشرفت اسکن =====
     updateProgress(progress) {
+        if (!progress) return;
+
         const {
             completed,
             total,
@@ -110,7 +130,7 @@ class UIManager {
             currentBatch
         } = progress;
 
-        // آپدیت UI لودینگ
+        // استفاده از VortexUtils برای فرمت‌دهی
         const progressText = document.getElementById('progressText');
         const progressPercent = document.getElementById('progressPercent');
         const progressFill = document.getElementById('progressFill');
@@ -122,7 +142,7 @@ class UIManager {
         if (progressText) progressText.textContent = `${completed}/${total}`;
         if (progressPercent) progressPercent.textContent = `${percent}%`;
         if (progressFill) progressFill.style.width = `${percent}%`;
-        if (elapsedTime) elapsedTime.textContent = this.formatTime(elapsed);
+        if (elapsedTime) elapsedTime.textContent = VortexUtils.formatTime(elapsed);
         if (scanSpeed) scanSpeed.textContent = `${speed}/دقیقه`;
         if (loadingTitle) {
             loadingTitle.textContent = `اسکن - ${percent}%`;
@@ -130,8 +150,8 @@ class UIManager {
 
         // نمایش ارزهای در حال اسکن
         if (scanningList && currentBatch && currentBatch.length > 0) {
-            scanningList.innerHTML = currentBatch
-                .slice(0, 8)
+            const limitedSymbols = currentBatch.slice(0, 5);
+            scanningList.innerHTML = limitedSymbols
                 .map(symbol => `<span class="coin-tag scanning">${symbol.toUpperCase()}</span>`)
                 .join('');
         }
@@ -145,28 +165,35 @@ class UIManager {
         if (!container) return;
         
         if (!results || results.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">🔍</div>
-                    <p>هیچ نتیجه‌ای یافت نشد</p>
-                    <small>اسکن انجام شد اما داده‌ای دریافت نشد</small>
-                </div>
-            `;
+            container.innerHTML = this.createEmptyState('اسکن', 'هنوز اسکنی انجام نشده است');
             return;
         }
 
-        const successCount = results.filter(r => r.success).length;
+        const successCount = results.filter(r => r && r.success).length;
         if (countElement) {
             countElement.textContent = `${successCount}/${results.length} مورد`;
         }
 
         const html = results.map(result => this.createCoinCard(result, scanMode)).join('');
-        container.innerHTML = `
-            <div class="coin-grid">${html}</div>
-        `;
+        container.innerHTML = `<div class="coin-grid">${html}</div>`;
     }
 
     createCoinCard(result, scanMode) {
+        if (!result || !result.symbol) {
+            return `
+                <div class="coin-card error">
+                    <div class="coin-header">
+                        <div class="coin-icon">❌</div>
+                        <div class="coin-basic-info">
+                            <div class="coin-symbol">نامشخص</div>
+                            <div class="coin-name">داده نامعتبر</div>
+                        </div>
+                    </div>
+                    <div class="error-message">داده دریافتی معتبر نیست</div>
+                </div>
+            `;
+        }
+
         if (!result.success) {
             return `
                 <div class="coin-card error">
@@ -178,10 +205,10 @@ class UIManager {
                         </div>
                     </div>
                     <div class="error-message">
-                        ${result.error || 'خطای نامشخص'}
+                        ${VortexUtils.escapeHtml(result.error || 'خطای نامشخص')}
                     </div>
                     <div class="coin-footer">
-                        <span class="data-freshness">${this.getDataFreshness(result.timestamp)}</span>
+                        <span class="data-freshness">${VortexUtils.getDataFreshness(result.timestamp)}</span>
                     </div>
                 </div>
             `;
@@ -193,15 +220,15 @@ class UIManager {
         return `
             <div class="coin-card">
                 <div class="coin-header">
-                    <div class="coin-icon">${this.getCoinSymbol(result.symbol)}</div>
+                    <div class="coin-icon">${VortexUtils.getCoinSymbol(result.symbol)}</div>
                     <div class="coin-basic-info">
                         <div class="coin-symbol">${result.symbol.toUpperCase()}</div>
-                        <div class="coin-name">${extractedData.name}</div>
+                        <div class="coin-name">${VortexUtils.escapeHtml(extractedData.name)}</div>
                     </div>
                 </div>
 
                 <div class="price-section">
-                    <div class="coin-price">${extractedData.price !== 0 ? '$' + this.formatPrice(extractedData.price) : '--'}</div>
+                    <div class="coin-price">${extractedData.price !== 0 ? '$' + VortexUtils.formatPrice(extractedData.price) : '--'}</div>
                     <div class="price-change ${extractedData.change >= 0 ? 'positive' : 'negative'}">
                         ${extractedData.change !== 0 ? 
                             `${extractedData.change >= 0 ? '▲' : '▼'} ${Math.abs(extractedData.change).toFixed(2)}%` : 
@@ -212,11 +239,11 @@ class UIManager {
                 <div class="coin-stats">
                     <div class="stat-item">
                         <span class="stat-label">حجم 24h</span>
-                        <span class="stat-value">${extractedData.volume !== 0 ? this.formatNumber(extractedData.volume) : '--'}</span>
+                        <span class="stat-value">${extractedData.volume !== 0 ? VortexUtils.formatNumber(extractedData.volume) : '--'}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">مارکت کپ</span>
-                        <span class="stat-value">${extractedData.marketCap !== 0 ? this.formatNumber(extractedData.marketCap) : '--'}</span>
+                        <span class="stat-value">${extractedData.marketCap !== 0 ? VortexUtils.formatNumber(extractedData.marketCap) : '--'}</span>
                     </div>
                     <div class="stat-item">
                         <span class="stat-label">رتبه</span>
@@ -229,7 +256,7 @@ class UIManager {
                     <div class="signal-badge ${extractedData.signalClass}">${extractedData.signalText}</div>
                     <div class="confidence-meter">
                         <div class="confidence-bar">
-                            <div class="confidence-fill" style="width: ${extractedData.confidence * 100}%"></div>
+                            <div class="confidence-fill" style="width: ${(extractedData.confidence * 100)}%"></div>
                         </div>
                         <div class="confidence-text">اعتماد: ${Math.round(extractedData.confidence * 100)}%</div>
                     </div>
@@ -237,7 +264,7 @@ class UIManager {
                 ` : ''}
 
                 <div class="coin-footer">
-                    <span class="data-freshness">${this.getDataFreshness(result.timestamp)}</span>
+                    <span class="data-freshness">${VortexUtils.getDataFreshness(result.timestamp)}</span>
                     ${scanMode === 'ai' ? '<span class="ai-badge">AI</span>' : ''}
                 </div>
             </div>
@@ -262,11 +289,10 @@ class UIManager {
         try {
             console.log(`📊 استخراج داده برای ${symbol}:`, data);
 
-            // ✅ حالت 1: داده مستقیم از API اصلی (ساختار واقعی backend)
+            // حالت 1: داده مستقیم از API اصلی
             if (data && data.data) {
                 const responseData = data.data;
                 
-                // حالت 1.1: داده raw از API
                 if (responseData.market_data) {
                     const market = responseData.market_data;
                     extracted.price = market.price || market.current_price || 0;
@@ -276,7 +302,6 @@ class UIManager {
                     extracted.rank = market.rank || null;
                     extracted.name = market.name || symbol.toUpperCase();
                 }
-                // حالت 1.2: داده processed از API
                 else if (responseData.display_data) {
                     const display = responseData.display_data;
                     extracted.price = display.price || display.current_price || 0;
@@ -286,19 +311,19 @@ class UIManager {
                     extracted.rank = display.rank || null;
                     extracted.name = display.name || symbol.toUpperCase();
                 }
-                // حالت 1.3: تحلیل AI
+
+                // تحلیل AI اگر موجود باشد
                 if (responseData.analysis) {
                     extracted.signal = responseData.analysis.signal || 'HOLD';
                     extracted.confidence = responseData.analysis.confidence || 0.5;
                 }
             }
-            // ✅ حالت 2: داده مستقیم از تحلیل AI
+            // حالت 2: داده مستقیم از تحلیل AI
             else if (data && data.analysis) {
                 const analysis = data.analysis;
                 extracted.signal = analysis.signal || 'HOLD';
                 extracted.confidence = analysis.confidence || 0.5;
                 
-                // اگر داده بازار هم موجود باشد
                 if (data.market_data) {
                     const market = data.market_data;
                     extracted.price = market.price || market.current_price || 0;
@@ -309,31 +334,19 @@ class UIManager {
                     extracted.name = market.name || symbol.toUpperCase();
                 }
             }
-            // ✅ حالت 3: داده مستقیم در ریشه (ساختار ساده)
+            // حالت 3: داده مستقیم در ریشه
             else if (data && (data.price !== undefined || data.current_price !== undefined)) {
                 extracted.price = data.price || data.current_price || 0;
-                extracted.change = data.priceChange1d || data.price_change_24h || data.price_change_percentage_24h || 0;
+                extracted.change = data.priceChange1d || data.price_change_24h || 0;
                 extracted.volume = data.volume || data.total_volume || 0;
                 extracted.marketCap = data.marketCap || data.market_cap || 0;
                 extracted.rank = data.rank || null;
                 extracted.name = data.name || symbol.toUpperCase();
                 
-                // تحلیل اگر موجود باشد
                 if (data.analysis) {
                     extracted.signal = data.analysis.signal || 'HOLD';
                     extracted.confidence = data.analysis.confidence || 0.5;
                 }
-            }
-            // ❌ حالت 4: داده تست (fallback)
-            else {
-                console.warn(`ساختار داده برای ${symbol} شناسایی نشد، استفاده از داده تست`);
-                const hash = this.stringToHash(symbol);
-                extracted.price = 1000 + (hash % 50000);
-                extracted.change = (hash % 40) - 20;
-                extracted.volume = 1000000 + (hash % 100000000);
-                extracted.marketCap = 10000000 + (hash % 1000000000);
-                extracted.rank = (hash % 100) + 1;
-                extracted.name = symbol.toUpperCase();
             }
 
             // تنظیم متن و کلاس سیگنال
@@ -350,11 +363,20 @@ class UIManager {
             extracted.signalClass = signalInfo.class;
 
         } catch (error) {
-            console.error(`خطا در استخراج داده برای ${symbol}: ${error.message}`);
+            console.error(`خطا در استخراج داده برای ${symbol}:`, error);
         }
 
-        console.log(`✅ داده استخراج شده برای ${symbol}:`, extracted);
         return extracted;
+    }
+
+    createEmptyState(icon, message, submessage = '') {
+        return `
+            <div class="empty-state">
+                <div class="empty-icon">${icon}</div>
+                <p>${message}</p>
+                ${submessage ? `<small>${submessage}</small>` : ''}
+            </div>
+        `;
     }
 
     clearResults() {
@@ -362,121 +384,11 @@ class UIManager {
         const resultsCount = document.getElementById('resultsCount');
         
         if (resultsGrid) {
-            resultsGrid.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">🔍</div>
-                    <p>هنوز اسکنی انجام نشده است</p>
-                    <small>برای شروع از دکمه بالا استفاده کنید</small>
-                </div>
-            `;
+            resultsGrid.innerHTML = this.createEmptyState('🔍', 'هنوز اسکنی انجام نشده است', 'برای شروع از دکمه بالا استفاده کنید');
         }
         
         if (resultsCount) {
             resultsCount.textContent = '0 مورد';
-        }
-    }
-
-    // ===== سیستم لاگ =====
-    displayLog(logEntry) {
-        const container = document.getElementById('logsContainer');
-        if (!container) return;
-
-        // اعمال فیلترها
-        if (this.logFilters.level !== 'ALL' && this.logFilters.level !== logEntry.level) {
-            return;
-        }
-
-        if (this.logFilters.search && !logEntry.message.includes(this.logFilters.search)) {
-            return;
-        }
-
-        const logElement = document.createElement('div');
-        logElement.className = 'log-entry';
-        logElement.innerHTML = `
-            <span class="log-time">${logEntry.timestamp}</span>
-            <span class="log-level ${logEntry.level}">${logEntry.level}</span>
-            <span class="log-message">${this.escapeHtml(logEntry.message)}</span>
-        `;
-
-        container.appendChild(logElement);
-
-        // اسکرول خودکار به پایین اگر فعال باشد
-        if (this.autoScrollLogs) {
-            this.scrollLogsToBottom();
-        }
-    }
-
-    setLogFilter(type, value) {
-        this.logFilters[type] = value;
-
-        // آپدیت UI دکمه‌های فیلتر
-        if (type === 'level') {
-            document.querySelectorAll('.log-filter-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.level === value);
-            });
-        }
-    }
-
-    refreshLogsDisplay(logs, filters) {
-        const container = document.getElementById('logsContainer');
-        if (!container) return;
-
-        container.innerHTML = '';
-        
-        if (logs) {
-            logs.forEach(log => this.displayLog(log));
-        }
-
-        this.updateLogCount(logs, filters);
-    }
-
-    updateLogCount(logs, filters) {
-        const countElement = document.getElementById('logCount');
-        if (countElement && logs) {
-            const filteredLogs = logs.filter(log => {
-                if (filters.level !== 'ALL' && filters.level !== log.level) {
-                    return false;
-                }
-                if (filters.search && !log.message.includes(filters.search)) {
-                    return false;
-                }
-                return true;
-            });
-            countElement.textContent = filteredLogs.length;
-        }
-    }
-
-    clearLogs() {
-        const container = document.getElementById('logsContainer');
-        if (container) {
-            container.innerHTML = '';
-        }
-    }
-
-    scrollLogsToBottom() {
-        const container = document.getElementById('logsContainer');
-        if (container) {
-            container.scrollTop = container.scrollHeight;
-        }
-    }
-
-    scrollLogsToTop() {
-        const container = document.getElementById('logsContainer');
-        if (container) {
-            container.scrollTop = 0;
-        }
-    }
-
-    toggleAutoRefresh(button, onRefreshCallback) {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-            if (button) button.innerHTML = '🔴 غیرفعال';
-        } else {
-            this.autoRefreshInterval = setInterval(() => {
-                onRefreshCallback();
-            }, 10000);
-            if (button) button.innerHTML = '🟢 فعال';
         }
     }
 
@@ -557,7 +469,6 @@ class UIManager {
     }
 
     displaySystemMetrics(metrics) {
-        // ✅ اصلاح شده: تطابق با ساختار واقعی API
         const cpuElement = document.getElementById('cpuUsage');
         const memoryElement = document.getElementById('memoryUsage');
         const diskElement = document.getElementById('diskUsage');
@@ -573,7 +484,6 @@ class UIManager {
         const container = document.getElementById('aiEngineStatus');
         if (!container) return;
         
-        // ✅ اصلاح شده: تطابق با ساختار واقعی AI status
         const isOperational = aiStatus.initialized && aiStatus.models?.neural_network?.active;
         
         container.innerHTML = `
@@ -608,7 +518,6 @@ class UIManager {
         const container = document.getElementById('aiStatusIndicators');
         if (!container) return;
 
-        // ✅ اصلاح شده: تطابق با ساختار واقعی backend
         const isTrained = status.models?.neural_network?.trained || false;
         const isReady = status.models?.neural_network?.active || false;
 
@@ -652,111 +561,7 @@ class UIManager {
         `;
     }
 
-    displayHealthError(error) {
-        const endpointsList = document.getElementById('endpointsList');
-        const logsContainer = document.getElementById('logsContainer');
-        
-        if (endpointsList) {
-            endpointsList.innerHTML = `
-                <div class="endpoint-item error">
-                    <span class="endpoint-name">خطا در دریافت داده‌های سلامت</span>
-                    <span class="endpoint-status status-error">قطع</span>
-                </div>
-            `;
-        }
-        
-        if (logsContainer) {
-            const timestamp = new Date().toLocaleString('fa-IR');
-            logsContainer.innerHTML = `
-                <div class="log-entry">
-                    <span class="log-time">${timestamp}</span>
-                    <span class="log-level ERROR">ERROR</span>
-                    <span class="log-message">خطا در اتصال به API: ${error.message}</span>
-                </div>
-            `;
-        }
-    }
-
-    // ===== سیستم اطلاعات =====
-    updateSystemInfo(performanceStats) {
-        // آپدیت اطلاعات سیستم در تنظیمات
-        const versionElement = document.getElementById('systemVersion');
-        const lastUpdateElement = document.getElementById('lastUpdate');
-        const memoryUsedElement = document.getElementById('memoryUsed');
-        const sessionDurationElement = document.getElementById('sessionDuration');
-
-        if (versionElement) versionElement.textContent = '1.0.0';
-        if (lastUpdateElement) lastUpdateElement.textContent = new Date().toLocaleString('fa-IR');
-        if (memoryUsedElement) memoryUsedElement.textContent = this.formatMemoryUsage();
-        if (sessionDurationElement) sessionDurationElement.textContent = this.formatSessionDuration(performanceStats);
-    }
-
     // ===== ابزارهای کمکی =====
-    getCoinSymbol(symbol) {
-        const symbolsMap = {
-            'bitcoin': '₿',
-            'ethereum': 'Ξ',
-            'tether': '₮',
-            'ripple': 'X',
-            'binancecoin': 'BNB',
-            'solana': 'SOL',
-            'usd-coin': 'USDC',
-            'staked-ether': 'ETH2',
-            'tron': 'TRX',
-            'dogecoin': 'DOGE',
-            'cardano': 'ADA',
-            'polkadot': 'DOT',
-            'chainlink': 'LINK',
-            'litecoin': 'LTC',
-            'bitcoin-cash': 'BCH'
-        };
-        return symbolsMap[symbol] || symbol.substring(0, 3).toUpperCase();
-    }
-
-    formatPrice(price) {
-        if (price === 0) return '0.00';
-        if (price < 0.01) return price.toFixed(6);
-        if (price < 1) return price.toFixed(4);
-        if (price < 1000) return price.toFixed(2);
-        return price.toLocaleString('en-US', { maximumFractionDigits: 2 });
-    }
-
-    formatNumber(num) {
-        if (num === 0) return '0';
-        if (num < 1000) return num.toString();
-        if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
-        if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
-        if (num < 1000000000000) return (num / 1000000000).toFixed(1) + 'B';
-        return (num / 1000000000000).toFixed(1) + 'T';
-    }
-
-    getDataFreshness(timestamp) {
-        if (!timestamp) return 'نامشخص';
-        
-        const now = new Date();
-        const dataTime = new Date(timestamp);
-        
-        // اگر timestamp نامعتبر باشد
-        if (isNaN(dataTime.getTime())) {
-            return 'نامشخص';
-        }
-        
-        const diffMinutes = Math.round((now - dataTime) / (1000 * 60));
-        
-        if (diffMinutes < 1) return 'همین لحظه';
-        if (diffMinutes < 5) return 'دقایقی پیش';
-        if (diffMinutes < 30) return 'اخیراً';
-        if (diffMinutes < 60) return 'کمتر از 1 ساعت';
-        if (diffMinutes < 120) return '1 ساعت پیش';
-        return 'قدیمی';
-    }
-
-    formatTime(seconds) {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-
     formatUptime(seconds) {
         if (!seconds) return '0d 0h';
         
@@ -765,8 +570,19 @@ class UIManager {
         return `${days}d ${hours}h`;
     }
 
+    updateSystemInfo(performanceStats) {
+        const versionElement = document.getElementById('systemVersion');
+        const lastUpdateElement = document.getElementById('lastUpdate');
+        const memoryUsedElement = document.getElementById('memoryUsed');
+        const sessionDurationElement = document.getElementById('sessionDuration');
+
+        if (versionElement) versionElement.textContent = '3.0.0';
+        if (lastUpdateElement) lastUpdateElement.textContent = new Date().toLocaleString('fa-IR');
+        if (memoryUsedElement) memoryUsedElement.textContent = this.formatMemoryUsage();
+        if (sessionDurationElement) sessionDurationElement.textContent = this.formatSessionDuration(performanceStats);
+    }
+
     formatMemoryUsage() {
-        // شبیه‌سازی استفاده از حافظه
         const used = Math.round(50 + Math.random() * 50);
         return `${used} MB`;
     }
@@ -775,22 +591,9 @@ class UIManager {
         if (!performanceStats || !performanceStats.startTime) return '0:00';
         
         const duration = Math.floor((Date.now() - performanceStats.startTime) / 1000);
-        return this.formatTime(duration);
-    }
-
-    stringToHash(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return VortexUtils.formatTime(duration);
     }
 }
+
+// ایجاد نمونه جهانی
+window.UIManager = UIManager;
