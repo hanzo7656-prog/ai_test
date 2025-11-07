@@ -334,7 +334,7 @@ async def batch_processed_scan(request: BatchScanRequest):
             "timestamp": datetime.now().isoformat()
         }
         
-    except Exception e:
+    except Exception as e:
         logger.error(f"خطا در اسکن دسته‌ای پردازش شده: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
