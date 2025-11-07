@@ -1,4 +1,4 @@
-// سیستم هوش مصنوعی پایه
+// ===== سیستم هوش مصنوعی پایه =====
 class SimpleAI {
     constructor() {
         this.isInitialized = false;
@@ -26,6 +26,7 @@ class SimpleAI {
     }
 
     async loadTechnicalModel() {
+        // مدل تحلیل تکنیکال ساده
         this.models.technical = {
             name: 'تحلیل‌گر تکنیکال',
             version: '1.0',
@@ -36,6 +37,7 @@ class SimpleAI {
     }
 
     async loadSentimentModel() {
+        // مدل تحلیل احساسات ساده
         this.models.sentiment = {
             name: 'تحلیل‌گر احساسات',
             version: '1.0',
@@ -46,6 +48,7 @@ class SimpleAI {
     }
 
     async loadPredictiveModel() {
+        // مدل پیش‌بینی ساده
         this.models.predictive = {
             name: 'پیش‌بین قیمت',
             version: '1.0',
@@ -87,7 +90,7 @@ class SimpleAI {
         }
 
         // تحلیل حجم
-        if (coinData.volume > 500000000) {
+        if (coinData.volume > 500000000) { // حجم بالا
             analysis.confidence += 0.1;
             analysis.indicators.push('حجم: بالا');
         }
@@ -121,6 +124,7 @@ class SimpleAI {
     }
 
     calculateRSI(coinData) {
+        // شبیه‌سازی RSI ساده بر اساس تغییرات قیمت
         const change = coinData.change || 0;
         return Math.min(100, Math.max(0, 50 + (change * 2)));
     }
