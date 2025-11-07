@@ -17,6 +17,51 @@ import logging
 import sys
 # ایمپورت ماژول‌های AI
 
+# ==================== 🔍 DEBUG CODE - اضافه کن اینجا ====================
+print("=" * 60)
+print("🛠️  VORTEXAI DEBUG - COINSTATS IMPORT CHECK")
+print("=" * 60)
+
+# بررسی فایل‌ها
+current_dir = os.getcwd()
+print(f"📁 Current directory: {current_dir}")
+print("📁 Listing ALL files in directory:")
+for file in os.listdir('.'):
+    print(f"   📄 {file}")
+
+print("\n🔍 Looking for coinstats files:")
+coinstats_files = [f for f in os.listdir('.') if 'coinstat' in f.lower()]
+if coinstats_files:
+    for file in coinstats_files:
+        print(f"   ✅ FOUND: {file}")
+        # بررسی سایز فایل
+        file_size = os.path.getsize(file)
+        print(f"      📊 Size: {file_size} bytes")
+else:
+    print("   ❌ NO COINSTATS FILES FOUND!")
+
+# بررسی پایتون path
+print("\n🐍 Python path:")
+for i, path in enumerate(sys.path[:5]):  # فقط ۵ تا اول
+    print(f"   {i+1}. {path}")
+
+# تست import
+print("\n🔄 Testing import of complete_coinstats_manager...")
+try:
+    from complete_coinstats_manager import coin_stats_manager
+    print("✅ SUCCESS: complete_coinstats_manager imported successfully!")
+    print(f"✅ Module: {coin_stats_manager.__class__}")
+    COINSTATS_AVAILABLE = True
+except ImportError as e:
+    print(f"❌ IMPORT ERROR: {e}")
+    COINSTATS_AVAILABLE = False
+except Exception as e:
+    print(f"❌ OTHER ERROR: {e}")
+    COINSTATS_AVAILABLE = False
+
+print("=" * 60)
+# ==================== پایان کد دیباگ ====================
+
 # تنظیمات
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
