@@ -13,7 +13,8 @@ import psutil
 from pathlib import Path
 import json
 import asyncio
-
+import logging
+import sys
 # ایمپورت ماژول‌های AI
 try:
     from trading_ai.neural_network import SparseNeuralNetwork, ModelTrainer, DataProcessor
