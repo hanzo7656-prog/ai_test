@@ -1,4 +1,4 @@
-// کلاینت هوش مصنوعی VortexAI - ارتباط با backend پایتون
+// کلاینت هوش مصنوعی VortexAI - سازگار با روت‌های جدید
 class AIClient {
     constructor() {
         this.isInitialized = false;
@@ -8,17 +8,18 @@ class AIClient {
             predictive: null
         };
         this.analysisHistory = [];
+        this.apiBase = '/api/ai';
     }
 
     async initialize() {
         try {
-            // تست اتصال به AI backend
-            const response = await fetch('/api/ai/status');
+            // تست اتصال به AI backend از طریق روت سلامت
+            const response = await fetch('/api/status');
             const status = await response.json();
             
-            if (status.status === 'operational') {
+            if (status.status === 'operational' && status.services.ai_engine) {
                 this.isInitialized = true;
-                this.models = status.models || {};
+                this.models = status.ai_capabilities || {};
                 console.log('✅ AI Client initialized successfully');
                 return true;
             } else {
@@ -43,26 +44,24 @@ class AIClient {
         return true;
     }
 
-    async analyzeTechnical(symbol, data) {
+    async analyzeTechnical(symbol, data = null) {
         try {
             if (!this.isInitialized) {
-                throw new Error('AI client not initialized');
+                await this.initialize();
             }
 
             console.log(`🧠 تحلیل تکنیکال AI برای ${symbol}`);
 
-            // ارسال درخواست به AI backend
-            const response = await fetch('/api/ai/analyze/technical', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    symbol: symbol,
-                    data: data,
-                    timestamp: new Date().toISOString()
-                })
-            });
+            // اگر داده‌ای ارائه نشده، از سرور بگیر
+            let rawData = data;
+            if (!rawData) {
+                const rawResponse = await fetch(`/api/raw/${symbol}`);
+                const result = await rawResponse.json();
+                rawData = result.data;
+            }
+
+            // ارسال درخواست به AI backend با روت جدید
+            const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=technical`);
 
             if (!response.ok) {
                 throw new Error(`AI analysis failed: ${response.status}`);
@@ -74,7 +73,8 @@ class AIClient {
             this.analysisHistory.push({
                 symbol: symbol,
                 analysis: result,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                type: 'technical'
             });
 
             return result;
@@ -86,11 +86,66 @@ class AIClient {
         }
     }
 
+    async analyzeSentiment(symbol) {
+        try {
+            console.log(`😊 تحلیل احساسات AI برای ${symbol}`);
+
+            const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=sentiment`);
+
+            if (!response.ok) {
+                throw new Error(`Sentiment analysis failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            this.analysisHistory.push({
+                symbol: symbol,
+                analysis: result,
+                timestamp: new Date().toISOString(),
+                type: 'sentiment'
+            });
+
+            return result;
+
+        } catch (error) {
+            console.error(`خطا در تحلیل احساسات برای ${symbol}:`, error);
+            return this.fallbackSentimentAnalysis(symbol);
+        }
+    }
+
+    async getPrediction(symbol, period = '1d') {
+        try {
+            console.log(`🔮 پیش‌بینی AI برای ${symbol} (${period})`);
+
+            const response = await fetch(`${this.apiBase}/analyze/${symbol}?analysis_type=prediction&period=${period}`);
+
+            if (!response.ok) {
+                throw new Error(`Prediction failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            this.analysisHistory.push({
+                symbol: symbol,
+                analysis: result,
+                timestamp: new Date().toISOString(),
+                type: 'prediction',
+                period: period
+            });
+
+            return result;
+
+        } catch (error) {
+            console.error(`خطا در دریافت پیش‌بینی برای ${symbol}:`, error);
+            return this.fallbackPrediction(symbol, period);
+        }
+    }
+
+    // متدهای Fallback
     fallbackTechnicalAnalysis(data, symbol) {
-        // تحلیل تکنیکال ساده به عنوان fallback
-        const price = data.price || 0;
-        const change = data.change || 0;
-        const volume = data.volume || 0;
+        const price = data?.market_data?.price || data?.price || 0;
+        const change = data?.market_data?.priceChange1d || data?.change || 0;
+        const volume = data?.market_data?.volume || data?.volume || 0;
         
         // محاسبه RSI ساده
         const rsi = this.calculateSimpleRSI(change);
@@ -124,7 +179,8 @@ class AIClient {
             indicators: {
                 rsi: rsi,
                 trend: change > 0 ? 'صعودی' : 'نزولی',
-                volume_impact: volume > 1000000000 ? 'بالا' : 'عادی'
+                volume_impact: volume > 1000000000 ? 'بالا' : 'عادی',
+                price_change: change
             },
             summary: this.generateSummary(signal, confidence, rsi, change),
             timestamp: new Date().toISOString(),
@@ -135,8 +191,47 @@ class AIClient {
         return analysis;
     }
 
+    fallbackSentimentAnalysis(symbol) {
+        const sentiment = {
+            symbol: symbol,
+            score: 0.3 + Math.random() * 0.4, // 0.3-0.7
+            trend: Math.random() > 0.5 ? 'positive' : 'negative',
+            confidence: 0.4 + Math.random() * 0.3,
+            indicators: {
+                social_volume: 'medium',
+                news_sentiment: 'neutral',
+                market_mood: Math.random() > 0.5 ? 'bullish' : 'bearish'
+            },
+            summary: 'تحلیل احساسات در دسترس نیست',
+            timestamp: new Date().toISOString(),
+            source: 'fallback'
+        };
+
+        return sentiment;
+    }
+
+    fallbackPrediction(symbol, period) {
+        const basePrice = 1000 + (this.stringToHash(symbol) % 50000);
+        const volatility = 0.02; // 2% نوسان
+        
+        return {
+            symbol: symbol,
+            period: period,
+            prediction: {
+                predicted_price: basePrice * (1 + (Math.random() - 0.5) * volatility),
+                confidence: 0.3 + Math.random() * 0.4,
+                direction: Math.random() > 0.5 ? 'up' : 'down',
+                volatility: volatility,
+                time_frame: period
+            },
+            timestamp: new Date().toISOString(),
+            source: 'fallback',
+            disclaimer: 'پیش‌بینی بر اساس داده‌های محدود'
+        };
+    }
+
+    // ابزارهای تحلیل
     calculateSimpleRSI(change) {
-        // شبیه‌سازی RSI ساده
         return Math.min(100, Math.max(0, 50 + (change * 2)));
     }
 
@@ -165,85 +260,14 @@ class AIClient {
             parts.push('اشباع خرید');
         }
 
+        if (Math.abs(change) > 10) {
+            parts.push('نوسان شدید');
+        }
+
         return parts.join(' • ');
     }
 
-    async getAIPrediction(symbol, period = '1d') {
-        try {
-            const response = await fetch(`/api/ai/predict/${symbol}?period=${period}`);
-            
-            if (!response.ok) {
-                throw new Error(`Prediction failed: ${response.status}`);
-            }
-
-            return await response.json();
-        } catch (error) {
-            console.error(`خطا در دریافت پیش‌بینی برای ${symbol}:`, error);
-            return this.fallbackPrediction(symbol, period);
-        }
-    }
-
-    fallbackPrediction(symbol, period) {
-        // پیش‌بینی ساده fallback
-        const basePrice = 1000 + (this.stringToHash(symbol) % 50000);
-        const volatility = 0.02; // 2% نوسان
-        
-        return {
-            symbol: symbol,
-            period: period,
-            prediction: {
-                price: basePrice * (1 + (Math.random() - 0.5) * volatility),
-                confidence: 0.3 + Math.random() * 0.4,
-                direction: Math.random() > 0.5 ? 'up' : 'down',
-                volatility: volatility
-            },
-            timestamp: new Date().toISOString(),
-            source: 'fallback'
-        };
-    }
-
-    async getMarketSentiment(symbols = ['bitcoin', 'ethereum']) {
-        try {
-            const response = await fetch('/api/ai/sentiment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ symbols: symbols })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Sentiment analysis failed: ${response.status}`);
-            }
-
-            return await response.json();
-        } catch (error) {
-            console.error('خطا در تحلیل احساسات:', error);
-            return this.fallbackSentiment(symbols);
-        }
-    }
-
-    fallbackSentiment(symbols) {
-        // تحلیل احساسات fallback
-        const sentiment = {};
-        
-        symbols.forEach(symbol => {
-            sentiment[symbol] = {
-                score: 0.3 + Math.random() * 0.4, // 0.3-0.7
-                trend: Math.random() > 0.5 ? 'positive' : 'negative',
-                volume: 'normal',
-                timestamp: new Date().toISOString()
-            };
-        });
-
-        return {
-            sentiments: sentiment,
-            overall_score: 0.5,
-            market_mood: 'neutral',
-            source: 'fallback'
-        };
-    }
-
+    // مدیریت وضعیت و تاریخچه
     getStatus() {
         return {
             initialized: this.isInitialized,
@@ -251,20 +275,42 @@ class AIClient {
             sentiment: this.models.sentiment,
             predictive: this.models.predictive,
             historyCount: this.analysisHistory.length,
-            lastAnalysis: this.analysisHistory[this.analysisHistory.length - 1] || null
+            lastAnalysis: this.analysisHistory[this.analysisHistory.length - 1] || null,
+            apiBase: this.apiBase
         };
     }
 
-    getAnalysisHistory(symbol = null) {
+    getAnalysisHistory(symbol = null, type = null) {
+        let history = this.analysisHistory;
+        
         if (symbol) {
-            return this.analysisHistory.filter(item => item.symbol === symbol);
+            history = history.filter(item => item.symbol === symbol);
         }
-        return this.analysisHistory;
+        
+        if (type) {
+            history = history.filter(item => item.type === type);
+        }
+        
+        return history;
     }
 
     clearHistory() {
         this.analysisHistory = [];
         console.log('✅ AI analysis history cleared');
+    }
+
+    getPerformanceStats() {
+        const technicalCount = this.analysisHistory.filter(item => item.type === 'technical').length;
+        const sentimentCount = this.analysisHistory.filter(item => item.type === 'sentiment').length;
+        const predictionCount = this.analysisHistory.filter(item => item.type === 'prediction').length;
+        
+        return {
+            total_analyses: this.analysisHistory.length,
+            technical_analyses: technicalCount,
+            sentiment_analyses: sentimentCount,
+            predictions: predictionCount,
+            unique_symbols: [...new Set(this.analysisHistory.map(item => item.symbol))].length
+        };
     }
 
     // ابزار کمکی
