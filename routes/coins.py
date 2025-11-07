@@ -17,36 +17,14 @@ async def get_coins_list(
 ):
     """دریافت لیست نمادهای پردازش شده"""
     try:
-        raw_data = coin_stats_manager.get_coins_list(
+        processed_data = coin_stats_manager.get_coins_list_processed(
             limit=limit, page=page, currency=currency, sort_by=sort_by
         )
         
-        # پردازش داده‌ها برای نمایش
-        processed_coins = []
-        for coin in raw_data.get('result', []):
-            processed_coins.append({
-                'id': coin.get('id'),
-                'name': coin.get('name'),
-                'symbol': coin.get('symbol'),
-                'price': coin.get('price'),
-                'price_change_24h': coin.get('priceChange1d'),
-                'volume_24h': coin.get('volume'),
-                'market_cap': coin.get('marketCap'),
-                'rank': coin.get('rank'),
-                'sparkline': coin.get('sparkline'),
-                'last_updated': datetime.now().isoformat()
-            })
+        if "error" in processed_data:
+            raise HTTPException(status_code=500, detail=processed_data["error"])
         
-        return {
-            'status': 'success',
-            'data': processed_coins,
-            'pagination': {
-                'page': page,
-                'limit': limit,
-                'total': len(processed_coins)
-            },
-            'timestamp': datetime.now().isoformat()
-        }
+        return processed_data
         
     except Exception as e:
         logger.error(f"Error in coins list: {e}")
@@ -57,6 +35,9 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
     """دریافت جزئیات پردازش شده یک نماد"""
     try:
         raw_data = coin_stats_manager.get_coin_details(coin_id, currency)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         # پردازش داده‌ها
         processed_data = {
@@ -84,6 +65,7 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
         return {
             'status': 'success',
             'data': processed_data,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -92,10 +74,13 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
         raise HTTPException(status_code=500, detail=str(e))
 
 @coins_router.get("/charts/{coin_id}", summary="چارت نماد")
-async def get_coin_charts(coin_id: str, period: str = Query("1w")):
+async def get_coin_charts(coin_id: str, period: str = Query("all")):
     """دریافت چارت پردازش شده نماد"""
     try:
         raw_data = coin_stats_manager.get_coin_charts(coin_id, period)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         # پردازش داده‌های چارت
         processed_charts = {
@@ -107,12 +92,13 @@ async def get_coin_charts(coin_id: str, period: str = Query("1w")):
                 'volatility': _calculate_volatility(raw_data.get('prices', [])),
                 'support_resistance': _find_support_resistance(raw_data.get('prices', []))
             },
-            'timestamp': datetime.now().isoformat()
+            'last_updated': datetime.now().isoformat()
         }
         
         return {
             'status': 'success',
             'data': processed_charts,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -123,17 +109,21 @@ async def get_coin_charts(coin_id: str, period: str = Query("1w")):
 @coins_router.get("/multi-charts", summary="چارت چندنماد")
 async def get_multi_charts(
     coin_ids: str = Query(..., description="لیست coin_idها با کاما جدا شده"),
-    period: str = Query("1w")
+    period: str = Query("all")
 ):
     """دریافت چارت پردازش شده چند نماد"""
     try:
         raw_data = coin_stats_manager.get_coins_charts(coin_ids, period)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         return {
             'status': 'success',
             'data': raw_data,
             'coin_ids': coin_ids.split(','),
             'period': period,
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -144,11 +134,14 @@ async def get_multi_charts(
 @coins_router.get("/price/avg", summary="قیمت متوسط")
 async def get_coin_price_avg(
     coin_id: str = Query("bitcoin"),
-    timestamp: str = Query("2024-01-01")
+    timestamp: str = Query("1636315200")
 ):
     """دریافت قیمت متوسط پردازش شده"""
     try:
         raw_data = coin_stats_manager.get_coin_price_avg(coin_id, timestamp)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
         return {
             'status': 'success',
@@ -159,6 +152,7 @@ async def get_coin_price_avg(
                 'currency': 'USD',
                 'calculated_at': datetime.now().isoformat()
             },
+            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
