@@ -1,4 +1,4 @@
-// سیستم اصلی VortexAI - نسخه کامل و اصلاح شده
+// سیستم اصلی VortexAI - نسخه نهایی و یکپارچه
 class VortexApp {
     constructor() {
         this.currentSection = 'scan';
@@ -35,331 +35,283 @@ class VortexApp {
     }
 
     init() {
+        console.log('🚀 Initializing VortexAI...');
+        
+        // بررسی وجود ماژول‌های ضروری
+        this.checkRequiredModules();
+        
         this.bindEvents();
         this.loadSettings();
         this.checkAPIStatus();
         this.showSection('scan');
         this.initConsole();
         this.startAutoHealthCheck();
-        this.log('INFO', 'سیستم VortexAI راه‌اندازی شد');
+        
+        this.log('SUCCESS', 'سیستم VortexAI راه‌اندازی شد');
+        this.uiManager.showNotification('VortexAI آماده است! 🚀', 'success');
+    }
+
+    checkRequiredModules() {
+        const requiredModules = {
+            'VortexUtils': typeof VortexUtils !== 'undefined',
+            'UIManager': typeof UIManager !== 'undefined',
+            'ScanSession': typeof ScanSession !== 'undefined',
+            'AIClient': typeof AIClient !== 'undefined'
+        };
+
+        console.log('🔍 Checking required modules:', requiredModules);
+
+        const missingModules = Object.entries(requiredModules)
+            .filter(([_, available]) => !available)
+            .map(([name]) => name);
+
+        if (missingModules.length > 0) {
+            console.error('❌ Missing modules:', missingModules);
+            this.log('ERROR', `ماژول‌های ضروری بارگذاری نشدند: ${missingModules.join(', ')}`);
+        } else {
+            console.log('✅ All required modules loaded successfully');
+        }
     }
 
     bindEvents() {
-        // Navigation
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.showSection(e.target.closest('.nav-btn').dataset.section);
-                this.toggleMobileMenu(false);
+        try {
+            // Navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const section = e.target.closest('.nav-btn').dataset.section;
+                    this.showSection(section);
+                    this.toggleMobileMenu(false);
+                });
             });
-        });
 
-        // منوی موبایل
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        if (mobileMenuBtn) {
-            mobileMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleMobileMenu();
+            // Mobile Menu
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            if (mobileMenuBtn) {
+                mobileMenuBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleMobileMenu();
+                });
+            }
+
+            // Filter Menu
+            const filterToggle = document.getElementById('filterToggle');
+            if (filterToggle) {
+                filterToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleFilterMenu();
+                });
+            }
+
+            document.querySelectorAll('.filter-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    const count = parseInt(e.target.dataset.count);
+                    this.selectTopSymbols(count);
+                    this.hideFilterMenu();
+                });
             });
-        }
 
-        // فیلتر ارز
-        const filterToggle = document.getElementById('filterToggle');
-        if (filterToggle) {
-            filterToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.toggleFilterMenu();
+            // Scan Mode
+            document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    this.scanMode = e.target.value;
+                    this.log('DEBUG', `حالت اسکن تغییر کرد به: ${this.scanMode}`);
+                });
             });
-        }
 
-        document.querySelectorAll('.filter-option').forEach(option => {
-            option.addEventListener('click', (e) => {
-                const count = parseInt(e.target.dataset.count);
-                this.selectTopSymbols(count);
-                this.hideFilterMenu();
-            });
-        });
+            // Symbols Input
+            const symbolsInput = document.getElementById('symbolsInput');
+            if (symbolsInput) {
+                symbolsInput.addEventListener('input', (e) => {
+                    this.updateSelectedSymbols(e.target.value);
+                });
+            }
 
-        // حالت اسکن
-        document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.scanMode = e.target.value;
-                this.log('DEBUG', `حالت اسکن تغییر کرد به: ${this.scanMode}`);
-            });
-        });
+            // Scan Actions
+            const startScan = document.getElementById('startScan');
+            if (startScan) {
+                startScan.addEventListener('click', () => {
+                    this.startSmartScan();
+                });
+            }
 
-        // ورود ارزها
-        const symbolsInput = document.getElementById('symbolsInput');
-        if (symbolsInput) {
-            symbolsInput.addEventListener('input', (e) => {
-                this.updateSelectedSymbols(e.target.value);
-            });
-        }
+            const clearResults = document.getElementById('clearResults');
+            if (clearResults) {
+                clearResults.addEventListener('click', () => {
+                    this.clearResults();
+                });
+            }
 
-        // شروع اسکن
-        const startScan = document.getElementById('startScan');
-        if (startScan) {
-            startScan.addEventListener('click', () => {
-                this.startSmartScan();
-            });
-        }
+            const exportResults = document.getElementById('exportResults');
+            if (exportResults) {
+                exportResults.addEventListener('click', () => {
+                    this.exportResults();
+                });
+            }
 
-        // مدیریت نتایج
-        const clearResults = document.getElementById('clearResults');
-        if (clearResults) {
-            clearResults.addEventListener('click', () => {
-                this.clearResults();
-            });
-        }
+            // Health Actions
+            const refreshHealth = document.getElementById('refreshHealth');
+            if (refreshHealth) {
+                refreshHealth.addEventListener('click', () => {
+                    this.loadHealthStatus();
+                });
+            }
 
-        const exportResults = document.getElementById('exportResults');
-        if (exportResults) {
-            exportResults.addEventListener('click', () => {
-                this.exportResults();
-            });
-        }
+            const testAPI = document.getElementById('testAPI');
+            if (testAPI) {
+                testAPI.addEventListener('click', () => {
+                    this.testAPIEndpoints();
+                });
+            }
 
-        // سلامت سیستم
-        const refreshHealth = document.getElementById('refreshHealth');
-        if (refreshHealth) {
-            refreshHealth.addEventListener('click', () => {
-                this.loadHealthStatus();
-            });
-        }
+            // AI Actions
+            const initAI = document.getElementById('initAI');
+            if (initAI) {
+                initAI.addEventListener('click', () => {
+                    this.initAIEngine();
+                });
+            }
 
-        const testAPI = document.getElementById('testAPI');
-        if (testAPI) {
-            testAPI.addEventListener('click', () => {
-                this.testAPIEndpoints();
-            });
-        }
+            const analyzeWithAI = document.getElementById('analyzeWithAI');
+            if (analyzeWithAI) {
+                analyzeWithAI.addEventListener('click', () => {
+                    this.analyzeWithAI();
+                });
+            }
 
-        // AI
-        const initAI = document.getElementById('initAI');
-        if (initAI) {
-            initAI.addEventListener('click', () => {
-                this.initAIEngine();
-            });
-        }
-
-        const analyzeWithAI = document.getElementById('analyzeWithAI');
-        if (analyzeWithAI) {
-            analyzeWithAI.addEventListener('click', () => {
-                this.analyzeWithAI();
-            });
-        }
-
-        // سیستم لاگ
-        const clearLogs = document.getElementById('clearLogs');
-        if (clearLogs) {
-            clearLogs.addEventListener('click', () => {
-                this.clearLogs();
-            });
-        }
-
-        const exportLogs = document.getElementById('exportLogs');
-        if (exportLogs) {
-            exportLogs.addEventListener('click', () => {
-                this.exportLogs();
-            });
-        }
-
-        // لودینگ
-        const cancelScan = document.getElementById('cancelScan');
-        if (cancelScan) {
-            cancelScan.addEventListener('click', () => {
-                this.cancelScan();
-            });
-        }
-
-        const cancelLoading = document.getElementById('cancelLoading');
-        if (cancelLoading) {
-            cancelLoading.addEventListener('click', () => {
-                this.cancelScan();
-            });
-        }
-
-        // تنظیمات
-        const saveSettings = document.getElementById('saveSettings');
-        if (saveSettings) {
-            saveSettings.addEventListener('click', () => {
-                this.saveSettings();
-            });
-        }
-
-        const clearCache = document.getElementById('clearCache');
-        if (clearCache) {
-            clearCache.addEventListener('click', () => {
-                this.clearCache();
-            });
-        }
-
-        const resetSettings = document.getElementById('resetSettings');
-        if (resetSettings) {
-            resetSettings.addEventListener('click', () => {
-                this.resetSettings();
-            });
-        }
-
-        const backupSettings = document.getElementById('backupSettings');
-        if (backupSettings) {
-            backupSettings.addEventListener('click', () => {
-                this.backupSettings();
-            });
-        }
-
-        // دکمه آمار سریع
-        const quickStats = document.getElementById('quickStats');
-        if (quickStats) {
-            quickStats.addEventListener('click', () => {
-                this.showQuickStats();
-            });
-        }
-
-        // دکمه بروزرسانی داشبورد
-        const refreshDashboard = document.getElementById('refreshDashboard');
-        if (refreshDashboard) {
-            refreshDashboard.addEventListener('click', () => {
-                this.loadDashboard();
-            });
-        }
-
-        // Event listenerهای全局
-        document.addEventListener('click', this.boundHandleDocumentClick);
-        document.addEventListener('keydown', this.boundHandleKeydown);
-        window.addEventListener('beforeunload', this.boundHandleBeforeUnload);
-
-        this.log('DEBUG', 'Event listeners initialized successfully');
-    }
-
-    // متدهای handle جداگانه
-    handleDocumentClick(e) {
-        // بستن منو فیلتر با کلیک خارج
-        if (!e.target.closest('.currency-filter')) {
-            this.hideFilterMenu();
-        }
-
-        // بستن منوی موبایل با کلیک خارج
-        if (!e.target.closest('.nav-menu') && !e.target.closest('.mobile-menu-btn')) {
-            this.toggleMobileMenu(false);
-        }
-    }
-
-    handleKeydown(e) {
-        this.handleKeyboard(e);
-    }
-
-    handleBeforeUnload(e) {
-        if (this.isScanning) {
-            e.preventDefault();
-            e.returnValue = 'اسکن در حال انجام است. آیا مطمئنید که می‌خواهید صفحه را ترک کنید؟';
-        }
-    }
-
-    // مدیریت کلیدهای کیبورد
-    handleKeyboard(e) {
-        // کلیدهای میانبر
-        if (e.ctrlKey || e.metaKey) {
-            switch(e.key) {
-                case '1':
-                    e.preventDefault();
-                    this.showSection('scan');
-                    break;
-                case '2':
-                    e.preventDefault();
-                    this.showSection('dashboard');
-                    break;
-                case '3':
-                    e.preventDefault();
-                    this.showSection('health');
-                    break;
-                case '4':
-                    e.preventDefault();
-                    this.showSection('ai');
-                    break;
-                case '5':
-                    e.preventDefault();
-                    this.showSection('settings');
-                    break;
-                case 'k':
-                    e.preventDefault();
-                    const symbolsInput = document.getElementById('symbolsInput');
-                    if (symbolsInput) symbolsInput.focus();
-                    break;
-                case 'l':
-                    e.preventDefault();
+            // Log Actions
+            const clearLogs = document.getElementById('clearLogs');
+            if (clearLogs) {
+                clearLogs.addEventListener('click', () => {
                     this.clearLogs();
+                });
+            }
+
+            const exportLogs = document.getElementById('exportLogs');
+            if (exportLogs) {
+                exportLogs.addEventListener('click', () => {
+                    this.exportLogs();
+                });
+            }
+
+            // Loading Actions
+            const cancelScan = document.getElementById('cancelScan');
+            if (cancelScan) {
+                cancelScan.addEventListener('click', () => {
+                    this.cancelScan();
+                });
+            }
+
+            const cancelLoading = document.getElementById('cancelLoading');
+            if (cancelLoading) {
+                cancelLoading.addEventListener('click', () => {
+                    this.cancelScan();
+                });
+            }
+
+            // Settings Actions
+            const saveSettings = document.getElementById('saveSettings');
+            if (saveSettings) {
+                saveSettings.addEventListener('click', () => {
+                    this.saveSettings();
+                });
+            }
+
+            const clearCache = document.getElementById('clearCache');
+            if (clearCache) {
+                clearCache.addEventListener('click', () => {
+                    this.clearCache();
+                });
+            }
+
+            const resetSettings = document.getElementById('resetSettings');
+            if (resetSettings) {
+                resetSettings.addEventListener('click', () => {
+                    this.resetSettings();
+                });
+            }
+
+            const backupSettings = document.getElementById('backupSettings');
+            if (backupSettings) {
+                backupSettings.addEventListener('click', () => {
+                    this.backupSettings();
+                });
+            }
+
+            // Dashboard Actions
+            const quickStats = document.getElementById('quickStats');
+            if (quickStats) {
+                quickStats.addEventListener('click', () => {
+                    this.showQuickStats();
+                });
+            }
+
+            const refreshDashboard = document.getElementById('refreshDashboard');
+            if (refreshDashboard) {
+                refreshDashboard.addEventListener('click', () => {
+                    this.loadDashboard();
+                });
+            }
+
+            // Global Event Listeners
+            document.addEventListener('click', this.boundHandleDocumentClick);
+            document.addEventListener('keydown', this.boundHandleKeydown);
+            window.addEventListener('beforeunload', this.boundHandleBeforeUnload);
+
+            this.log('SUCCESS', 'Event listeners initialized successfully');
+
+        } catch (error) {
+            console.error('Error in bindEvents:', error);
+            this.log('ERROR', `خطا در راه‌اندازی event listeners: ${error.message}`);
+        }
+    }
+
+    // ===== مدیریت ناوبری =====
+    showSection(section) {
+        try {
+            // آپدیت navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.section === section);
+            });
+
+            // آپدیت محتوا
+            document.querySelectorAll('.content-section').forEach(sect => {
+                sect.classList.toggle('active', sect.id === `${section}-section`);
+            });
+
+            this.currentSection = section;
+            this.log('DEBUG', `بخش فعال: ${section}`);
+
+            // لود داده‌های خاص هر بخش
+            switch(section) {
+                case 'dashboard':
+                    this.loadDashboard();
+                    break;
+                case 'health':
+                    this.loadHealthStatus();
+                    break;
+                case 'ai':
+                    this.loadAIStatus();
+                    break;
+                case 'settings':
+                    this.loadSettings();
                     break;
             }
-        }
 
-        // Escape برای بستن منوها
-        if (e.key === 'Escape') {
-            this.hideFilterMenu();
-            this.toggleMobileMenu(false);
-        }
-    }
-
-    // ===== مدیریت ناوبری و UI =====
-    showSection(section) {
-        // آپدیت navigation
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.section === section);
-        });
-
-        // آپدیت محتوا
-        document.querySelectorAll('.content-section').forEach(sect => {
-            sect.classList.toggle('active', sect.id === `${section}-section`);
-        });
-
-        this.currentSection = section;
-        this.log('DEBUG', `بخش فعال: ${section}`);
-
-        // لود داده‌های خاص هر بخش
-        switch(section) {
-            case 'dashboard':
-                this.loadDashboard();
-                break;
-            case 'health':
-                this.loadHealthStatus();
-                break;
-            case 'ai':
-                this.loadAIStatus();
-                break;
-            case 'settings':
-                this.loadSettings();
-                break;
+        } catch (error) {
+            this.log('ERROR', `خطا در نمایش بخش ${section}: ${error.message}`);
         }
     }
 
     toggleMobileMenu(force) {
-        const menu = document.getElementById('navMenu');
-        const btn = document.getElementById('mobileMenuBtn');
-        
-        if (force !== undefined) {
-            menu.classList.toggle('active', force);
-            btn.setAttribute('aria-expanded', force);
-        } else {
-            menu.classList.toggle('active');
-            const isExpanded = menu.classList.contains('active');
-            btn.setAttribute('aria-expanded', isExpanded);
-            btn.innerHTML = isExpanded ? '✕' : '☰';
-        }
+        this.uiManager.toggleMobileMenu(force);
     }
 
     toggleFilterMenu() {
-        const menu = document.getElementById('filterMenu');
-        const btn = document.getElementById('filterToggle');
-        const isExpanded = menu.classList.toggle('show');
-        
-        btn.setAttribute('aria-expanded', isExpanded);
+        this.uiManager.toggleFilterMenu();
     }
 
     hideFilterMenu() {
-        const menu = document.getElementById('filterMenu');
-        const btn = document.getElementById('filterToggle');
-        
-        menu.classList.remove('show');
-        btn.setAttribute('aria-expanded', 'false');
+        this.uiManager.hideFilterMenu();
     }
 
     // ===== مدیریت ارزها =====
@@ -374,7 +326,7 @@ class VortexApp {
     updateSelectedSymbols(text) {
         this.selectedSymbols = text.split('\n')
             .map(s => s.trim())
-            .filter(s => s.length > 0);
+            .filter(s => s.length > 0 && VortexUtils.isValidSymbol(s));
         
         this.updateSelectedCount();
     }
@@ -395,9 +347,9 @@ class VortexApp {
     }
 
     // ===== سیستم اسکن پیشرفته =====
-    // ===== سیستم اسکن پیشرفته =====
     async startSmartScan() {
-        // بررسی اگر اسکن در حال انجام است
+        console.log('🔍 Starting smart scan...');
+        
         if (this.isScanning) {
             this.uiManager.showNotification('اسکن در حال انجام است', 'warning');
             return;
@@ -406,51 +358,39 @@ class VortexApp {
         // دریافت ارزهای مورد نظر برای اسکن
         const symbolsToScan = this.selectedSymbols.length > 0 ? 
             this.selectedSymbols : this.top100Symbols.slice(0, this.batchSize);
-  
-        // اعتبارسنجی
+
         if (symbolsToScan.length === 0) {
             this.uiManager.showNotification('لطفاً حداقل یک ارز انتخاب کنید', 'error');
             return;
         }
 
-        // شروع اسکن
+        console.log(`🎯 Scan parameters:`, {
+            symbols: symbolsToScan.length,
+            mode: this.scanMode,
+            batchSize: this.batchSize
+        });
+
         this.isScanning = true;
         this.performanceStats.totalScans++;
-    
+        
         this.log('INFO', `شروع اسکن ${symbolsToScan.length} ارز در حالت ${this.scanMode}`);
-    
+        
         // نمایش لودینگ
         this.uiManager.showLoading();
-    
-        // راه‌اندازی سیستم لودینگ هوشمند
-        if (window.smartLoading) {
-            window.smartLoading.start({
-                total: symbolsToScan.length,
-                isAIMode: this.scanMode === 'ai',
-                scanType: this.scanMode === 'ai' ? 'AI پیشرفته' : 'پایه'
-            });
-        }
 
         try {
+            // بررسی وجود ScanSession
+            if (typeof ScanSession === 'undefined') {
+                throw new Error('سیستم اسکن بارگذاری نشده است');
+            }
+
             // ایجاد session اسکن
             this.currentScan = new ScanSession({
                 symbols: symbolsToScan,
                 mode: this.scanMode,
                 batchSize: this.batchSize,
                 onProgress: (progress) => {
-                    // آپدیت پیشرفت در UI
-                    this.uiManager.updateProgress(progress);
-                
-                    // آپدیت لودینگ هوشمند
-                    if (window.smartLoading) {
-                        window.smartLoading.updateProgress(
-                            progress.completed,
-                            progress.total,
-                            progress.currentBatch || []
-                        );
-                    }
-                
-                    this.log('DEBUG', `پیشرفت اسکن: ${progress.completed}/${progress.total} (${progress.percent}%)`);
+                    this.updateProgress(progress);
                 },
                 onComplete: (results) => {
                     this.onScanComplete(results);
@@ -466,118 +406,66 @@ class VortexApp {
         } catch (error) {
             this.log('ERROR', `خطا در شروع اسکن: ${error.message}`);
             this.uiManager.showNotification('خطا در انجام اسکن', 'error');
-        
+            
             // پاکسازی در صورت خطا
             this.isScanning = false;
             this.uiManager.hideLoading();
-        
-            if (window.smartLoading) {
-                window.smartLoading.showError(error.message);
-            }
         }
     }
 
-    // ===== کامل کردن اسکن =====
+    updateProgress(progress) {
+        this.uiManager.updateProgress(progress);
+    }
+
     onScanComplete(results) {
         this.isScanning = false;
-      
-        // مخفی کردن لودینگ
         this.uiManager.hideLoading();
-    
-        if (window.smartLoading) {
-            window.smartLoading.complete();
-        }
-    
-        // محاسبه آمار
+        
         const successCount = results.filter(r => r.success).length;
         const totalCount = results.length;
-      
+        
         this.performanceStats.successfulScans += successCount;
         this.performanceStats.failedScans += (totalCount - successCount);
-    
+        
         // نمایش نتایج
         this.uiManager.displayResults(results, this.scanMode);
-    
-        // لاگ و نوتیفیکیشن
+        
         this.log('SUCCESS', `اسکن تکمیل شد: ${successCount}/${totalCount} موفق`);
         this.uiManager.showNotification(
             `✅ اسکن ${totalCount} ارز تکمیل شد (${successCount} موفق)`, 
             'success'
         );
-      
-        // آپدیت آمار عملکرد
+        
         this.updatePerformanceStats();
-    
-        // ذخیره نتایج اخیر
-        this.saveRecentResults(results);
     }
 
-    // ===== خطای اسکن =====
     onScanError(error) {
         this.isScanning = false;
-    
-        // مخفی کردن لودینگ
         this.uiManager.hideLoading();
-    
-        if (window.smartLoading) {
-            window.smartLoading.showError(error.message);
-        }
-    
-        // آپدیت آمار
+        
         this.performanceStats.failedScans++;
-    
-        // نمایش خطا
         this.log('ERROR', `خطا در اسکن: ${error.message}`);
         this.uiManager.showNotification('خطا در انجام اسکن', 'error');
-    
+        
         this.updatePerformanceStats();
     }
 
-    // ===== ذخیره نتایج اخیر =====
-    saveRecentResults(results) {
-        try {
-            const recentResults = {
-                timestamp: new Date().toISOString(),
-                scanMode: this.scanMode,
-                total: results.length,
-                successful: results.filter(r => r.success).length,
-                results: results.slice(0, 50) // فقط 50 نتیجه اول
-            };
-        
-            // ذخیره در localStorage
-            const existing = JSON.parse(localStorage.getItem('vortex_recent_scans') || '[]');
-            existing.unshift(recentResults);
-        
-            // فقط 5 اسکن اخیر نگه دار
-            if (existing.length > 5) {
-                existing.splice(5);
-            }
-        
-            localStorage.setItem('vortex_recent_scans', JSON.stringify(existing));
-        
-        } catch (error) {
-            console.warn('خطا در ذخیره نتایج اخیر:', error);
-        }
-    }
-  
-    // ===== لغو اسکن =====
     cancelScan() {
         if (this.currentScan) {
             this.currentScan.cancel();
             this.log('INFO', 'اسکن توسط کاربر لغو شد');
         }
-    
+        
         this.isScanning = false;
-    
-        // مخفی کردن لودینگ
         this.uiManager.hideLoading();
-    
-        if (window.smartLoading) {
-            window.smartLoading.complete();
-        }
-    
         this.uiManager.showNotification('اسکن لغو شد', 'warning');
     }
+
+    clearResults() {
+        this.uiManager.clearResults();
+        this.log('INFO', 'نتایج اسکن پاکسازی شد');
+    }
+
     // ===== هوش مصنوعی =====
     async initAIEngine() {
         this.log('INFO', '🚀 راه‌اندازی موتور AI...');
@@ -614,39 +502,12 @@ class VortexApp {
         this.startSmartScan();
     }
 
-    async analyzeSingleSymbol(symbol) {
-        this.log('INFO', `تحلیل تک ارز: ${symbol}`);
-        this.uiManager.showNotification(`🧠 تحلیل ${symbol}...`, 'info');
-        
-        this.selectedSymbols = [symbol];
-        this.scanMode = 'ai';
-        const aiRadio = document.querySelector('input[name="scanMode"][value="ai"]');
-        if (aiRadio) aiRadio.checked = true;
-        
-        this.startSmartScan();
-    }
-
     loadAIStatus() {
         const container = document.getElementById('aiStatusIndicators');
         if (!container) return;
 
         const status = this.aiClient.getStatus();
         this.uiManager.displayAIStatus(status);
-    }
-
-    cancelScan() {
-        if (this.currentScan) {
-            this.currentScan.cancel();
-            this.log('INFO', 'اسکن توسط کاربر لغو شد');
-        }
-        this.isScanning = false;
-        this.uiManager.hideLoading();
-        this.uiManager.showNotification('اسکن لغو شد', 'warning');
-    }
-
-    clearResults() {
-        this.uiManager.clearResults();
-        this.log('INFO', 'نتایج اسکن پاکسازی شد');
     }
 
     // ===== سیستم لاگ پیشرفته =====
@@ -660,21 +521,12 @@ class VortexApp {
         };
 
         // ذخیره در حافظه
-        if (!this.logs) this.logs = [];
         this.logs.push(logEntry);
 
         // نمایش در UI
         this.uiManager.displayLog(logEntry);
 
         // نمایش در کنسول مرورگر
-        const consoleMethod = {
-            'ERROR': 'error',
-            'WARN': 'warn',
-            'INFO': 'info',
-            'DEBUG': 'log',
-            'SUCCESS': 'log'
-        }[level] || 'log';
-
         const styles = {
             'ERROR': 'color: #ff4757; font-weight: bold;',
             'WARN': 'color: #ff9f43; font-weight: bold;',
@@ -683,24 +535,8 @@ class VortexApp {
             'SUCCESS': 'color: #00d9a6; font-weight: bold;'
         }[level];
 
-        console[consoleMethod](`%c[VortexAI] ${timestamp} ${level}: ${message}`, styles);
-        if (data) console[consoleMethod](data);
-
-        // آپدیت شمارنده لاگ
-        this.uiManager.updateLogCount();
-    }
-
-    setLogFilter(type, value) {
-        this.logFilters[type] = value;
-        this.uiManager.setLogFilter(type, value);
-    }
-
-    refreshLogsDisplay() {
-        this.uiManager.refreshLogsDisplay(this.logs, this.logFilters);
-    }
-
-    updateLogCount() {
-        this.uiManager.updateLogCount(this.logs, this.logFilters);
+        console.log(`%c[VortexAI] ${timestamp} ${level}: ${message}`, styles);
+        if (data) console.log(data);
     }
 
     clearLogs() {
@@ -710,7 +546,7 @@ class VortexApp {
     }
 
     exportLogs() {
-        if (!this.logs || this.logs.length === 0) {
+        if (this.logs.length === 0) {
             this.uiManager.showNotification('لاگی برای ذخیره وجود ندارد', 'warning');
             return;
         }
@@ -719,21 +555,9 @@ class VortexApp {
             `[${log.timestamp}] ${log.level}: ${log.message}`
         ).join('\n');
 
-        this.downloadFile('vortexai-logs.txt', logText);
+        VortexUtils.downloadFile('vortexai-logs.txt', logText);
         this.log('INFO', 'لاگ‌ها با موفقیت ذخیره شدند');
         this.uiManager.showNotification('لاگ‌ها ذخیره شدند', 'success');
-    }
-
-    scrollLogsToBottom() {
-        this.uiManager.scrollLogsToBottom();
-    }
-
-    scrollLogsToTop() {
-        this.uiManager.scrollLogsToTop();
-    }
-
-    toggleAutoRefresh(button) {
-        this.uiManager.toggleAutoRefresh(button, this.loadHealthStatus.bind(this));
     }
 
     // ===== سیستم سلامت و مانیتورینگ =====
@@ -742,9 +566,12 @@ class VortexApp {
             this.log('DEBUG', 'دریافت وضعیت سلامت سیستم...');
             
             const response = await fetch('/api/status');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
             const data = await response.json();
             
-            // ✅ اصلاح شده: تطابق با ساختار واقعی API
             this.uiManager.displayEndpointsHealth(data.endpoints_health || {});
             this.uiManager.displaySystemMetrics(data.system_metrics || {});
             this.uiManager.displayAIHealth(this.aiClient.getStatus());
@@ -752,7 +579,29 @@ class VortexApp {
             this.log('SUCCESS', 'وضعیت سلامت سیستم بروزرسانی شد');
         } catch (error) {
             this.log('ERROR', `خطا در دریافت وضعیت سلامت: ${error.message}`);
-            this.uiManager.displayHealthError(error);
+        }
+    }
+
+    async loadDashboard() {
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            // آپدیت آمار ساده
+            const totalSymbols = document.getElementById('totalSymbols');
+            const scanCount = document.getElementById('scanCount');
+            const aiAnalysisCount = document.getElementById('aiAnalysisCount');
+            
+            if (totalSymbols) totalSymbols.textContent = this.top100Symbols.length;
+            if (scanCount) scanCount.textContent = this.performanceStats.totalScans;
+            if (aiAnalysisCount) aiAnalysisCount.textContent = this.performanceStats.successfulScans;
+            
+            this.updatePerformanceStats();
+            
+        } catch (error) {
+            this.log('ERROR', `خطا در بارگذاری داشبورد: ${error.message}`);
+            const totalSymbols = document.getElementById('totalSymbols');
+            if (totalSymbols) totalSymbols.textContent = this.top100Symbols.length;
         }
     }
 
@@ -773,8 +622,7 @@ class VortexApp {
         if (aiPrecision) aiPrecision.value = settings.aiPrecision;
         if (autoLearning) autoLearning.checked = settings.autoLearning;
 
-        // آپدیت اطلاعات سیستم
-        this.updateSystemInfo();
+        this.uiManager.updateSystemInfo(this.performanceStats);
         
         this.log('DEBUG', 'تنظیمات از حافظه بارگذاری شد');
     }
@@ -831,103 +679,12 @@ class VortexApp {
         const backupData = {
             ...settings,
             backupDate: new Date().toISOString(),
-            version: '1.0.0'
+            version: '3.0.0'
         };
         
-        this.downloadFile('vortexai-settings-backup.json', JSON.stringify(backupData, null, 2));
+        VortexUtils.downloadFile('vortexai-settings-backup.json', JSON.stringify(backupData, null, 2));
         this.log('INFO', 'پشتیبان تنظیمات ذخیره شد');
         this.uiManager.showNotification('💾 پشتیبان تنظیمات ذخیره شد', 'success');
-    }
-
-    updateSystemInfo() {
-        this.uiManager.updateSystemInfo(this.performanceStats);
-    }
-
-    // ===== داشبورد =====
-    async loadDashboard() {
-        try {
-            const response = await fetch('/api/status');
-            const data = await response.json();
-            
-            // آپدیت آمار ساده
-            const cacheCount = document.getElementById('cacheCount');
-            const totalSymbols = document.getElementById('totalSymbols');
-            const scanCount = document.getElementById('scanCount');
-            const aiAnalysisCount = document.getElementById('aiAnalysisCount');
-            
-            if (cacheCount) cacheCount.textContent = data.cache?.total_files || '0';
-            if (totalSymbols) totalSymbols.textContent = this.top100Symbols.length;
-            if (scanCount) scanCount.textContent = this.performanceStats.totalScans;
-            if (aiAnalysisCount) aiAnalysisCount.textContent = this.performanceStats.successfulScans;
-            
-            this.updatePerformanceStats();
-            
-        } catch (error) {
-            this.log('ERROR', `خطا در بارگذاری داشبورد: ${error.message}`);
-            const totalSymbols = document.getElementById('totalSymbols');
-            if (totalSymbols) totalSymbols.textContent = this.top100Symbols.length;
-        }
-    }
-
-    showQuickStats() {
-        const stats = `
-📊 آمار سریع سیستم:
-
-• کل اسکن‌ها: ${this.performanceStats.totalScans}
-• اسکن موفق: ${this.performanceStats.successfulScans}
-• اسکن ناموفق: ${this.performanceStats.failedScans}
-• ارزهای پشتیبانی: ${this.top100Symbols.length}
-• وضعیت AI: ${this.aiClient.isInitialized ? 'فعال' : 'غیرفعال'}
-        `.trim();
-
-        this.log('INFO', 'آمار سریع سیستم:\n' + stats);
-        this.uiManager.showNotification('📊 آمار سیستم نمایش داده شد', 'info');
-    }
-
-    // ===== ابزارهای کمکی =====
-    downloadFile(filename, content) {
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    // ===== کنسول توسعه =====
-    initConsole() {
-        // پیاده‌سازی کنسول توسعه‌دهنده
-        this.setupConsoleCommands();
-    }
-
-    setupConsoleCommands() {
-        // دستورات کنسول برای توسعه
-        window.vortex = {
-            app: this,
-            test: () => this.testAPIEndpoints(),
-            logs: () => this.logs,
-            stats: () => this.performanceStats,
-            clear: () => this.clearLogs(),
-            settings: () => this.getStoredSettings(),
-            scan: (symbols = ['bitcoin']) => {
-                this.selectedSymbols = symbols;
-                this.startSmartScan();
-            },
-            analyze: (symbol) => this.analyzeSingleSymbol(symbol)
-        };
-
-        console.log('🚀 VortexAI Console Activated!');
-        console.log('Available commands:');
-        console.log('- vortex.test() - Test API endpoints');
-        console.log('- vortex.scan([symbols]) - Start scan');
-        console.log('- vortex.analyze(symbol) - Analyze single symbol');
-        console.log('- vortex.logs - View logs');
-        console.log('- vortex.stats - View performance stats');
-        console.log('- vortex.settings - View settings');
-        console.log('- vortex.clear() - Clear logs');
     }
 
     // ===== عملکرد و آمار =====
@@ -949,7 +706,7 @@ class VortexApp {
 
     startAutoHealthCheck() {
         // بررسی سلامت هر 30 ثانیه
-        setInterval(() => {
+        this.autoRefreshInterval = setInterval(() => {
             this.checkAPIStatus();
         }, 30000);
     }
@@ -1019,15 +776,11 @@ class VortexApp {
                 this.log('ERROR', `❌ ${endpoint.name}: ${error.message}`);
             }
             
-            await this.delay(1000);
+            await VortexUtils.delay(1000);
         }
         
         this.log('SUCCESS', '✅ تست API تکمیل شد');
         this.uiManager.showNotification('تست API انجام شد. نتیجه را در console ببینید.', 'info');
-    }
-
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     exportResults() {
@@ -1038,7 +791,7 @@ class VortexApp {
 
         const results = this.currentScan.results.filter(r => r.success);
         const csvContent = this.convertToCSV(results);
-        this.downloadFile('vortexai-results.csv', csvContent);
+        VortexUtils.downloadFile('vortexai-results.csv', csvContent);
         this.log('INFO', 'نتایج اسکن ذخیره شد');
         this.uiManager.showNotification('📥 نتایج ذخیره شد', 'success');
     }
@@ -1061,6 +814,130 @@ class VortexApp {
         });
 
         return [headers, ...rows].map(row => row.join(',')).join('\n');
+    }
+
+    showQuickStats() {
+        const stats = `
+📊 آمار سریع سیستم:
+
+• کل اسکن‌ها: ${this.performanceStats.totalScans}
+• اسکن موفق: ${this.performanceStats.successfulScans}
+• اسکن ناموفق: ${this.performanceStats.failedScans}
+• ارزهای پشتیبانی: ${this.top100Symbols.length}
+• وضعیت AI: ${this.aiClient.isInitialized ? 'فعال' : 'غیرفعال'}
+        `.trim();
+
+        this.log('INFO', 'آمار سریع سیستم:\n' + stats);
+        this.uiManager.showNotification('📊 آمار سیستم نمایش داده شد', 'info');
+    }
+
+    // ===== کنسول توسعه =====
+    initConsole() {
+        // دستورات کنسول برای توسعه
+        window.vortex = {
+            app: this,
+            test: () => this.testAPIEndpoints(),
+            logs: () => this.logs,
+            stats: () => this.performanceStats,
+            clear: () => this.clearLogs(),
+            settings: () => this.getStoredSettings(),
+            scan: (symbols = ['bitcoin']) => {
+                this.selectedSymbols = symbols;
+                this.startSmartScan();
+            },
+            analyze: (symbol) => this.analyzeSingleSymbol(symbol),
+            utils: VortexUtils
+        };
+
+        console.log('🚀 VortexAI Console Activated!');
+        console.log('Available commands:');
+        console.log('- vortex.test() - Test API endpoints');
+        console.log('- vortex.scan([symbols]) - Start scan');
+        console.log('- vortex.analyze(symbol) - Analyze single symbol');
+        console.log('- vortex.logs - View logs');
+        console.log('- vortex.stats - View performance stats');
+        console.log('- vortex.settings - View settings');
+        console.log('- vortex.clear() - Clear logs');
+        console.log('- vortex.utils - Utility functions');
+    }
+
+    async analyzeSingleSymbol(symbol) {
+        this.log('INFO', `تحلیل تک ارز: ${symbol}`);
+        this.uiManager.showNotification(`🧠 تحلیل ${symbol}...`, 'info');
+        
+        this.selectedSymbols = [symbol];
+        this.scanMode = 'ai';
+        const aiRadio = document.querySelector('input[name="scanMode"][value="ai"]');
+        if (aiRadio) aiRadio.checked = true;
+        
+        this.startSmartScan();
+    }
+
+    // ===== Event Handlers =====
+    handleDocumentClick(e) {
+        // بستن منو فیلتر با کلیک خارج
+        if (!e.target.closest('.currency-filter')) {
+            this.hideFilterMenu();
+        }
+
+        // بستن منوی موبایل با کلیک خارج
+        if (!e.target.closest('.nav-menu') && !e.target.closest('.mobile-menu-btn')) {
+            this.toggleMobileMenu(false);
+        }
+    }
+
+    handleKeydown(e) {
+        this.handleKeyboard(e);
+    }
+
+    handleBeforeUnload(e) {
+        if (this.isScanning) {
+            e.preventDefault();
+            e.returnValue = 'اسکن در حال انجام است. آیا مطمئنید که می‌خواهید صفحه را ترک کنید؟';
+        }
+    }
+
+    handleKeyboard(e) {
+        // کلیدهای میانبر
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case '1':
+                    e.preventDefault();
+                    this.showSection('scan');
+                    break;
+                case '2':
+                    e.preventDefault();
+                    this.showSection('dashboard');
+                    break;
+                case '3':
+                    e.preventDefault();
+                    this.showSection('health');
+                    break;
+                case '4':
+                    e.preventDefault();
+                    this.showSection('ai');
+                    break;
+                case '5':
+                    e.preventDefault();
+                    this.showSection('settings');
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    const symbolsInput = document.getElementById('symbolsInput');
+                    if (symbolsInput) symbolsInput.focus();
+                    break;
+                case 'l':
+                    e.preventDefault();
+                    this.clearLogs();
+                    break;
+            }
+        }
+
+        // Escape برای بستن منوها
+        if (e.key === 'Escape') {
+            this.hideFilterMenu();
+            this.toggleMobileMenu(false);
+        }
     }
 
     // لیست کامل 100 ارز برتر
@@ -1091,5 +968,12 @@ class VortexApp {
 
 // راه‌اندازی برنامه
 document.addEventListener('DOMContentLoaded', function() {
-    window.vortexApp = new VortexApp();
+    console.log('📄 DOM Content Loaded - Initializing VortexAI...');
+    try {
+        window.vortexApp = new VortexApp();
+        console.log('🎉 VortexAI initialized successfully!');
+    } catch (error) {
+        console.error('💥 Failed to initialize VortexAI:', error);
+        alert('خطا در راه‌اندازی سیستم VortexAI. لطفاً صفحه را رفرش کنید.');
+    }
 });
