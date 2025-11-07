@@ -28,7 +28,6 @@ try:
     from routes.news import news_router
     from routes.insights import insights_router
     from routes.raw_coins import raw_coins_router
-    from routes.raw_exchanges import raw_exchanges_router
     from routes.raw_news import raw_news_router
     from routes.raw_insights import raw_insights_router
     from routes.docs import docs_router
@@ -75,7 +74,6 @@ app.include_router(exchanges_router)
 app.include_router(news_router)
 app.include_router(insights_router)
 app.include_router(raw_coins_router)
-app.include_router(raw_exchanges_router)
 app.include_router(raw_news_router)
 app.include_router(raw_insights_router)
 app.include_router(docs_router)
@@ -89,7 +87,7 @@ VORTEXAI_ROADMAP = {
     "timestamp": datetime.now().isoformat(),
     
     "🚀 MAIN ROUTES": {
-        "description": "9 روت مادر اصلی سیستم",
+        "description": "۸ روت مادر اصلی سیستم",
         "routes": {
             # 1. سلامت سیستم
             "HEALTH": {
@@ -156,51 +154,44 @@ VORTEXAI_ROADMAP = {
             # 6. داده‌های خام نمادها
             "RAW_COINS": {
                 "base_path": "/api/raw/coins", 
-                "description": "داده‌های خام نمادها - بدون پردازش",
+                "description": "داده‌های خام نمادها - برای هوش مصنوعی",
                 "endpoints": {
                     "list": "GET /api/raw/coins/list - لیست خام نمادها",
                     "details": "GET /api/raw/coins/details/{coin_id} - جزئیات خام نماد",
                     "charts": "GET /api/raw/coins/charts/{coin_id} - چارت خام نماد",
                     "multi_charts": "GET /api/raw/coins/multi-charts - چارت خام چندنماد",
                     "price_avg": "GET /api/raw/coins/price/avg - قیمت متوسط خام",
-                    "exchange_price": "GET /api/raw/coins/price/exchange - قیمت صرافی خام"
+                    "exchange_price": "GET /api/raw/coins/price/exchange - قیمت صرافی خام",
+                    "metadata": "GET /api/raw/coins/metadata - متادیتای نمادها",
+                    "filters": "GET /api/raw/coins/filters - فیلترهای موجود"
                 }
             },
             
-            # 7. داده‌های خام صرافی‌ها
-            "RAW_EXCHANGES": {
-                "base_path": "/api/raw/exchanges",
-                "description": "داده‌های خام صرافی‌ها - بدون پردازش", 
-                "endpoints": {
-                    "list": "GET /api/raw/exchanges/list - لیست خام صرافی‌ها",
-                    "markets": "GET /api/raw/exchanges/markets - مارکت‌های خام",
-                    "tickers_markets": "GET /api/raw/exchanges/tickers-markets - مارکت‌های تیکر خام",
-                    "fiats": "GET /api/raw/exchanges/fiats - ارزهای فیات خام",
-                    "currencies": "GET /api/raw/exchanges/currencies - ارزهای خام"
-                }
-            },
-            
-            # 8. داده‌های خام اخبار
+            # 7. داده‌های خام اخبار
             "RAW_NEWS": {
                 "base_path": "/api/raw/news",
-                "description": "داده‌های خام اخبار - بدون پردازش",
+                "description": "داده‌های خام اخبار - برای هوش مصنوعی",
                 "endpoints": {
                     "all": "GET /api/raw/news/all - اخبار عمومی خام", 
                     "by_type": "GET /api/raw/news/type/{news_type} - اخبار خام بر اساس نوع",
                     "sources": "GET /api/raw/news/sources - منابع خبری خام",
-                    "detail": "GET /api/raw/news/detail/{news_id} - جزئیات خبر خام"
+                    "detail": "GET /api/raw/news/detail/{news_id} - جزئیات خبر خام",
+                    "sentiment_analysis": "GET /api/raw/news/sentiment-analysis - تحلیل احساسات",
+                    "metadata": "GET /api/raw/news/metadata - متادیتای اخبار"
                 }
             },
             
-            # 9. داده‌های خام بینش
+            # 8. داده‌های خام بینش
             "RAW_INSIGHTS": {
                 "base_path": "/api/raw/insights",
-                "description": "داده‌های خام بینش و تحلیل - بدون پردازش",
+                "description": "داده‌های خام بینش و تحلیل - برای هوش مصنوعی",
                 "endpoints": {
                     "btc_dominance": "GET /api/raw/insights/btc-dominance - دامیننس بیت‌کوین خام",
                     "fear_greed": "GET /api/raw/insights/fear-greed - شاخص ترس و طمع خام", 
                     "fear_greed_chart": "GET /api/raw/insights/fear-greed/chart - چارت ترس و طمع خام",
-                    "rainbow_chart": "GET /api/raw/insights/rainbow-chart/{coin_id} - چارت رنگین‌کمان خام"
+                    "rainbow_chart": "GET /api/raw/insights/rainbow-chart/{coin_id} - چارت رنگین‌کمان خام",
+                    "market_analysis": "GET /api/raw/insights/market-analysis - تحلیل جامع بازار",
+                    "metadata": "GET /api/raw/insights/metadata - متادیتای بینش‌ها"
                 }
             }
         }
@@ -254,7 +245,8 @@ VORTEXAI_ROADMAP = {
             "EXCHANGES_LIST": "/api/exchanges/list",
             "SYSTEM_METRICS": "/api/health/metrics/system",
             "COMPLETE_DOCS": "/api/docs/complete",
-            "CODE_EXAMPLES": "/api/docs/examples"
+            "CODE_EXAMPLES": "/api/docs/examples",
+            "AI_DATA_SAMPLES": "/api/raw/coins/metadata"
         }
     },
     
@@ -274,6 +266,15 @@ VORTEXAI_ROADMAP = {
         "caching": "داده‌ها به مدت ۵ دقیقه کش می‌شوند",
         "pagination": "برای لیست‌های بزرگ از صفحه‌بندی استفاده کنید",
         "health_check": "قبل از درخواست‌های مهم سلامت سیستم را بررسی کنید"
+    },
+    
+    "🤖 AI TRAINING DATA": {
+        "description": "داده‌های مناسب برای آموزش هوش مصنوعی",
+        "raw_coins_data": "/api/raw/coins/list?limit=1000",
+        "raw_news_sentiment": "/api/raw/news/sentiment-analysis",
+        "market_insights": "/api/raw/insights/market-analysis", 
+        "historical_charts": "/api/raw/coins/charts/bitcoin?period=all",
+        "metadata_structure": "/api/raw/coins/metadata"
     }
 }
 
@@ -296,13 +297,15 @@ async def root():
             "health_check": "/api/health/status",
             "bitcoin_data": "/api/coins/details/bitcoin",
             "latest_news": "/api/news/all?limit=5",
-            "market_sentiment": "/api/insights/fear-greed"
+            "market_sentiment": "/api/insights/fear-greed",
+            "ai_data_samples": "/api/raw/coins/metadata"
         },
         "system_info": {
             "total_routes": len(app.routes),
             "debug_system": "active",
             "coinstats_available": COINSTATS_AVAILABLE,
-            "startup_time": datetime.now().isoformat()
+            "startup_time": datetime.now().isoformat(),
+            "ai_ready": True
         }
     }
 
@@ -350,18 +353,26 @@ async def quick_reference():
             }
         },
         
-        "raw_data_endpoints": {
+        "ai_data_endpoints": {
             "raw_coins": {
                 "url": "/api/raw/coins/details/{coin_id}",
-                "description": "داده‌های خام نماد"
+                "description": "داده‌های خام نماد برای AI"
             },
             "raw_charts": {
                 "url": "/api/raw/coins/charts/{coin_id}", 
-                "description": "داده‌های خام چارت"
+                "description": "داده‌های خام چارت برای AI"
             },
             "raw_news": {
                 "url": "/api/raw/news/all",
-                "description": "اخبار خام"
+                "description": "اخبار خام برای AI"
+            },
+            "sentiment_analysis": {
+                "url": "/api/raw/news/sentiment-analysis",
+                "description": "تحلیل احساسات برای AI"
+            },
+            "market_analysis": {
+                "url": "/api/raw/insights/market-analysis",
+                "description": "تحلیل بازار برای AI"
             }
         },
         
@@ -420,7 +431,9 @@ async def count_endpoints():
             "coins": len([r for r in routes_info if '/api/coins' in r['path']]),
             "raw_coins": len([r for r in routes_info if '/api/raw/coins' in r['path']]),
             "news": len([r for r in routes_info if '/api/news' in r['path']]),
+            "raw_news": len([r for r in routes_info if '/api/raw/news' in r['path']]),
             "insights": len([r for r in routes_info if '/api/insights' in r['path']]),
+            "raw_insights": len([r for r in routes_info if '/api/raw/insights' in r['path']]),
             "exchanges": len([r for r in routes_info if '/api/exchanges' in r['path']]),
             "documentation": len([r for r in routes_info if '/api/docs' in r['path']])
         },
@@ -453,6 +466,7 @@ async def system_info():
             "total_endpoints": len(app.routes),
             "coinstats_available": COINSTATS_AVAILABLE,
             "debug_system": "active",
+            "ai_ready": True,
             "version": "4.0.0"
         },
         "timestamp": datetime.now().isoformat()
@@ -476,7 +490,7 @@ async def not_found_exception_handler(request, exc):
                     "coins_list": "/api/coins/list", 
                     "news": "/api/news/all",
                     "insights": "/api/insights/fear-greed",
-                    "documentation": "/api/docs/complete"
+                    "ai_data": "/api/raw/coins/metadata"
                 }
             },
             "quick_links": {
@@ -492,7 +506,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 10000))
     
     print("🚀" * 50)
-    print("🎯 VORTEXAI API SERVER v4.0.0")
+    print("🎯 VORTEXAI API SERVER v4.0.0 - AI READY")
     print("🚀" * 50)
     print(f"📊 Total Routes: {len(app.routes)}")
     print(f"🌐 Server URL: http://localhost:{port}")
@@ -504,8 +518,9 @@ if __name__ == "__main__":
     print(f"   • Bitcoin Details: http://localhost:{port}/api/coins/details/bitcoin") 
     print(f"   • Latest News: http://localhost:{port}/api/news/all?limit=5")
     print(f"   • Fear & Greed: http://localhost:{port}/api/insights/fear-greed")
-    print(f"   • System Info: http://localhost:{port}/api/system/info")
+    print(f"   • AI Data Samples: http://localhost:{port}/api/raw/coins/metadata")
     print("🔧 Debug System: ACTIVE")
+    print("🤖 AI Ready: ✅ YES")
     print("📈 CoinStats API: " + ("✅ AVAILABLE" if COINSTATS_AVAILABLE else "❌ UNAVAILABLE"))
     print("🚀" * 50)
     
