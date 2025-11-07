@@ -16,7 +16,7 @@ async def get_exchanges_list():
         
         # پردازش داده‌های صرافی‌ها
         processed_exchanges = []
-        for exchange in raw_data.get('result', []):
+        for exchange in raw_data.get('data', []):
             processed_exchanges.append({
                 'id': exchange.get('id'),
                 'name': exchange.get('name'),
