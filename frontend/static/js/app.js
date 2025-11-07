@@ -1,4 +1,4 @@
-// سیستم اصلی VortexAI - نسخه ماژولار
+// سیستم اصلی VortexAI - نسخه اصلاح شده و سازگار با بک‌اند
 class VortexApp {
     constructor() {
         this.currentSection = 'scan';
@@ -23,32 +23,6 @@ class VortexApp {
         // سیستم‌های خارجی
         this.aiClient = new AIClient();
         this.uiManager = new UIManager();
-        this.smartLoading = new SmartLoading();
-        
-        // لیست کامل 100 ارز برتر
-        this.top100Symbols = [
-            "bitcoin", "ethereum", "tether", "ripple", "binancecoin",
-            "solana", "usd-coin", "staked-ether", "tron", "dogecoin",
-            "cardano", "polkadot", "chainlink", "litecoin", "bitcoin-cash",
-            "stellar", "monero", "ethereum-classic", "vechain", "theta-token",
-            "filecoin", "cosmos", "tezos", "aave", "eos",
-            "okb", "crypto-com-chain", "algorand", "maker", "iota",
-            "avalanche-2", "compound", "dash", "zcash", "neo",
-            "kusama", "elrond-erd-2", "helium", "decentraland", "the-sandbox",
-            "gala", "axie-infinity", "enjincoin", "render-token", "theta-fuel",
-            "fantom", "klay-token", "waves", "arweave", "bittorrent",
-            "huobi-token", "nexo", "celo", "qtum", "ravencoin",
-            "basic-attention-token", "holotoken", "chiliz", "curve-dao-token",
-            "yearn-finance", "sushi", "uma", "balancer", "renbtc",
-            "0x", "bancor", "loopring", "reserve-rights-token", "orchid",
-            "nucypher", "livepeer", "api3", "badger-dao", "keep-network",
-            "origin-protocol", "mirror-protocol", "radicle", "fetchtoken",
-            "ocean-protocol", "dock", "request-network", "district0x", "gnosis",
-            "kyber-network", "republic-protocol", "aeternity", "golem", "iostoken",
-            "wax", "dent", "stormx", "funfair", "enigma",
-            "singularitynet", "numeraire", "civic", "poa-network", "metal",
-            "pillar", "bluzelle", "cybermiles", "datum", "edgeware"
-        ];
         
         this.logs = [];
         this.init();
@@ -126,15 +100,6 @@ class VortexApp {
 
         document.getElementById('testAPI').addEventListener('click', () => {
             this.testAPIEndpoints();
-        });
-
-        // تنظیمات
-        document.getElementById('saveSettings').addEventListener('click', () => {
-            this.saveSettings();
-        });
-
-        document.getElementById('clearCache').addEventListener('click', () => {
-            this.clearCache();
         });
 
         // AI
@@ -217,15 +182,34 @@ class VortexApp {
     }
 
     toggleMobileMenu(force) {
-        this.uiManager.toggleMobileMenu(force);
+        const menu = document.getElementById('navMenu');
+        const btn = document.getElementById('mobileMenuBtn');
+        
+        if (force !== undefined) {
+            menu.classList.toggle('active', force);
+            btn.setAttribute('aria-expanded', force);
+        } else {
+            menu.classList.toggle('active');
+            const isExpanded = menu.classList.contains('active');
+            btn.setAttribute('aria-expanded', isExpanded);
+            btn.innerHTML = isExpanded ? '✕' : '☰';
+        }
     }
 
     toggleFilterMenu() {
-        this.uiManager.toggleFilterMenu();
+        const menu = document.getElementById('filterMenu');
+        const btn = document.getElementById('filterToggle');
+        const isExpanded = menu.classList.toggle('show');
+        
+        btn.setAttribute('aria-expanded', isExpanded);
     }
 
     hideFilterMenu() {
-        this.uiManager.hideFilterMenu();
+        const menu = document.getElementById('filterMenu');
+        const btn = document.getElementById('filterToggle');
+        
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
     }
 
     // ===== مدیریت ارزها =====
@@ -493,7 +477,8 @@ class VortexApp {
         try {
             this.log('DEBUG', 'دریافت وضعیت سلامت سیستم...');
             
-            const response = await fetch('/api/system/status');
+            // ✅ اصلاح شده: endpoint صحیح
+            const response = await fetch('/api/status');
             const data = await response.json();
             
             this.uiManager.displayEndpointsHealth(data.endpoints_health || {});
@@ -591,7 +576,7 @@ class VortexApp {
     // ===== داشبورد =====
     async loadDashboard() {
         try {
-            const response = await fetch('/api/system/status');
+            const response = await fetch('/api/status');
             const data = await response.json();
             
             // آپدیت آمار ساده
@@ -743,7 +728,7 @@ class VortexApp {
 
     async checkAPIStatus() {
         try {
-            const response = await fetch('/api/system/status');
+            const response = await fetch('/api/status');
             const data = await response.json();
             
             const statusDot = document.getElementById('statusDot');
@@ -773,16 +758,19 @@ class VortexApp {
         }
     }
 
+    // ===== تست API endpoints =====
     async testAPIEndpoints() {
         this.log('INFO', '🧪 شروع تست API endpoints...');
         
+        // ✅ اصلاح شده: endpointهای سازگار با بک‌اند
         const testEndpoints = [
-            { name: 'Raw Data', url: '/api/raw/bitcoin' },
-            { name: 'Processed Data', url: '/api/processed/bitcoin' },
-            { name: 'AI Technical', url: '/api/ai/analyze/bitcoin?analysis_type=technical' },
-            { name: 'AI Prediction', url: '/api/ai/analyze/bitcoin?analysis_type=prediction' },
             { name: 'System Status', url: '/api/status' },
-            { name: 'AI Status', url: '/api/ai/status' }
+            { name: 'AI Status', url: '/api/ai/status' },
+            { name: 'Raw BTC', url: '/api/raw/bitcoin' },
+            { name: 'Processed BTC', url: '/api/processed/bitcoin' },
+            { name: 'AI Technical', url: '/api/ai/analyze/bitcoin?analysis_type=technical' },
+            { name: 'AI Sentiment', url: '/api/ai/analyze/bitcoin?analysis_type=sentiment' },
+            { name: 'AI Prediction', url: '/api/ai/analyze/bitcoin?analysis_type=prediction' }
         ];
         
         for (const endpoint of testEndpoints) {
@@ -847,6 +835,31 @@ class VortexApp {
 
         return [headers, ...rows].map(row => row.join(',')).join('\n');
     }
+
+    // لیست کامل 100 ارز برتر
+    top100Symbols = [
+        "bitcoin", "ethereum", "tether", "ripple", "binancecoin",
+        "solana", "usd-coin", "staked-ether", "tron", "dogecoin",
+        "cardano", "polkadot", "chainlink", "litecoin", "bitcoin-cash",
+        "stellar", "monero", "ethereum-classic", "vechain", "theta-token",
+        "filecoin", "cosmos", "tezos", "aave", "eos",
+        "okb", "crypto-com-chain", "algorand", "maker", "iota",
+        "avalanche-2", "compound", "dash", "zcash", "neo",
+        "kusama", "elrond-erd-2", "helium", "decentraland", "the-sandbox",
+        "gala", "axie-infinity", "enjincoin", "render-token", "theta-fuel",
+        "fantom", "klay-token", "waves", "arweave", "bittorrent",
+        "huobi-token", "nexo", "celo", "qtum", "ravencoin",
+        "basic-attention-token", "holotoken", "chiliz", "curve-dao-token",
+        "yearn-finance", "sushi", "uma", "balancer", "renbtc",
+        "0x", "bancor", "loopring", "reserve-rights-token", "orchid",
+        "nucypher", "livepeer", "api3", "badger-dao", "keep-network",
+        "origin-protocol", "mirror-protocol", "radicle", "fetchtoken",
+        "ocean-protocol", "dock", "request-network", "district0x", "gnosis",
+        "kyber-network", "republic-protocol", "aeternity", "golem", "iostoken",
+        "wax", "dent", "stormx", "funfair", "enigma",
+        "singularitynet", "numeraire", "civic", "poa-network", "metal",
+        "pillar", "bluzelle", "cybermiles", "datum", "edgeware"
+    ];
 }
 
 // راه‌اندازی برنامه
