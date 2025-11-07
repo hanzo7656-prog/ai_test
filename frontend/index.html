@@ -122,6 +122,10 @@
                             <span class="btn-icon">🚀</span>
                             <span class="btn-text">شروع اسکن هوشمند</span>
                         </button>
+                        <button class="btn btn-secondary btn-block" id="cancelScan" style="display: none;">
+                            <span class="btn-icon">⏹️</span>
+                            <span class="btn-text">لغو اسکن</span>
+                        </button>
                     </div>
                 </div>
 
@@ -409,62 +413,30 @@
                 </div>
             </div>
 
-            <!-- کنترل‌های تحلیل سریع -->
-            <div class="scan-controls">
-                <div class="control-group">
-                    <label class="control-label">تحلیل سریع ارزها</label>
-                    <div class="quick-symbols-grid">
-                        <button class="btn btn-secondary symbol-btn" data-symbol="bitcoin">
-                            <span class="symbol-icon">₿</span>
-                            Bitcoin
-                        </button>
-                        <button class="btn btn-secondary symbol-btn" data-symbol="ethereum">
-                            <span class="symbol-icon">Ξ</span>
-                            Ethereum
-                        </button>
-                        <button class="btn btn-secondary symbol-btn" data-symbol="solana">
-                            <span class="symbol-icon">SOL</span>
-                            Solana
-                        </button>
-                        <button class="btn btn-secondary symbol-btn" data-symbol="cardano">
-                            <span class="symbol-icon">ADA</span>
-                            Cardano
-                        </button>
-                        <button class="btn btn-secondary symbol-btn" data-symbol="ripple">
-                            <span class="symbol-icon">XRP</span>
-                            Ripple
-                        </button>
-                        <button class="btn btn-secondary symbol-btn" data-symbol="dogecoin">
-                            <span class="symbol-icon">DOGE</span>
-                            Dogecoin
-                        </button>
+            <!-- تحلیل‌های AI -->
+            <div class="health-grid">
+                <div class="health-card">
+                    <h3>🧠 تحلیل تکنیکال پیشرفته</h3>
+                    <div class="ai-analysis-info">
+                        <p>تحلیل تکنیکال با استفاده از شبکه عصبی اسپارس 100 نورونی</p>
+                        <div class="ai-features">
+                            <span class="feature-tag">📊 RSI</span>
+                            <span class="feature-tag">📈 MACD</span>
+                            <span class="feature-tag">🧠 Neural Network</span>
+                            <span class="feature-tag">⚡ Real-time</span>
+                        </div>
                     </div>
                 </div>
-
-                <div class="control-group">
-                    <label class="control-label">نوع تحلیل AI</label>
-                    <div class="mode-selector">
-                        <label class="mode-option">
-                            <input type="radio" name="aiAnalysisType" value="technical" checked>
-                            <span class="mode-label">
-                                <span class="mode-icon">📊</span>
-                                <span class="mode-text">تحلیل تکنیکال</span>
-                            </span>
-                        </label>
-                        <label class="mode-option">
-                            <input type="radio" name="aiAnalysisType" value="sentiment">
-                            <span class="mode-label">
-                                <span class="mode-icon">😊</span>
-                                <span class="mode-text">تحلیل احساسات</span>
-                            </span>
-                        </label>
-                        <label class="mode-option">
-                            <input type="radio" name="aiAnalysisType" value="predictive">
-                            <span class="mode-label">
-                                <span class="mode-icon">🔮</span>
-                                <span class="mode-text">پیش‌بینی قیمت</span>
-                            </span>
-                        </label>
+                
+                <div class="health-card">
+                    <h3>😊 تحلیل احساسات بازار</h3>
+                    <div class="ai-analysis-info">
+                        <p>تحلیل احساسات و روانشناسی بازار بر اساس داده‌های رفتاری</p>
+                        <div class="ai-features">
+                            <span class="feature-tag">📰 اخبار</span>
+                            <span class="feature-tag">👥 شبکه‌های اجتماعی</span>
+                            <span class="feature-tag">📊 حجم معاملات</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -475,21 +447,13 @@
                     <h3>نتایج تحلیل AI</h3>
                     <div class="results-actions">
                         <span class="results-count" id="aiResultsCount">0 مورد</span>
-                        <div class="results-controls">
-                            <button class="btn btn-secondary" id="exportAIResults">
-                                📥 خروجی
-                            </button>
-                            <button class="btn btn-secondary" id="clearAIResults">
-                                🗑️ پاکسازی
-                            </button>
-                        </div>
                     </div>
                 </div>
-                <div class="results-grid" id="aiResults">
+                <div class="results-grid" id="aiResultsGrid">
                     <div class="empty-state">
                         <div class="empty-icon">🤖</div>
-                        <p>هنوز تحلیلی انجام نشده است</p>
-                        <small>برای تحلیل از دکمه‌های بالا استفاده کنید</small>
+                        <p>هنوز تحلیل AI انجام نشده است</p>
+                        <small>برای شروع تحلیل از دکمه‌های بالا استفاده کنید</small>
                     </div>
                 </div>
             </div>
@@ -500,115 +464,87 @@
             <div class="section-header">
                 <h1>⚙️ تنظیمات سیستم</h1>
                 <div class="section-actions">
-                    <button class="btn btn-secondary" id="resetSettings">
-                        🔄 بازنشانی
+                    <button class="btn btn-primary" id="saveSettings">
+                        <span class="btn-icon">💾</span>
+                        <span class="btn-text">ذخیره تنظیمات</span>
                     </button>
                 </div>
             </div>
 
-            <div class="settings-panel">
-                <div class="setting-group">
-                    <h3>🎯 تنظیمات اسکن</h3>
-                    <div class="setting-item">
-                        <span class="setting-label">اندازه دسته اسکن</span>
-                        <div class="setting-control">
-                            <select class="select-control" id="batchSize">
-                                <option value="10">10 ارز</option>
-                                <option value="25" selected>25 ارز</option>
-                                <option value="50">50 ارز</option>
-                                <option value="100">100 ارز</option>
-                            </select>
-                        </div>
+            <div class="settings-grid">
+                <div class="settings-card">
+                    <h3>🔧 تنظیمات اسکن</h3>
+                    <div class="setting-group">
+                        <label for="batchSize" class="setting-label">اندازه دسته اسکن</label>
+                        <select id="batchSize" class="setting-input">
+                            <option value="10">10 ارز</option>
+                            <option value="25" selected>25 ارز</option>
+                            <option value="50">50 ارز</option>
+                            <option value="100">100 ارز</option>
+                        </select>
                     </div>
-                    <div class="setting-item">
-                        <span class="setting-label">زمان انقضای کش</span>
-                        <div class="setting-control">
-                            <select class="select-control" id="cacheTTL">
-                                <option value="60">1 دقیقه</option>
-                                <option value="300" selected>5 دقیقه</option>
-                                <option value="600">10 دقیقه</option>
-                                <option value="1800">30 دقیقه</option>
-                            </select>
-                        </div>
+                    <div class="setting-group">
+                        <label for="cacheTTL" class="setting-label">مدت زمان کش (ثانیه)</label>
+                        <input type="number" id="cacheTTL" class="setting-input" value="300" min="60" max="3600">
                     </div>
-                    <div class="setting-item">
-                        <span class="setting-label">تعداد نتایج در صفحه</span>
-                        <div class="setting-control">
-                            <select class="select-control" id="resultsPerPage">
-                                <option value="10">10 مورد</option>
-                                <option value="25" selected>25 مورد</option>
-                                <option value="50">50 مورد</option>
-                                <option value="100">100 مورد</option>
-                            </select>
-                        </div>
+                    <div class="setting-group">
+                        <label for="resultsPerPage" class="setting-label">نتایج در هر صفحه</label>
+                        <select id="resultsPerPage" class="setting-input">
+                            <option value="10">10 مورد</option>
+                            <option value="25" selected>25 مورد</option>
+                            <option value="50">50 مورد</option>
+                            <option value="100">100 مورد</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="setting-group">
+                <div class="settings-card">
                     <h3>🤖 تنظیمات هوش مصنوعی</h3>
-                    <div class="setting-item">
-                        <span class="setting-label">دقت تحلیل AI</span>
-                        <div class="setting-control">
-                            <select class="select-control" id="aiPrecision">
-                                <option value="low">پایین (سریع)</option>
-                                <option value="medium" selected>متوسط</option>
-                                <option value="high">بالا (دقیق)</option>
-                            </select>
-                        </div>
+                    <div class="setting-group">
+                        <label for="aiPrecision" class="setting-label">دقت تحلیل AI</label>
+                        <select id="aiPrecision" class="setting-input">
+                            <option value="low">پایین (سریع)</option>
+                            <option value="medium" selected>متوسط</option>
+                            <option value="high">بالا (دقیق)</option>
+                        </select>
                     </div>
-                    <div class="setting-item">
-                        <span class="setting-label">یادگیری خودکار</span>
-                        <div class="setting-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="autoLearning" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                    <div class="setting-group">
+                        <label class="setting-label">
+                            <input type="checkbox" id="autoLearning" checked>
+                            <span class="check-label">یادگیری خودکار فعال</span>
+                        </label>
                     </div>
-                    <div class="setting-item">
-                        <span class="setting-label">آپدیت مدل‌ها</span>
-                        <div class="setting-control">
-                            <button class="btn btn-secondary" id="updateModels" style="padding: 0.5rem 1rem;">
-                                🔄 بروزرسانی
-                            </button>
-                        </div>
+                    <div class="setting-group">
+                        <label class="setting-label">
+                            <input type="checkbox" id="realTimeAnalysis" checked>
+                            <span class="check-label">تحلیل بلادرنگ</span>
+                        </label>
                     </div>
                 </div>
 
-                <div class="setting-group">
+                <div class="settings-card">
                     <h3>💾 مدیریت سیستم</h3>
-                    <div class="setting-item">
-                        <span class="setting-label">پاکسازی حافظه کش</span>
-                        <div class="setting-control">
-                            <button class="btn btn-secondary" id="clearCache" style="padding: 0.5rem 1rem;">
-                                🗑️ پاکسازی کش
-                            </button>
-                        </div>
-                    </div>
-                    <div class="setting-item">
-                        <span class="setting-label">پشتیبان‌گیری تنظیمات</span>
-                        <div class="setting-control">
-                            <button class="btn btn-secondary" id="backupSettings" style="padding: 0.5rem 1rem;">
-                                💾 ذخیره پشتیبان
-                            </button>
-                        </div>
-                    </div>
-                    <div class="setting-item">
-                        <span class="setting-label">ذخیره تنظیمات</span>
-                        <div class="setting-control">
-                            <button class="btn btn-primary" id="saveSettings" style="padding: 0.5rem 1rem;">
-                                ✅ ذخیره تغییرات
-                            </button>
-                        </div>
+                    <div class="setting-actions">
+                        <button class="btn btn-secondary btn-block" id="clearCache">
+                            <span class="btn-icon">🗑️</span>
+                            <span class="btn-text">پاکسازی کش</span>
+                        </button>
+                        <button class="btn btn-secondary btn-block" id="resetSettings">
+                            <span class="btn-icon">🔄</span>
+                            <span class="btn-text">بازنشانی تنظیمات</span>
+                        </button>
+                        <button class="btn btn-secondary btn-block" id="backupSettings">
+                            <span class="btn-icon">💾</span>
+                            <span class="btn-text">پشتیبان تنظیمات</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- اطلاعات سیستم -->
-                <div class="setting-group">
-                    <h3>ℹ️ اطلاعات سیستم</h3>
+                <div class="settings-card">
+                    <h3>📊 اطلاعات سیستم</h3>
                     <div class="system-info">
                         <div class="info-item">
-                            <span class="info-label">نسخه سیستم:</span>
+                            <span class="info-label">نسخه:</span>
                             <span class="info-value" id="systemVersion">1.0.0</span>
                         </div>
                         <div class="info-item">
@@ -616,11 +552,11 @@
                             <span class="info-value" id="lastUpdate">--</span>
                         </div>
                         <div class="info-item">
-                            <span class="info-label">حافظه استفاده شده:</span>
+                            <span class="info-label">استفاده از حافظه:</span>
                             <span class="info-value" id="memoryUsed">--</span>
                         </div>
                         <div class="info-item">
-                            <span class="info-label">مدت زمان فعالیت:</span>
+                            <span class="info-label">مدت زمان اجرا:</span>
                             <span class="info-value" id="sessionDuration">--</span>
                         </div>
                     </div>
@@ -629,64 +565,45 @@
         </section>
     </main>
 
-    <!-- لودینگ شیشه‌ای -->
-    <div class="glass-loading" id="loadingOverlay">
-        <div class="glass-content">
+    <!-- لودینگ overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
             <div class="loading-spinner"></div>
-            <h3 id="loadingTitle">در حال پردازش</h3>
-            <p id="loadingMessage">لطفاً منتظر بمانید...</p>
-            
-            <div class="progress-info">
-                <div class="progress-header">
-                    <span id="progressText">0/0</span>
-                    <span id="progressPercent">0%</span>
-                </div>
+            <h3 id="loadingTitle">در حال اسکن...</h3>
+            <div class="loading-progress">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill" style="width: 0%"></div>
                 </div>
-            </div>
-
-            <div class="loading-stats">
-                <div class="stat">
-                    <span class="stat-label">زمان سپری شده:</span>
-                    <strong id="elapsedTime">0:00</strong>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">سرعت اسکن:</span>
-                    <strong id="scanSpeed">0/دقیقه</strong>
+                <div class="progress-info">
+                    <span id="progressText">0/0</span>
+                    <span id="progressPercent">0%</span>
                 </div>
             </div>
-
-            <div class="scanning-list-container">
-                <div class="scanning-label">در حال اسکن:</div>
-                <div id="scanningList" class="scanning-list">
-                    <span class="coin-tag scanning">--</span>
+            <div class="loading-details">
+                <div class="detail-item">
+                    <span>زمان سپری شده:</span>
+                    <span id="elapsedTime">0:00</span>
+                </div>
+                <div class="detail-item">
+                    <span>سرعت اسکن:</span>
+                    <span id="scanSpeed">0/دقیقه</span>
+                </div>
+                <div class="detail-item">
+                    <span>در حال اسکن:</span>
+                    <div id="scanningList" class="scanning-list"></div>
                 </div>
             </div>
-
-            <button class="btn btn-secondary" id="cancelScan">
-                ❌ لغو عملیات
+            <button class="btn btn-secondary" id="cancelLoading">
+                <span class="btn-icon">⏹️</span>
+                <span class="btn-text">لغو اسکن</span>
             </button>
         </div>
     </div>
 
-    <!-- کنسول توسعه‌دهنده -->
-    <div class="dev-console" id="devConsole">
-        <div class="console-header">
-            <h4>🛠️ کنسول توسعه</h4>
-            <div class="console-controls">
-                <button class="console-btn" id="consoleMinimize">➖</button>
-                <button class="console-btn" id="consoleClear">🗑️</button>
-                <button class="console-btn" id="consoleClose">❌</button>
-            </div>
-        </div>
-        <div class="console-output" id="consoleOutput"></div>
-        <div class="console-input">
-            <input type="text" id="consoleInput" placeholder="دستور را وارد کنید...">
-            <button id="consoleExecute">▶️</button>
-        </div>
-    </div>
-
+    <!-- اسکریپت‌ها -->
+    <script src="/static/js/ai_client.js"></script>
+    <script src="/static/js/scan_session.js"></script>
+    <script src="/static/js/ui_manager.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
