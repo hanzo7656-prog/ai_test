@@ -1,4 +1,4 @@
-// سیستم مدیریت رابط کاربری VortexAI
+// سیستم مدیریت رابط کاربری VortexAI - نسخه اصلاح شده
 class UIManager {
     constructor() {
         this.autoRefreshInterval = null;
@@ -14,6 +14,8 @@ class UIManager {
         const menu = document.getElementById('navMenu');
         const btn = document.getElementById('mobileMenuBtn');
         
+        if (!menu || !btn) return;
+        
         if (force !== undefined) {
             menu.classList.toggle('active', force);
             btn.setAttribute('aria-expanded', force);
@@ -28,14 +30,16 @@ class UIManager {
     toggleFilterMenu() {
         const menu = document.getElementById('filterMenu');
         const btn = document.getElementById('filterToggle');
-        const isExpanded = menu.classList.toggle('show');
+        if (!menu || !btn) return;
         
+        const isExpanded = menu.classList.toggle('show');
         btn.setAttribute('aria-expanded', isExpanded);
     }
 
     hideFilterMenu() {
         const menu = document.getElementById('filterMenu');
         const btn = document.getElementById('filterToggle');
+        if (!menu || !btn) return;
         
         menu.classList.remove('show');
         btn.setAttribute('aria-expanded', 'false');
@@ -140,7 +144,7 @@ class UIManager {
         
         if (!container) return;
         
-        if (results.length === 0) {
+        if (!results || results.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">🔍</div>
@@ -258,41 +262,23 @@ class UIManager {
         try {
             console.log(`📊 استخراج داده برای ${symbol}:`, data);
 
-            // حالت AI Scan - داده مستقیم از تحلیل AI
-            if (data && data.analysis) {
-                // داده از تحلیل AI
-                const analysis = data.analysis;
-                extracted.signal = analysis.signal || 'HOLD';
-                extracted.confidence = analysis.confidence || 0.5;
+            // ✅ حالت 1: داده مستقیم از API اصلی (ساختار واقعی backend)
+            if (data && data.data) {
+                const responseData = data.data;
                 
-                // اگر داده بازار هم موجود باشه
-                if (data.market_data) {
-                    const market = data.market_data;
+                // حالت 1.1: داده raw از API
+                if (responseData.market_data) {
+                    const market = responseData.market_data;
                     extracted.price = market.price || market.current_price || 0;
-                    extracted.change = market.price_change_24h || market.priceChange1d || 0;
+                    extracted.change = market.priceChange1d || market.price_change_24h || 0;
                     extracted.volume = market.volume || market.total_volume || 0;
                     extracted.marketCap = market.marketCap || market.market_cap || 0;
                     extracted.rank = market.rank || null;
                     extracted.name = market.name || symbol.toUpperCase();
                 }
-            }
-            // حالت 1: داده از API اصلی
-            else if (data && data.data) {
-                const coinData = data.data;
-                
-                // بررسی ساختارهای مختلف داده
-                if (coinData.raw_data && coinData.raw_data.coin_details) {
-                    const details = coinData.raw_data.coin_details;
-                    extracted.price = details.price || details.current_price || 0;
-                    extracted.change = details.priceChange1d || details.price_change_24h || details.price_change_percentage_24h || 0;
-                    extracted.volume = details.volume || details.total_volume || 0;
-                    extracted.marketCap = details.marketCap || details.market_cap || 0;
-                    extracted.rank = details.rank || null;
-                    extracted.name = details.name || symbol.toUpperCase();
-                }
-                // حالت 2: داده مستقیم از CoinStats
-                else if (coinData.display_data) {
-                    const display = coinData.display_data;
+                // حالت 1.2: داده processed از API
+                else if (responseData.display_data) {
+                    const display = responseData.display_data;
                     extracted.price = display.price || display.current_price || 0;
                     extracted.change = display.price_change_24h || display.priceChange1d || 0;
                     extracted.volume = display.volume_24h || display.total_volume || 0;
@@ -300,23 +286,30 @@ class UIManager {
                     extracted.rank = display.rank || null;
                     extracted.name = display.name || symbol.toUpperCase();
                 }
-                // حالت 3: داده مستقیم در ریشه
-                else {
-                    extracted.price = coinData.price || coinData.current_price || 0;
-                    extracted.change = coinData.price_change_24h || coinData.priceChange1d || 0;
-                    extracted.volume = coinData.volume || coinData.total_volume || 0;
-                    extracted.marketCap = coinData.marketCap || coinData.market_cap || 0;
-                    extracted.rank = coinData.rank || null;
-                    extracted.name = coinData.name || symbol.toUpperCase();
-                }
-
-                // تحلیل AI اگر موجود باشد
-                if (coinData.analysis) {
-                    extracted.signal = coinData.analysis.signal || 'HOLD';
-                    extracted.confidence = coinData.analysis.confidence || 0.5;
+                // حالت 1.3: تحلیل AI
+                if (responseData.analysis) {
+                    extracted.signal = responseData.analysis.signal || 'HOLD';
+                    extracted.confidence = responseData.analysis.confidence || 0.5;
                 }
             }
-            // حالت 4: داده مستقیم در ریشه response
+            // ✅ حالت 2: داده مستقیم از تحلیل AI
+            else if (data && data.analysis) {
+                const analysis = data.analysis;
+                extracted.signal = analysis.signal || 'HOLD';
+                extracted.confidence = analysis.confidence || 0.5;
+                
+                // اگر داده بازار هم موجود باشد
+                if (data.market_data) {
+                    const market = data.market_data;
+                    extracted.price = market.price || market.current_price || 0;
+                    extracted.change = market.priceChange1d || market.price_change_24h || 0;
+                    extracted.volume = market.volume || market.total_volume || 0;
+                    extracted.marketCap = market.marketCap || market.market_cap || 0;
+                    extracted.rank = market.rank || null;
+                    extracted.name = market.name || symbol.toUpperCase();
+                }
+            }
+            // ✅ حالت 3: داده مستقیم در ریشه (ساختار ساده)
             else if (data && (data.price !== undefined || data.current_price !== undefined)) {
                 extracted.price = data.price || data.current_price || 0;
                 extracted.change = data.priceChange1d || data.price_change_24h || data.price_change_percentage_24h || 0;
@@ -324,8 +317,14 @@ class UIManager {
                 extracted.marketCap = data.marketCap || data.market_cap || 0;
                 extracted.rank = data.rank || null;
                 extracted.name = data.name || symbol.toUpperCase();
+                
+                // تحلیل اگر موجود باشد
+                if (data.analysis) {
+                    extracted.signal = data.analysis.signal || 'HOLD';
+                    extracted.confidence = data.analysis.confidence || 0.5;
+                }
             }
-            // حالت 5: داده تست (fallback)
+            // ❌ حالت 4: داده تست (fallback)
             else {
                 console.warn(`ساختار داده برای ${symbol} شناسایی نشد، استفاده از داده تست`);
                 const hash = this.stringToHash(symbol);
@@ -472,12 +471,12 @@ class UIManager {
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
             this.autoRefreshInterval = null;
-            button.innerHTML = '🔴 غیرفعال';
+            if (button) button.innerHTML = '🔴 غیرفعال';
         } else {
             this.autoRefreshInterval = setInterval(() => {
                 onRefreshCallback();
             }, 10000);
-            button.innerHTML = '🟢 فعال';
+            if (button) button.innerHTML = '🟢 فعال';
         }
     }
 
@@ -558,15 +557,15 @@ class UIManager {
     }
 
     displaySystemMetrics(metrics) {
-        // آپدیت متریک‌های سیستم
+        // ✅ اصلاح شده: تطابق با ساختار واقعی API
         const cpuElement = document.getElementById('cpuUsage');
         const memoryElement = document.getElementById('memoryUsage');
         const diskElement = document.getElementById('diskUsage');
         const uptimeElement = document.getElementById('uptime');
 
-        if (cpuElement) cpuElement.textContent = `${metrics.cpu_percent || 0}%`;
-        if (memoryElement) memoryElement.textContent = `${metrics.memory_percent || 0}%`;
-        if (diskElement) diskElement.textContent = `${metrics.disk_percent || 0}%`;
+        if (cpuElement) cpuElement.textContent = `${metrics.cpu_usage_percent || metrics.cpu_percent || 0}%`;
+        if (memoryElement) memoryElement.textContent = `${metrics.memory_usage_percent || metrics.memory_percent || 0}%`;
+        if (diskElement) diskElement.textContent = `${metrics.disk_usage_percent || metrics.disk_percent || 0}%`;
         if (uptimeElement) uptimeElement.textContent = this.formatUptime(metrics.uptime_seconds || 0);
     }
 
@@ -574,23 +573,32 @@ class UIManager {
         const container = document.getElementById('aiEngineStatus');
         if (!container) return;
         
+        // ✅ اصلاح شده: تطابق با ساختار واقعی AI status
+        const isOperational = aiStatus.initialized && aiStatus.models?.neural_network?.active;
+        
         container.innerHTML = `
             <div class="indicator">
                 <span class="indicator-label">موتور تکنیکال</span>
-                <span class="indicator-value ${aiStatus.technical?.ready ? 'status-success' : 'status-error'}">
-                    ${aiStatus.technical?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-value ${aiStatus.models?.technical_analysis ? 'status-success' : 'status-error'}">
+                    ${aiStatus.models?.technical_analysis ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
             <div class="indicator">
-                <span class="indicator-label">تحلیل روند</span>
-                <span class="indicator-value ${aiStatus.sentiment?.ready ? 'status-success' : 'status-error'}">
-                    ${aiStatus.sentiment?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-label">تحلیل احساسات</span>
+                <span class="indicator-value ${isOperational ? 'status-success' : 'status-error'}">
+                    ${isOperational ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
             <div class="indicator">
                 <span class="indicator-label">داده‌های زنده</span>
-                <span class="indicator-value ${aiStatus.predictive?.ready ? 'status-success' : 'status-error'}">
-                    ${aiStatus.predictive?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-value ${aiStatus.models?.data_processing ? 'status-success' : 'status-error'}">
+                    ${aiStatus.models?.data_processing ? 'فعال' : 'غیرفعال'}
+                </span>
+            </div>
+            <div class="indicator">
+                <span class="indicator-label">وضعیت کلی</span>
+                <span class="indicator-value ${isOperational ? 'status-success' : 'status-error'}">
+                    ${isOperational ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
         `;
@@ -600,14 +608,18 @@ class UIManager {
         const container = document.getElementById('aiStatusIndicators');
         if (!container) return;
 
+        // ✅ اصلاح شده: تطابق با ساختار واقعی backend
+        const isTrained = status.models?.neural_network?.trained || false;
+        const isReady = status.models?.neural_network?.active || false;
+
         container.innerHTML = `
             <div class="indicator">
                 <span class="indicator-label">
                     <span class="indicator-icon">📊</span>
                     موتور تکنیکال
                 </span>
-                <span class="indicator-value ${status.technical?.ready ? 'status-success' : 'status-error'}">
-                    ${status.technical?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-value ${status.models?.technical_analysis ? 'status-success' : 'status-error'}">
+                    ${status.models?.technical_analysis ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
             <div class="indicator">
@@ -615,8 +627,8 @@ class UIManager {
                     <span class="indicator-icon">😊</span>
                     تحلیل احساسات
                 </span>
-                <span class="indicator-value ${status.sentiment?.ready ? 'status-success' : 'status-error'}">
-                    ${status.sentiment?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-value ${isReady ? 'status-success' : 'status-error'}">
+                    ${isReady ? 'فعال' : 'غیرفعال'}
                 </span>
             </div>
             <div class="indicator">
@@ -624,8 +636,8 @@ class UIManager {
                     <span class="indicator-icon">🔮</span>
                     پیش‌بینی قیمت
                 </span>
-                <span class="indicator-value ${status.predictive?.ready ? 'status-success' : 'status-error'}">
-                    ${status.predictive?.ready ? 'فعال' : 'غیرفعال'}
+                <span class="indicator-value ${isTrained ? 'status-success' : 'status-warning'}">
+                    ${isTrained ? 'آموزش دیده' : 'نیاز به آموزش'}
                 </span>
             </div>
             <div class="indicator">
@@ -719,13 +731,23 @@ class UIManager {
     }
 
     getDataFreshness(timestamp) {
+        if (!timestamp) return 'نامشخص';
+        
         const now = new Date();
         const dataTime = new Date(timestamp);
+        
+        // اگر timestamp نامعتبر باشد
+        if (isNaN(dataTime.getTime())) {
+            return 'نامشخص';
+        }
+        
         const diffMinutes = Math.round((now - dataTime) / (1000 * 60));
         
         if (diffMinutes < 1) return 'همین لحظه';
         if (diffMinutes < 5) return 'دقایقی پیش';
         if (diffMinutes < 30) return 'اخیراً';
+        if (diffMinutes < 60) return 'کمتر از 1 ساعت';
+        if (diffMinutes < 120) return '1 ساعت پیش';
         return 'قدیمی';
     }
 
@@ -736,6 +758,8 @@ class UIManager {
     }
 
     formatUptime(seconds) {
+        if (!seconds) return '0d 0h';
+        
         const days = Math.floor(seconds / 86400);
         const hours = Math.floor((seconds % 86400) / 3600);
         return `${days}d ${hours}h`;
@@ -748,6 +772,8 @@ class UIManager {
     }
 
     formatSessionDuration(performanceStats) {
+        if (!performanceStats || !performanceStats.startTime) return '0:00';
+        
         const duration = Math.floor((Date.now() - performanceStats.startTime) / 1000);
         return this.formatTime(duration);
     }
