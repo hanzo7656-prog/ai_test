@@ -395,77 +395,189 @@ class VortexApp {
     }
 
     // ===== سیستم اسکن پیشرفته =====
+    // ===== سیستم اسکن پیشرفته =====
     async startSmartScan() {
+        // بررسی اگر اسکن در حال انجام است
         if (this.isScanning) {
             this.uiManager.showNotification('اسکن در حال انجام است', 'warning');
             return;
         }
 
+        // دریافت ارزهای مورد نظر برای اسکن
         const symbolsToScan = this.selectedSymbols.length > 0 ? 
             this.selectedSymbols : this.top100Symbols.slice(0, this.batchSize);
-
+  
+        // اعتبارسنجی
         if (symbolsToScan.length === 0) {
             this.uiManager.showNotification('لطفاً حداقل یک ارز انتخاب کنید', 'error');
             return;
         }
 
+        // شروع اسکن
         this.isScanning = true;
         this.performanceStats.totalScans++;
-        
-        this.currentScan = new ScanSession({
-            symbols: symbolsToScan,
-            mode: this.scanMode,
-            batchSize: this.batchSize,
-            onProgress: this.updateProgress.bind(this),
-            onComplete: this.onScanComplete.bind(this),
-            onError: this.onScanError.bind(this)
-        });
-
+    
         this.log('INFO', `شروع اسکن ${symbolsToScan.length} ارز در حالت ${this.scanMode}`);
+    
+        // نمایش لودینگ
         this.uiManager.showLoading();
-        
+    
+        // راه‌اندازی سیستم لودینگ هوشمند
+        if (window.smartLoading) {
+            window.smartLoading.start({
+                total: symbolsToScan.length,
+                isAIMode: this.scanMode === 'ai',
+                scanType: this.scanMode === 'ai' ? 'AI پیشرفته' : 'پایه'
+            });
+        }
+
         try {
+            // ایجاد session اسکن
+            this.currentScan = new ScanSession({
+                symbols: symbolsToScan,
+                mode: this.scanMode,
+                batchSize: this.batchSize,
+                onProgress: (progress) => {
+                    // آپدیت پیشرفت در UI
+                    this.uiManager.updateProgress(progress);
+                
+                    // آپدیت لودینگ هوشمند
+                    if (window.smartLoading) {
+                        window.smartLoading.updateProgress(
+                            progress.completed,
+                            progress.total,
+                            progress.currentBatch || []
+                        );
+                    }
+                
+                    this.log('DEBUG', `پیشرفت اسکن: ${progress.completed}/${progress.total} (${progress.percent}%)`);
+                },
+                onComplete: (results) => {
+                    this.onScanComplete(results);
+                },
+                onError: (error) => {
+                    this.onScanError(error);
+                }
+            });
+
+            // شروع اسکن
             await this.currentScan.start();
+
         } catch (error) {
-            this.log('ERROR', `خطا در اسکن: ${error.message}`);
+            this.log('ERROR', `خطا در شروع اسکن: ${error.message}`);
             this.uiManager.showNotification('خطا در انجام اسکن', 'error');
+        
+            // پاکسازی در صورت خطا
+            this.isScanning = false;
+            this.uiManager.hideLoading();
+        
+            if (window.smartLoading) {
+                window.smartLoading.showError(error.message);
+            }
         }
     }
 
-    updateProgress(progress) {
-        this.uiManager.updateProgress(progress);
-    }
-
+    // ===== کامل کردن اسکن =====
     onScanComplete(results) {
         this.isScanning = false;
+      
+        // مخفی کردن لودینگ
         this.uiManager.hideLoading();
-        
+    
+        if (window.smartLoading) {
+            window.smartLoading.complete();
+        }
+    
+        // محاسبه آمار
         const successCount = results.filter(r => r.success).length;
         const totalCount = results.length;
-        
+      
         this.performanceStats.successfulScans += successCount;
         this.performanceStats.failedScans += (totalCount - successCount);
-        
+    
         // نمایش نتایج
         this.uiManager.displayResults(results, this.scanMode);
-        
+    
+        // لاگ و نوتیفیکیشن
         this.log('SUCCESS', `اسکن تکمیل شد: ${successCount}/${totalCount} موفق`);
-        this.uiManager.showNotification(`✅ اسکن ${totalCount} ارز تکمیل شد (${successCount} موفق)`, 'success');
-        
+        this.uiManager.showNotification(
+            `✅ اسکن ${totalCount} ارز تکمیل شد (${successCount} موفق)`, 
+            'success'
+        );
+      
+        // آپدیت آمار عملکرد
         this.updatePerformanceStats();
+    
+        // ذخیره نتایج اخیر
+        this.saveRecentResults(results);
     }
 
+    // ===== خطای اسکن =====
     onScanError(error) {
         this.isScanning = false;
+    
+        // مخفی کردن لودینگ
         this.uiManager.hideLoading();
-        
+    
+        if (window.smartLoading) {
+            window.smartLoading.showError(error.message);
+        }
+    
+        // آپدیت آمار
         this.performanceStats.failedScans++;
+    
+        // نمایش خطا
         this.log('ERROR', `خطا در اسکن: ${error.message}`);
         this.uiManager.showNotification('خطا در انجام اسکن', 'error');
-        
+    
         this.updatePerformanceStats();
     }
 
+    // ===== ذخیره نتایج اخیر =====
+    saveRecentResults(results) {
+        try {
+            const recentResults = {
+                timestamp: new Date().toISOString(),
+                scanMode: this.scanMode,
+                total: results.length,
+                successful: results.filter(r => r.success).length,
+                results: results.slice(0, 50) // فقط 50 نتیجه اول
+            };
+        
+            // ذخیره در localStorage
+            const existing = JSON.parse(localStorage.getItem('vortex_recent_scans') || '[]');
+            existing.unshift(recentResults);
+        
+            // فقط 5 اسکن اخیر نگه دار
+            if (existing.length > 5) {
+                existing.splice(5);
+            }
+        
+            localStorage.setItem('vortex_recent_scans', JSON.stringify(existing));
+        
+        } catch (error) {
+            console.warn('خطا در ذخیره نتایج اخیر:', error);
+        }
+    }
+  
+    // ===== لغو اسکن =====
+    cancelScan() {
+        if (this.currentScan) {
+            this.currentScan.cancel();
+            this.log('INFO', 'اسکن توسط کاربر لغو شد');
+        }
+    
+        this.isScanning = false;
+    
+        // مخفی کردن لودینگ
+        this.uiManager.hideLoading();
+    
+        if (window.smartLoading) {
+            window.smartLoading.complete();
+        }
+    
+        this.uiManager.showNotification('اسکن لغو شد', 'warning');
+    }
     // ===== هوش مصنوعی =====
     async initAIEngine() {
         this.log('INFO', '🚀 راه‌اندازی موتور AI...');
