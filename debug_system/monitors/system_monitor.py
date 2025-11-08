@@ -36,8 +36,8 @@ class SystemMonitor:
                     logger.error(f"❌ System health check error: {e}")
                     time.sleep(60)
         
-        health_thread = threading.Thread(target=health_check_loop, daemon=True)
-        health_thread.start()
+        monitor_thread = threading.Thread(target=health_check_loop, daemon=True)
+        monitor_thread.start()
         logger.info("✅ System health monitoring started")
 
     def _perform_health_check(self):
@@ -45,12 +45,15 @@ class SystemMonitor:
         try:
             metrics = self.metrics_collector.get_current_metrics()
             
+            # Import مستقیم Enumها برای جلوگیری از circular import
+            from ..core.alert_manager import AlertLevel, AlertType
+            
             # بررسی CPU
             cpu_usage = metrics['cpu']['percent']
             if cpu_usage > self.system_thresholds['cpu_critical']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
                     title="High CPU Usage",
                     message=f"CPU usage is critically high: {cpu_usage}%",
                     source="system_monitor",
@@ -58,8 +61,8 @@ class SystemMonitor:
                 )
             elif cpu_usage > self.system_thresholds['cpu_warning']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
                     title="High CPU Usage",
                     message=f"CPU usage is high: {cpu_usage}%",
                     source="system_monitor",
@@ -70,8 +73,8 @@ class SystemMonitor:
             memory_usage = metrics['memory']['percent']
             if memory_usage > self.system_thresholds['memory_critical']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
                     title="High Memory Usage",
                     message=f"Memory usage is critically high: {memory_usage}%",
                     source="system_monitor",
@@ -79,8 +82,8 @@ class SystemMonitor:
                 )
             elif memory_usage > self.system_thresholds['memory_warning']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
                     title="High Memory Usage", 
                     message=f"Memory usage is high: {memory_usage}%",
                     source="system_monitor",
@@ -91,8 +94,8 @@ class SystemMonitor:
             disk_usage = metrics['disk']['usage_percent']
             if disk_usage > self.system_thresholds['disk_critical']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
                     title="High Disk Usage",
                     message=f"Disk usage is critically high: {disk_usage}%",
                     source="system_monitor", 
@@ -100,8 +103,8 @@ class SystemMonitor:
                 )
             elif disk_usage > self.system_thresholds['disk_warning']:
                 self.alert_manager.create_alert(
-                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
-                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
                     title="High Disk Usage",
                     message=f"Disk usage is high: {disk_usage}%",
                     source="system_monitor",
