@@ -10,7 +10,7 @@ import psutil
 logger = logging.getLogger(__name__)
 
 class LiveDashboardManager:
-    def __init__(self, debug_manager, metrics_collector):
+    def __init__(self, debug_manager, metrics_collector):  # ✅ اصلاح signature
         self.debug_manager = debug_manager
         self.metrics_collector = metrics_collector
         self.dashboard_connections: List[WebSocket] = []
@@ -116,7 +116,7 @@ class LiveDashboardManager:
             },
             'recent_activity': {
                 'calls': recent_calls,
-                'alerts': self.debug_manager.get_active_alerts()[:10]
+                'alerts': self.debug_manager.get_active_alerts()[:10]  # ✅ از debug_manager استفاده می‌کند
             },
             'performance_indicators': {
                 'avg_response_time': endpoint_stats['overall'].get('average_response_time', 0),
@@ -135,7 +135,7 @@ class LiveDashboardManager:
             return "Unknown"
     
     def _calculate_overall_cache_hit_rate(self, endpoint_stats: Dict) -> float:
-        """محاسبه نرخ کلی命中 کش"""
+        """محاسبه نرخ کلی hit کش"""
         total_hits = 0
         total_misses = 0
         
