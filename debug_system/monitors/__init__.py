@@ -36,7 +36,13 @@ def initialize_monitors_system():
         }
     except Exception as e:
         logger.error(f"❌ Monitors initialization failed: {e}")
-        raise
+        # بازگشت نمونه‌های موجود حتی اگر خطا رخ دهد
+        return {
+            "endpoint_monitor": endpoint_monitor,
+            "system_monitor": system_monitor,
+            "performance_monitor": performance_monitor,
+            "security_monitor": security_monitor
+        }
 
 # راه‌اندازی خودکار
 monitors_system = initialize_monitors_system()
