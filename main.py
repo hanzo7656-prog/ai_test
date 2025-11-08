@@ -536,18 +536,6 @@ if DEBUG_SYSTEM_AVAILABLE:
                     print(f"   ❌ Cleanup error: {e}")
                     await asyncio.sleep(60)
         
-        # 🔧 رفع مشکل اصلی: استفاده از asyncio.create_task
-        try:
-            if live_dashboard_manager:
-                asyncio.create_task(start_dashboard_broadcast())
-                print("   ✅ Dashboard broadcast task started")
-            
-            asyncio.create_task(periodic_cleanup())
-            print("   ✅ Periodic cleanup task started")
-            
-        except Exception as e:
-            print(f"   ❌ Background tasks error: {e}")
-        
         # راه‌اندازی WebSocket Manager
         try:
             async def handle_debug_message(client_id: str, message: Dict):
@@ -665,6 +653,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# بعد از ایجاد app (خط 400) این رو اضافه کن:
+
+@app.on_event("startup")
+async def startup_event():
+    """اینجا background tasks رو شروع کن - بعد از راه‌اندازی سرور"""
+    if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
+        try:
+            # حالا event loop در حال اجراست
+            asyncio.create_task(start_dashboard_broadcast())
+            print("   ✅ Dashboard broadcast task started (on startup)")
+            
+            asyncio.create_task(periodic_cleanup())
+            print("   ✅ Periodic cleanup task started (on startup)")
+        except Exception as e:
+            print(f"   ❌ Startup tasks error: {e}")
 
 # ثبت روت‌ها
 app.include_router(health_router)
