@@ -4,21 +4,35 @@ Live monitoring and real-time data streaming
 """
 
 import logging
-from ..core import debug_manager, metrics_collector
-from .console_stream import ConsoleStreamManager
-from .live_dashboard import LiveDashboardManager
-from .websocket_manager import WebSocketManager
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های real-time با Dependency Injection صحیح
-console_stream = ConsoleStreamManager()
-live_dashboard = LiveDashboardManager(debug_manager, metrics_collector)  # ✅ اصلاح signature
-websocket_manager = WebSocketManager()
+# ایجاد نمونه‌های real-time
+console_stream = None
+live_dashboard = None
+websocket_manager = None
 
-def initialize_realtime_system():
+def initialize_realtime_system(debug_manager=None, metrics_collector=None):
     """راه‌اندازی و ارتباط سیستم‌های real-time"""
     try:
+        from .console_stream import ConsoleStreamManager
+        from .live_dashboard import LiveDashboardManager
+        from .websocket_manager import WebSocketManager
+        
+        global console_stream, live_dashboard, websocket_manager
+        
+        # ایجاد نمونه‌ها
+        console_stream = ConsoleStreamManager()
+        
+        if debug_manager and metrics_collector:
+            live_dashboard = LiveDashboardManager(debug_manager, metrics_collector)
+        else:
+            from ..core import debug_manager as core_debug_manager
+            from ..core import metrics_collector as core_metrics_collector
+            live_dashboard = LiveDashboardManager(core_debug_manager, core_metrics_collector)
+        
+        websocket_manager = WebSocketManager()
+        
         # راه‌اندازی سیستم real-time
         logger.info("✅ Real-time system initialized")
         logger.info(f"   - Console Stream: {type(console_stream).__name__}")
@@ -38,7 +52,7 @@ def initialize_realtime_system():
             "websocket_manager": websocket_manager
         }
 
-# راه‌اندازی خودکار
+# راه‌اندازی اولیه
 realtime_system = initialize_realtime_system()
 
 __all__ = [
