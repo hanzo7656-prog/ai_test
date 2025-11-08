@@ -10,17 +10,16 @@ from .alert_manager import AlertManager, AlertLevel, AlertType
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های گلوبال با Dependency Injection
+# ایجاد نمونه‌های گلوبال
 debug_manager = DebugManager()
 metrics_collector = RealTimeMetricsCollector()
 alert_manager = AlertManager()
 
-# راه‌اندازی ارتباط بین ماژول‌های core
 def initialize_core_system():
     """راه‌اندازی و ارتباط ماژول‌های هسته"""
     try:
         # تنظیم alert manager برای debug manager
-        debug_manager.alert_manager = alert_manager
+        debug_manager.set_alert_manager(alert_manager)
         
         # لاگ راه‌اندازی موفق
         logger.info("✅ Core debug system initialized with dependency injection")
@@ -35,7 +34,6 @@ def initialize_core_system():
         }
     except Exception as e:
         logger.error(f"❌ Core system initialization failed: {e}")
-        # بازگشت نمونه‌های موجود حتی اگر خطا رخ دهد
         return {
             "debug_manager": debug_manager,
             "metrics_collector": metrics_collector,
