@@ -1,3 +1,366 @@
+import time
+import asyncio
+import psutil
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Callable
+from collections import defaultdict, deque
+import threading
+import json
+import traceback
+from dataclasses import dataclass
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+class DebugLevel(Enum):
+    INFO = "INFO"
+    WARNING = "WARNING" 
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+@dataclass
+class EndpointCall:
+    endpoint: str
+    method: str
+    timestamp: datetime
+    params: Dict[str, Any]
+    response_time: float
+    status_code: int
+    cache_used: bool
+    api_calls: int
+    memory_used: float
+    cpu_impact: float
+
+@dataclass
+class SystemMetrics:
+    timestamp: datetime
+    cpu_percent: float
+    memory_percent: float
+    disk_usage: float
+    network_io: Dict[str, int]
+    active_connections: int
+
+class DebugManager:
+    def __init__(self):
+        self.endpoint_calls = deque(maxlen=10000)
+        self.system_metrics_history = deque(maxlen=1000)
+        self.endpoint_stats = defaultdict(lambda: {
+            'total_calls': 0,
+            'successful_calls': 0,
+            'failed_calls': 0,
+            'total_response_time': 0,
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'api_calls': 0,
+            'errors': [],
+            'last_call': None
+        })
+        
+        self.alerts = []
+        self.performance_thresholds = {
+            'response_time_warning': 1.0,
+            'response_time_critical': 3.0,
+            'cpu_warning': 80.0,
+            'cpu_critical': 95.0,
+            'memory_warning': 85.0,
+            'memory_critical': 95.0
+        }
+        
+        self._start_background_monitoring()
+        
+    def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
+                         response_time: float, status_code: int, cache_used: bool, 
+                         api_calls: int = 0):
+        """ثبت فراخوانی اندپوینت"""
+        try:
+            memory_used = psutil.virtual_memory().percent
+            cpu_impact = psutil.cpu_percent(interval=0.1)
+            
+            call = EndpointCall(
+                endpoint=endpoint,
+                method=method,
+                timestamp=datetime.now(),
+                params=params,
+                response_time=response_time,
+                status_code=status_code,
+                cache_used=cache_used,
+                api_calls=api_calls,
+                memory_used=memory_used,
+                cpu_impact=cpu_impact
+            )
+            
+            self.endpoint_calls.append(call)
+            
+            stats = self.endpoint_stats[endpoint]
+            stats['total_calls'] += 1
+            stats['total_response_time'] += response_time
+            
+            if 200 <= status_code < 300:
+                stats['successful_calls'] += 1
+            else:
+                stats['failed_calls'] += 1
+                stats['errors'].append({
+                    'timestamp': datetime.now().isoformat(),
+                    'status_code': status_code,
+                    'params': params
+                })
+                
+            if cache_used:
+                stats['cache_hits'] += 1
+            else:
+                stats['cache_misses'] += 1
+                
+            stats['api_calls'] += api_calls
+            stats['last_call'] = datetime.now().isoformat()
+            
+            self._check_performance_alerts(endpoint, call)
+            
+            logger.debug(f"📊 Endpoint logged: {endpoint} - {response_time:.3f}s")
+            
+        except Exception as e:
+            logger.error(f"❌ Error logging endpoint call: {e}")
+    
+    def log_error(self, endpoint: str, error: Exception, traceback_str: str, context: Dict[str, Any] = None):
+        """ثبت خطا"""
+        error_data = {
+            'endpoint': endpoint,
+            'error_type': type(error).__name__,
+            'error_message': str(error),
+            'traceback': traceback_str,
+            'context': context or {},
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        self.endpoint_stats[endpoint]['errors'].append(error_data)
+        
+        if self._is_critical_error(error):
+            self._create_alert(
+                level=DebugLevel.CRITICAL,
+                message=f"Critical error in {endpoint}: {str(error)}",
+                source=endpoint,
+                data=error_data
+            )
+        
+        logger.error(f"🚨 Error in {endpoint}: {error}")
+    
+    def get_endpoint_stats(self, endpoint: str = None) -> Dict[str, Any]:
+        """دریافت آمار اندپوینت"""
+        if endpoint:
+            if endpoint not in self.endpoint_stats:
+                return {'error': 'Endpoint not found'}
+            
+            stats = self.endpoint_stats[endpoint]
+            avg_response_time = (stats['total_response_time'] / stats['total_calls']) if stats['total_calls'] > 0 else 0
+            
+            return {
+                'endpoint': endpoint,
+                'total_calls': stats['total_calls'],
+                'successful_calls': stats['successful_calls'],
+                'failed_calls': stats['failed_calls'],
+                'success_rate': (stats['successful_calls'] / stats['total_calls'] * 100) if stats['total_calls'] > 0 else 0,
+                'average_response_time': round(avg_response_time, 3),
+                'cache_performance': {
+                    'hits': stats['cache_hits'],
+                    'misses': stats['cache_misses'],
+                    'hit_rate': (stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']) * 100) if (stats['cache_hits'] + stats['cache_misses']) > 0 else 0
+                },
+                'api_calls': stats['api_calls'],
+                'recent_errors': stats['errors'][-10:],
+                'last_call': stats['last_call']
+            }
+        else:
+            all_stats = {}
+            total_calls = 0
+            total_success = 0
+            
+            for endpoint, stats in self.endpoint_stats.items():
+                all_stats[endpoint] = {
+                    'total_calls': stats['total_calls'],
+                    'success_rate': (stats['successful_calls'] / stats['total_calls'] * 100) if stats['total_calls'] > 0 else 0,
+                    'average_response_time': round((stats['total_response_time'] / stats['total_calls']), 3) if stats['total_calls'] > 0 else 0,
+                    'last_call': stats['last_call']
+                }
+                total_calls += stats['total_calls']
+                total_success += stats['successful_calls']
+            
+            return {
+                'overall': {
+                    'total_endpoints': len(self.endpoint_stats),
+                    'total_calls': total_calls,
+                    'overall_success_rate': (total_success / total_calls * 100) if total_calls > 0 else 0,
+                    'timestamp': datetime.now().isoformat()
+                },
+                'endpoints': all_stats
+            }
+    
+    def get_recent_calls(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """دریافت آخرین فراخوانی‌ها"""
+        recent_calls = list(self.endpoint_calls)[-limit:]
+        return [
+            {
+                'endpoint': call.endpoint,
+                'method': call.method,
+                'timestamp': call.timestamp.isoformat(),
+                'response_time': call.response_time,
+                'status_code': call.status_code,
+                'cache_used': call.cache_used,
+                'api_calls': call.api_calls,
+                'memory_used': call.memory_used,
+                'cpu_impact': call.cpu_impact
+            }
+            for call in recent_calls
+        ]
+    
+    def get_system_metrics_history(self, hours: int = 1) -> List[Dict[str, Any]]:
+        """دریافت تاریخچه متریک‌های سیستم"""
+        cutoff_time = datetime.now() - timedelta(hours=hours)
+        return [
+            {
+                'timestamp': metrics.timestamp.isoformat(),
+                'cpu_percent': metrics.cpu_percent,
+                'memory_percent': metrics.memory_percent,
+                'disk_usage': metrics.disk_usage,
+                'network_io': metrics.network_io,
+                'active_connections': metrics.active_connections
+            }
+            for metrics in self.system_metrics_history
+            if metrics.timestamp >= cutoff_time
+        ]
+    
+    def _start_background_monitoring(self):
+        """شروع مانیتورینگ پس‌زمینه سیستم"""
+        def monitor_system():
+            while True:
+                try:
+                    self._collect_system_metrics()
+                    time.sleep(5)
+                except Exception as e:
+                    logger.error(f"❌ System monitoring error: {e}")
+                    time.sleep(10)
+        
+        monitor_thread = threading.Thread(target=monitor_system, daemon=True)
+        monitor_thread.start()
+        logger.info("✅ Background system monitoring started")
+    
+    def _collect_system_metrics(self):
+        """جمع‌آوری متریک‌های سیستم"""
+        try:
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory_percent = psutil.virtual_memory().percent
+            disk_usage = psutil.disk_usage('/').percent
+            
+            net_io = psutil.net_io_counters()
+            network_io = {
+                'bytes_sent': net_io.bytes_sent,
+                'bytes_recv': net_io.bytes_recv,
+                'packets_sent': net_io.packets_sent,
+                'packets_recv': net_io.packets_recv
+            }
+            
+            active_connections = len(psutil.net_connections())
+            
+            metrics = SystemMetrics(
+                timestamp=datetime.now(),
+                cpu_percent=cpu_percent,
+                memory_percent=memory_percent,
+                disk_usage=disk_usage,
+                network_io=network_io,
+                active_connections=active_connections
+            )
+            
+            self.system_metrics_history.append(metrics)
+            
+        except Exception as e:
+            logger.error(f"❌ Error collecting system metrics: {e}")
+    
+    def _check_performance_alerts(self, endpoint: str, call: EndpointCall):
+        """بررسی هشدارهای performance"""
+        if call.response_time > self.performance_thresholds['response_time_critical']:
+            self._create_alert(
+                level=DebugLevel.CRITICAL,
+                message=f"Critical response time in {endpoint}: {call.response_time:.2f}s",
+                source=endpoint,
+                data={
+                    'response_time': call.response_time,
+                    'threshold': self.performance_thresholds['response_time_critical']
+                }
+            )
+        elif call.response_time > self.performance_thresholds['response_time_warning']:
+            self._create_alert(
+                level=DebugLevel.WARNING,
+                message=f"High response time in {endpoint}: {call.response_time:.2f}s",
+                source=endpoint,
+                data={
+                    'response_time': call.response_time,
+                    'threshold': self.performance_thresholds['response_time_warning']
+                }
+            )
+        
+        if call.cpu_impact > self.performance_thresholds['cpu_critical']:
+            self._create_alert(
+                level=DebugLevel.CRITICAL,
+                message=f"Critical CPU usage in {endpoint}: {call.cpu_impact:.1f}%",
+                source=endpoint,
+                data={'cpu_usage': call.cpu_impact}
+            )
+    
+    def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
+        """ایجاد هشدار جدید"""
+        alert = {
+            'id': len(self.alerts) + 1,
+            'level': level.value,
+            'message': message,
+            'source': source,
+            'timestamp': datetime.now().isoformat(),
+            'data': data,
+            'acknowledged': False
+        }
+        
+        self.alerts.append(alert)
+        logger.warning(f"🚨 {level.value} Alert: {message}")
+    
+    def _is_critical_error(self, error: Exception) -> bool:
+        """بررسی آیا خطا critical است"""
+        critical_errors = [
+            'Timeout',
+            'ConnectionError',
+            'MemoryError',
+            'OSError'
+        ]
+        
+        return any(critical_error in type(error).__name__ for critical_error in critical_errors)
+    
+    def get_active_alerts(self) -> List[Dict[str, Any]]:
+        """دریافت هشدارهای فعال"""
+        return [alert for alert in self.alerts if not alert['acknowledged']]
+    
+    def acknowledge_alert(self, alert_id: int):
+        """تأیید هشدار"""
+        for alert in self.alerts:
+            if alert['id'] == alert_id:
+                alert['acknowledged'] = True
+                break
+    
+    def clear_old_data(self, days: int = 7):
+        """پاک کردن داده‌های قدیمی"""
+        cutoff_time = datetime.now() - timedelta(days=days)
+        
+        self.endpoint_calls = deque(
+            [call for call in self.endpoint_calls if call.timestamp > cutoff_time],
+            maxlen=10000
+        )
+        
+        self.system_metrics_history = deque(
+            [metrics for metrics in self.system_metrics_history if metrics.timestamp > cutoff_time],
+            maxlen=1000
+        )
+        
+        logger.info(f"🧹 Cleared data older than {days} days")
+
+# ایجاد نمونه گلوبال
+debug_manager = DebugManager()
+
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, WebSocket
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,6 +407,10 @@ except ImportError as e:
     COINSTATS_AVAILABLE = False
 
 # ==================== DEBUG SYSTEM IMPORTS ====================
+DEBUG_SYSTEM_AVAILABLE = False
+live_dashboard_manager = None
+console_stream_manager = None
+
 try:
     from debug_system.core import core_system, debug_manager, metrics_collector, alert_manager
     from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
@@ -51,7 +418,6 @@ try:
     from debug_system.realtime import websocket_manager, console_stream
     from debug_system.tools import tools_system, dev_tools, testing_tools, report_generator
     
-    # ایمپورت جداگانه LiveDashboardManager
     from debug_system.realtime.live_dashboard import LiveDashboardManager
     
     DEBUG_SYSTEM_AVAILABLE = True
@@ -61,31 +427,42 @@ except ImportError as e:
     DEBUG_SYSTEM_AVAILABLE = False
 
 print("=" * 60)
-# ==================== پایان کد دیباگ ====================
-# ==================== DEBUG SYSTEM INITIALIZATION ====================
-live_dashboard_manager = None
-console_stream_manager = None
 
+# ==================== DEBUG SYSTEM INITIALIZATION ====================
 if DEBUG_SYSTEM_AVAILABLE:
     try:
-        # راه‌اندازی کامل سیستم دیباگ
         print("🔄 Initializing debug system...")
         
-        # بررسی و راه‌اندازی سیستم‌های core
+        # مدیریت event loop
+        print("   🔧 Setting up event loop...")
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                print("   ✅ New event loop created")
+            else:
+                print("   ✅ Existing event loop used")
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            print("   ✅ New event loop created for runtime error")
+        
+        # راه‌اندازی سیستم‌های core
         print("   🔧 Setting up core systems...")
         if not core_system:
             from debug_system.core import initialize_core_system
             core_system = initialize_core_system()
             print("   ✅ Core systems initialized")
         
-        # بررسی و راه‌اندازی مانیتورها
+        # راه‌اندازی مانیتورها
         print("   📊 Setting up monitors...")
         if not monitors_system:
             from debug_system.monitors import initialize_monitors_system
             monitors_system = initialize_monitors_system()
             print("   ✅ Monitors system initialized")
         
-        # بررسی و راه‌اندازی ابزارها
+        # راه‌اندازی ابزارها
         print("   🛠️ Setting up tools...")
         if not tools_system:
             from debug_system.tools import initialize_tools_system
@@ -94,18 +471,6 @@ if DEBUG_SYSTEM_AVAILABLE:
         
         # راه‌اندازی سیستم real-time
         print("   ⚡ Setting up real-time systems...")
-        
-        # مدیریت event loop
-        import asyncio
-        
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
         
         # راه‌اندازی Live Dashboard
         try:
@@ -124,7 +489,21 @@ if DEBUG_SYSTEM_AVAILABLE:
             print("   ✅ Console Stream Manager created")
         except Exception as e:
             print(f"   ❌ Console Stream Manager error: {e}")
-            console_stream_manager = None
+            # ایجاد fallback ساده
+            class SimpleConsoleManager:
+                def __init__(self):
+                    self.active_connections = []
+                async def connect(self, websocket):
+                    await websocket.accept()
+                    self.active_connections.append(websocket)
+                def disconnect(self, websocket):
+                    if websocket in self.active_connections:
+                        self.active_connections.remove(websocket)
+                async def broadcast_message(self, message):
+                    pass
+            
+            console_stream_manager = SimpleConsoleManager()
+            print("   ✅ Fallback Console Manager created")
         
         # شروع background tasks
         print("   🚀 Starting background tasks...")
@@ -143,28 +522,26 @@ if DEBUG_SYSTEM_AVAILABLE:
         async def periodic_cleanup():
             while True:
                 try:
-                    # پاک‌سازی داده‌های قدیمی
                     debug_manager.clear_old_data(days=7)
-                    alert_manager.cleanup_old_alerts()
-                    alert_manager.auto_resolve_alerts()
+                    if hasattr(alert_manager, 'cleanup_old_alerts'):
+                        alert_manager.cleanup_old_alerts()
+                    if hasattr(alert_manager, 'auto_resolve_alerts'):
+                        alert_manager.auto_resolve_alerts()
                     
-                    # پاک‌سازی connectionهای غیرفعال
                     if hasattr(websocket_manager, 'cleanup_inactive_connections'):
                         websocket_manager.cleanup_inactive_connections()
                     
-                    await asyncio.sleep(300)  # هر ۵ دقیقه
+                    await asyncio.sleep(300)
                 except Exception as e:
                     print(f"   ❌ Cleanup error: {e}")
                     await asyncio.sleep(60)
         
-        # اجرای background tasks
+        # 🔧 رفع مشکل اصلی: استفاده از asyncio.create_task
         try:
-            # شروع برودکست دشبورد
             if live_dashboard_manager:
                 asyncio.create_task(start_dashboard_broadcast())
                 print("   ✅ Dashboard broadcast task started")
             
-            # شروع پاک‌سازی دوره‌ای
             asyncio.create_task(periodic_cleanup())
             print("   ✅ Periodic cleanup task started")
             
@@ -173,13 +550,10 @@ if DEBUG_SYSTEM_AVAILABLE:
         
         # راه‌اندازی WebSocket Manager
         try:
-            # تنظیم هندلرهای پیام برای WebSocket
             async def handle_debug_message(client_id: str, message: Dict):
-                """هندلر پیام‌های دیباگ"""
                 try:
                     message_type = message.get('type')
                     if message_type == 'get_metrics':
-                        # ارسال متریک‌های فعلی
                         current_metrics = metrics_collector.get_current_metrics()
                         await websocket_manager.send_message(client_id, {
                             'type': 'metrics_update',
@@ -187,7 +561,6 @@ if DEBUG_SYSTEM_AVAILABLE:
                             'timestamp': datetime.now().isoformat()
                         })
                     elif message_type == 'get_alerts':
-                        # ارسال هشدارهای فعال
                         active_alerts = alert_manager.get_active_alerts()
                         await websocket_manager.send_message(client_id, {
                             'type': 'alerts_update',
@@ -197,7 +570,6 @@ if DEBUG_SYSTEM_AVAILABLE:
                 except Exception as e:
                     print(f"   ❌ WebSocket message handler error: {e}")
             
-            # ثبت هندلر
             websocket_manager.message_handlers['debug_message'] = handle_debug_message
             print("   ✅ WebSocket message handlers registered")
             
@@ -206,7 +578,6 @@ if DEBUG_SYSTEM_AVAILABLE:
         
         # راه‌اندازی سیستم لاگینگ real-time
         try:
-            # تنظیم console stream برای ثبت لاگ‌های مهم
             def log_to_console(level: str, message: str, data: Dict = None):
                 if console_stream_manager:
                     console_stream_manager.broadcast_message({
@@ -217,7 +588,6 @@ if DEBUG_SYSTEM_AVAILABLE:
                         'timestamp': datetime.now().isoformat()
                     })
             
-            # اتصال سیستم‌های مختلف به console stream
             if hasattr(alert_manager, 'set_console_logger'):
                 alert_manager.set_console_logger(log_to_console)
             
@@ -232,20 +602,16 @@ if DEBUG_SYSTEM_AVAILABLE:
         # تست اولیه سیستم‌ها
         print("   🧪 Running initial system tests...")
         try:
-            # تست متریک‌ها
             current_metrics = metrics_collector.get_current_metrics()
             print(f"   ✅ Metrics collector: {len(current_metrics)} metrics collected")
             
-            # تست دیباگ منیجر
             endpoint_stats = debug_manager.get_endpoint_stats()
             total_endpoints = len(endpoint_stats.get('endpoints', {}))
             print(f"   ✅ Debug manager: {total_endpoints} endpoints monitored")
             
-            # تست alert manager
             active_alerts = alert_manager.get_active_alerts()
             print(f"   ✅ Alert manager: {len(active_alerts)} active alerts")
             
-            # تست مانیتورها
             system_health = system_monitor.get_system_health()
             print(f"   ✅ System monitor: {system_health.get('overall_health', 'unknown')}")
             
@@ -278,6 +644,7 @@ else:
     print("❌ Debug system is not available")
     live_dashboard_manager = None
     console_stream_manager = None
+
 # تنظیمات
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -298,8 +665,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ==================== DEBUG SYSTEM INITIALIZATION ====================
 
 # ثبت روت‌ها
 app.include_router(health_router)
@@ -344,7 +709,7 @@ if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager and console_stream_manager:
         except Exception:
             console_stream_manager.disconnect(websocket)
 
-# ==================== 🗺️ ROADMAP COMPLETE - راهنمای کامل روت‌ها ====================
+# ==================== 🗺️ ROADMAP COMPLETE ====================
 
 VORTEXAI_ROADMAP = {
     "project": "VortexAI API v4.0.0",
@@ -355,7 +720,6 @@ VORTEXAI_ROADMAP = {
     "🚀 MAIN ROUTES": {
         "description": "۸ روت مادر اصلی سیستم",
         "routes": {
-            # 1. سلامت سیستم
             "HEALTH": {
                 "base_path": "/api/health",
                 "description": "سلامت و مانیتورینگ سیستم",
@@ -373,7 +737,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 2. نمادها (پردازش شده)
             "COINS": {
                 "base_path": "/api/coins",
                 "description": "داده‌های پردازش شده نمادها",
@@ -386,7 +749,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 3. صرافی‌ها (پردازش شده)
             "EXCHANGES": {
                 "base_path": "/api/exchanges", 
                 "description": "داده‌های پردازش شده صرافی‌ها",
@@ -399,7 +761,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 4. اخبار (پردازش شده)
             "NEWS": {
                 "base_path": "/api/news",
                 "description": "اخبار و تحلیل‌های پردازش شده", 
@@ -411,7 +772,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 5. بینش و تحلیل (پردازش شده)
             "INSIGHTS": {
                 "base_path": "/api/insights",
                 "description": "تحلیل‌های بازار و بینش‌ها",
@@ -423,7 +783,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 6. داده‌های خام نمادها
             "RAW_COINS": {
                 "base_path": "/api/raw/coins", 
                 "description": "داده‌های خام نمادها - برای هوش مصنوعی",
@@ -439,7 +798,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 7. داده‌های خام اخبار
             "RAW_NEWS": {
                 "base_path": "/api/raw/news",
                 "description": "داده‌های خام اخبار - برای هوش مصنوعی",
@@ -453,7 +811,6 @@ VORTEXAI_ROADMAP = {
                 }
             },
             
-            # 8. داده‌های خام بینش
             "RAW_INSIGHTS": {
                 "base_path": "/api/raw/insights",
                 "description": "داده‌های خام بینش و تحلیل - برای هوش مصنوعی",
@@ -493,62 +850,6 @@ VORTEXAI_ROADMAP = {
             "REALTIME_CONSOLE": "WS /api/health/debug/realtime/console - کنسول Real-Time",
             "REALTIME_DASHBOARD": "WS /api/health/debug/realtime/dashboard - دشبورد Real-Time"
         }
-    },
-    
-    "🛠️ DEVELOPER TOOLS": {
-        "description": "ابزارهای توسعه و تست",
-        "routes": {
-            "TEST_TRAFFIC": "POST /api/health/tools/test-traffic - تولید ترافیک تست",
-            "LOAD_TEST": "POST /api/health/tools/load-test - تست بار", 
-            "DEPENDENCIES": "GET /api/health/tools/dependencies - بررسی وابستگی‌ها",
-            "MEMORY_ANALYSIS": "GET /api/health/tools/memory-analysis - آنالیز حافظه"
-        }
-    },
-    
-    "📊 QUICK ACCESS EXAMPLES": {
-        "description": "دسترسی سریع به اندپوینت‌های مهم",
-        "examples": {
-            "HEALTH_CHECK": "/api/health/status",
-            "BITCOIN_DETAILS": "/api/coins/details/bitcoin", 
-            "BITCOIN_RAW": "/api/raw/coins/details/bitcoin",
-            "COINS_LIST": "/api/coins/list?limit=10",
-            "FEAR_GREED": "/api/insights/fear-greed",
-            "LATEST_NEWS": "/api/news/all?limit=5",
-            "EXCHANGES_LIST": "/api/exchanges/list",
-            "SYSTEM_METRICS": "/api/health/metrics/system",
-            "DEBUG_ENDPOINTS": "/api/health/debug/endpoints",
-            "DEBUG_SYSTEM": "/api/health/debug/system",
-            "COMPLETE_DOCS": "/api/docs/complete",
-            "CODE_EXAMPLES": "/api/docs/examples",
-            "AI_DATA_SAMPLES": "/api/raw/coins/metadata"
-        }
-    },
-    
-    "🎯 USAGE PATTERNS": {
-        "frontend_basic": "برای فرانت‌اند: استفاده از روت‌های پردازش شده (/api/coins/, /api/news/)",
-        "frontend_advanced": "برای نمودارها: استفاده از روت‌های خام (/api/raw/coins/charts/)", 
-        "mobile_app": "برای موبایل: روت‌های پردازش شده + سلامت سیستم",
-        "ai_analysis": "برای هوش مصنوعی: روت‌های خام + بینش‌ها",
-        "admin_panel": "برای ادمین: تمام روت‌های سلامت و دیباگ",
-        "external_integration": "برای یکپارچه‌سازی: روت‌های خام + وضعیت سیستم",
-        "new_developers": "برای توسعه‌دهندگان جدید: شروع با /api/docs/complete و /api/roadmap"
-    },
-    
-    "⚡ PERFORMANCE TIPS": {
-        "use_processed": "برای نمایش عمومی از روت‌های پردازش شده استفاده کنید (سریع‌تر)",
-        "use_raw": "برای تحلیل‌های پیشرفته از روت‌های خام استفاده کنید (داده کامل)",
-        "caching": "داده‌ها به مدت ۵ دقیقه کش می‌شوند",
-        "pagination": "برای لیست‌های بزرگ از صفحه‌بندی استفاده کنید",
-        "health_check": "قبل از درخواست‌های مهم سلامت سیستم را بررسی کنید"
-    },
-    
-    "🤖 AI TRAINING DATA": {
-        "description": "داده‌های مناسب برای آموزش هوش مصنوعی",
-        "raw_coins_data": "/api/raw/coins/list?limit=1000",
-        "raw_news_sentiment": "/api/raw/news/sentiment-analysis",
-        "market_insights": "/api/raw/insights/market-analysis", 
-        "historical_charts": "/api/raw/coins/charts/bitcoin?period=all",
-        "metadata_structure": "/api/raw/coins/metadata"
     }
 }
 
@@ -627,71 +928,6 @@ async def quick_reference():
                 "url": "/api/exchanges/list",
                 "description": "لیست صرافی‌ها"
             }
-        },
-        
-        "debug_endpoints": {
-            "debug_endpoints": {
-                "url": "/api/health/debug/endpoints",
-                "description": "وضعیت دیباگ اندپوینت‌ها"
-            },
-            "debug_system": {
-                "url": "/api/health/debug/system",
-                "description": "وضعیت کامل سیستم دیباگ"
-            },
-            "debug_dashboard": {
-                "url": "/debug/dashboard",
-                "description": "دشبورد دیباگ real-time"
-            },
-            "debug_console": {
-                "url": "/debug/console",
-                "description": "کنسول دیباگ real-time"
-            },
-            "daily_report": {
-                "url": "/api/health/debug/reports/daily",
-                "description": "گزارش روزانه دیباگ"
-            },
-            "live_metrics": {
-                "url": "/api/health/debug/metrics/live",
-                "description": "متریک‌های زنده"
-            }
-        },
-        
-        "ai_data_endpoints": {
-            "raw_coins": {
-                "url": "/api/raw/coins/details/{coin_id}",
-                "description": "داده‌های خام نماد برای AI"
-            },
-            "raw_charts": {
-                "url": "/api/raw/coins/charts/{coin_id}", 
-                "description": "داده‌های خام چارت برای AI"
-            },
-            "raw_news": {
-                "url": "/api/raw/news/all",
-                "description": "اخبار خام برای AI"
-            },
-            "sentiment_analysis": {
-                "url": "/api/raw/news/sentiment-analysis",
-                "description": "تحلیل احساسات برای AI"
-            },
-            "market_analysis": {
-                "url": "/api/raw/insights/market-analysis",
-                "description": "تحلیل بازار برای AI"
-            }
-        },
-        
-        "documentation": {
-            "complete_docs": {
-                "url": "/api/docs/complete",
-                "description": "مستندات کامل API"
-            },
-            "code_examples": {
-                "url": "/api/docs/examples", 
-                "description": "مثال‌های کد"
-            },
-            "interactive_docs": {
-                "url": "/docs",
-                "description": "مستندات تعاملی"
-            }
         }
     }
 
@@ -726,7 +962,7 @@ async def count_endpoints():
             "documentation": len([r for r in routes_info if '/api/docs' in r['path']]),
             "debug": len([r for r in routes_info if '/debug' in r['path']])
         },
-        "sample_routes": routes_info[:10]  # نمایش ۱۰ تا اول
+        "sample_routes": routes_info[:10]
     }
 
 @app.get("/api/system/info")
@@ -783,11 +1019,6 @@ async def not_found_exception_handler(request, exc):
                     "ai_data": "/api/raw/coins/metadata",
                     "debug_endpoints": "/api/health/debug/endpoints"
                 }
-            },
-            "quick_links": {
-                "interactive_docs": "/docs",
-                "quick_reference": "/api/quick-reference", 
-                "system_info": "/api/system/info"
             }
         }
     )
