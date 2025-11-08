@@ -45,11 +45,14 @@ except ImportError as e:
 
 # ==================== DEBUG SYSTEM IMPORTS ====================
 try:
-    from debug_system.core import initialize_core_system, core_system
-    from debug_system.monitors import initialize_monitors_system, monitors_system
-    from debug_system.tools import initialize_tools_system, tools_system
-    from debug_system.realtime import websocket_manager, live_dashboard, console_stream
-    from debug_system.storage import history_manager, log_manager
+    from debug_system.core import core_system, debug_manager, metrics_collector, alert_manager
+    from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
+    from debug_system.storage import history_manager, log_manager, cache_debugger
+    from debug_system.realtime import websocket_manager, console_stream
+    from debug_system.tools import tools_system, dev_tools, testing_tools, report_generator
+    
+    # ایمپورت جداگانه LiveDashboardManager
+    from debug_system.realtime.live_dashboard import LiveDashboardManager
     
     DEBUG_SYSTEM_AVAILABLE = True
     print("✅ Complete debug system imported successfully!")
@@ -82,40 +85,51 @@ app.add_middleware(
 )
 
 # ==================== DEBUG SYSTEM INITIALIZATION ====================
+live_dashboard_manager = None
+console_stream_manager = None
+
 if DEBUG_SYSTEM_AVAILABLE:
     try:
         # راه‌اندازی کامل سیستم دیباگ
         print("🔄 Initializing debug system...")
         
-        # راه‌اندازی هسته
-        core_system = initialize_core_system()
+        # راه‌اندازی هسته (اگر قبلاً راه‌اندازی نشده)
+        if not core_system:
+            from debug_system.core import initialize_core_system
+            core_system = initialize_core_system()
         
-        # راه‌اندازی مانیتورها
-        monitors_system = initialize_monitors_system()
+        # راه‌اندازی مانیتورها (اگر قبلاً راه‌اندازی نشده)
+        if not monitors_system:
+            from debug_system.monitors import initialize_monitors_system
+            monitors_system = initialize_monitors_system()
         
         # تکمیل راه‌اندازی ابزارها با endpoint_monitor
-        tools_system = initialize_tools_system(monitors_system["endpoint_monitor"])
+        if not tools_system:
+            from debug_system.tools import initialize_tools_system
+            tools_system = initialize_tools_system(monitors_system["endpoint_monitor"])
         
         # راه‌اندازی سیستم real-time
-        live_dashboard_manager = live_dashboard.LiveDashboardManager(
-            core_system["debug_manager"], 
-            core_system["metrics_collector"]
+        live_dashboard_manager = LiveDashboardManager(
+            debug_manager, 
+            metrics_collector
         )
         
         # شروع برودکست دشبورد
         asyncio.create_task(live_dashboard_manager.start_dashboard_broadcast())
         
-        # تنظیم console stream برای debug manager
+        # تنظیم console stream
         console_stream_manager = console_stream.ConsoleStreamManager()
         
         print("✅ Complete debug system initialized and activated!")
-        print(f"   - Core Modules: {len(core_system)}")
-        print(f"   - Monitors: {len(monitors_system)}")
-        print(f"   - Tools: {len(tools_system)}")
-        print(f"   - Real-time Systems: 3 (WebSocket, Dashboard, Console)")
+        print(f"   - Core Modules: {len(core_system) if core_system else 0}")
+        print(f"   - Monitors: {len(monitors_system) if monitors_system else 0}")
+        print(f"   - Tools: {len(tools_system) if tools_system else 0}")
+        print(f"   - Real-time Systems: Active")
         
     except Exception as e:
         print(f"❌ Debug system initialization error: {e}")
+        import traceback
+        traceback.print_exc()
         DEBUG_SYSTEM_AVAILABLE = False
 else:
     print("❌ Debug system is not available")
@@ -132,7 +146,7 @@ app.include_router(raw_insights_router)
 app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
-if DEBUG_SYSTEM_AVAILABLE:
+if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager and console_stream_manager:
     @app.get("/debug/dashboard")
     async def debug_dashboard():
         """صفحه دشبورد دیباگ"""
