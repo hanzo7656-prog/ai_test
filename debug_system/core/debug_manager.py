@@ -321,7 +321,6 @@ class DebugManager:
             )
     
     def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
-    def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
         """ایجاد هشدار جدید"""
         alert = {
             'id': len(self.alerts) + 1,
@@ -332,15 +331,15 @@ class DebugManager:
             'data': data,
             'acknowledged': False
         }
-    
+        
         self.alerts.append(alert)
-    
+        
         # اگر alert_manager تنظیم شده، از آن استفاده کن
         if self.alert_manager:
             try:
                 # Import مستقیم برای جلوگیری از circular import
                 from .alert_manager import AlertLevel, AlertType
-            
+                
                 # تبدیل DebugLevel به AlertLevel
                 alert_level_map = {
                     DebugLevel.INFO: AlertLevel.INFO,
@@ -348,9 +347,9 @@ class DebugManager:
                     DebugLevel.ERROR: AlertLevel.ERROR,
                     DebugLevel.CRITICAL: AlertLevel.CRITICAL
                 }
-            
+                
                 alert_level = alert_level_map.get(level, AlertLevel.INFO)
-            
+                
                 self.alert_manager.create_alert(
                     level=alert_level,
                     alert_type=AlertType.PERFORMANCE,
@@ -361,8 +360,9 @@ class DebugManager:
                 )
             except Exception as e:
                 logger.error(f"❌ Error creating alert in alert_manager: {e}")
-    
+        
         logger.warning(f"🚨 {level.value} Alert: {message}")
+    
     def _is_critical_error(self, error: Exception) -> bool:
         """بررسی آیا خطا critical است"""
         critical_errors = [
