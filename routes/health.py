@@ -20,10 +20,19 @@ DEBUG_SYSTEM_AVAILABLE = os.getenv("DEBUG_SYSTEM_AVAILABLE", "False").lower() ==
 
 if DEBUG_SYSTEM_AVAILABLE:
     try:
-        from debug_system.core import core_system, debug_manager, metrics_collector, alert_manager, AlertLevel, AlertType
+        # ایمپورت core modules
+        from debug_system.core import debug_manager, metrics_collector, alert_manager, AlertLevel, AlertType
+        
+        # ایمپورت monitors - از سیستم مدیریت شده استفاده می‌کنیم
         from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
-        from debug_system.storage import history_manager, log_manager, cache_debugger
-        from debug_system.realtime import console_stream, live_dashboard, websocket_manager
+        
+        # ایمپورت storage - از سیستم مدیریت شده استفاده می‌کنیم  
+        from debug_system.storage import storage_system, log_manager, history_manager, cache_debugger
+        
+        # ایمپورت realtime - از سیستم مدیریت شده استفاده می‌کنیم
+        from debug_system.realtime import realtime_system, console_stream, live_dashboard, websocket_manager
+        
+        # ایمپورت tools - از سیستم مدیریت شده استفاده می‌کنیم
         from debug_system.tools import tools_system, dev_tools, testing_tools, report_generator
         
         print("✅ Debug system fully imported for health routes")
@@ -154,7 +163,7 @@ async def debug_system():
     return {
         "system_health": monitors_system["system_monitor"].get_system_health(),
         "security_report": monitors_system["security_monitor"].get_security_report(),
-        "active_alerts": core_system["alert_manager"].get_active_alerts(),
+        "active_alerts": alert_manager.get_active_alerts(),
         "resource_usage": monitors_system["system_monitor"].get_resource_usage_trend(),
         "timestamp": datetime.now().isoformat()
     }
@@ -190,8 +199,8 @@ async def debug_live_metrics():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "system_metrics": core_system["metrics_collector"].get_current_metrics(),
-        "endpoint_metrics": core_system["debug_manager"].get_endpoint_stats(),
+        "system_metrics": metrics_collector.get_current_metrics(),
+        "endpoint_metrics": debug_manager.get_endpoint_stats(),
         "performance_metrics": monitors_system["performance_monitor"].get_performance_report(),
         "timestamp": datetime.now().isoformat()
     }
@@ -203,8 +212,8 @@ async def debug_alerts():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "active_alerts": core_system["alert_manager"].get_active_alerts(),
-        "alert_stats": core_system["alert_manager"].get_alert_stats(),
+        "active_alerts": alert_manager.get_active_alerts(),
+        "alert_stats": alert_manager.get_alert_stats(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -214,7 +223,7 @@ async def acknowledge_alert(alert_id: int, user: str = "system"):
     if not DEBUG_SYSTEM_AVAILABLE:
         raise HTTPException(status_code=503, detail="Debug system not available")
     
-    success = core_system["alert_manager"].acknowledge_alert(alert_id, user)
+    success = alert_manager.acknowledge_alert(alert_id, user)
     
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -232,7 +241,7 @@ async def resolve_alert(alert_id: int, resolved_by: str = "system", resolution_n
     if not DEBUG_SYSTEM_AVAILABLE:
         raise HTTPException(status_code=503, detail="Debug system not available")
     
-    success = core_system["alert_manager"].resolve_alert(alert_id, resolved_by, resolution_notes)
+    success = alert_manager.resolve_alert(alert_id, resolved_by, resolution_notes)
     
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")
