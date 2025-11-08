@@ -49,8 +49,8 @@ class SystemMonitor:
             cpu_usage = metrics['cpu']['percent']
             if cpu_usage > self.system_thresholds['cpu_critical']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.CRITICAL,
-                    alert_type=Alert_type.SYSTEM,
+                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High CPU Usage",
                     message=f"CPU usage is critically high: {cpu_usage}%",
                     source="system_monitor",
@@ -58,8 +58,8 @@ class SystemMonitor:
                 )
             elif cpu_usage > self.system_thresholds['cpu_warning']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.WARNING,
-                    alert_type=Alert_type.SYSTEM,
+                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High CPU Usage",
                     message=f"CPU usage is high: {cpu_usage}%",
                     source="system_monitor",
@@ -70,8 +70,8 @@ class SystemMonitor:
             memory_usage = metrics['memory']['percent']
             if memory_usage > self.system_thresholds['memory_critical']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.CRITICAL,
-                    alert_type=Alert_type.SYSTEM,
+                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High Memory Usage",
                     message=f"Memory usage is critically high: {memory_usage}%",
                     source="system_monitor",
@@ -79,8 +79,8 @@ class SystemMonitor:
                 )
             elif memory_usage > self.system_thresholds['memory_warning']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.WARNING,
-                    alert_type=Alert_type.SYSTEM,
+                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High Memory Usage", 
                     message=f"Memory usage is high: {memory_usage}%",
                     source="system_monitor",
@@ -91,8 +91,8 @@ class SystemMonitor:
             disk_usage = metrics['disk']['usage_percent']
             if disk_usage > self.system_thresholds['disk_critical']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.CRITICAL,
-                    alert_type=Alert_level.SYSTEM,
+                    level=self.alert_manager.AlertLevel.CRITICAL,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High Disk Usage",
                     message=f"Disk usage is critically high: {disk_usage}%",
                     source="system_monitor", 
@@ -100,8 +100,8 @@ class SystemMonitor:
                 )
             elif disk_usage > self.system_thresholds['disk_warning']:
                 self.alert_manager.create_alert(
-                    level=Alertlevel.WARNING,
-                    alert_type=Alert_type.SYSTEM,
+                    level=self.alert_manager.AlertLevel.WARNING,  # ✅ اصلاح شده
+                    alert_type=self.alert_manager.AlertType.SYSTEM,  # ✅ اصلاح شده
                     title="High Disk Usage",
                     message=f"Disk usage is high: {disk_usage}%",
                     source="system_monitor",
