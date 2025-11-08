@@ -35,7 +35,12 @@ def initialize_core_system():
         }
     except Exception as e:
         logger.error(f"❌ Core system initialization failed: {e}")
-        raise
+        # بازگشت نمونه‌های موجود حتی اگر خطا رخ دهد
+        return {
+            "debug_manager": debug_manager,
+            "metrics_collector": metrics_collector,
+            "alert_manager": alert_manager
+        }
 
 # راه‌اندازی خودکار
 core_system = initialize_core_system()
