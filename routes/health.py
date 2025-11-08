@@ -16,16 +16,36 @@ health_router = APIRouter(prefix="/api/health", tags=["Health & Debug"])
 
 # ==================== DEBUG SYSTEM AVAILABILITY CHECK ====================
 
-DEBUG_SYSTEM_AVAILABLE = os.getenv("DEBUG_SYSTEM_AVAILABLE", "False").lower() == "true"
+DEBUG_SYSTEM_AVAILABLE = False
+debug_manager = None
+metrics_collector = None
+alert_manager = None
+endpoint_monitor = None
+system_monitor = None
+performance_monitor = None
+security_monitor = None
+history_manager = None
+cache_debugger = None
+live_dashboard = None
+report_generator = None
+dev_tools = None
+testing_tools = None
 
-# ایمپورت ماژول‌های دیباگ سیستم
 try:
-    from debug_system.core import debug_manager, metrics_collector, alert_manager
-    from debug_system.core.alert_manager import AlertLevel, AlertType
-    from debug_system.monitors import endpoint_monitor, system_monitor, performance_monitor, security_monitor
-    from debug_system.storage import history_manager, cache_debugger
-    from debug_system.realtime import live_dashboard
-    from debug_system.tools import report_generator, dev_tools, testing_tools
+    # ایمپورت مستقیم از ماژول‌ها به جای ایمپورت کلی
+    from debug_system.core.debug_manager import debug_manager
+    from debug_system.core.metrics_collector import metrics_collector
+    from debug_system.core.alert_manager import alert_manager, AlertLevel, AlertType
+    from debug_system.monitors.endpoint_monitor import endpoint_monitor
+    from debug_system.monitors.system_monitor import system_monitor
+    from debug_system.monitors.performance_monitor import performance_monitor
+    from debug_system.monitors.security_monitor import security_monitor
+    from debug_system.storage.history_manager import history_manager
+    from debug_system.storage.cache_debugger import cache_debugger
+    from debug_system.realtime.live_dashboard import live_dashboard
+    from debug_system.tools.report_generator import report_generator
+    from debug_system.tools.dev_tools import dev_tools
+    from debug_system.tools.testing_tools import testing_tools
     
     DEBUG_SYSTEM_AVAILABLE = True
     logger.info("✅ Debug system modules imported successfully")
@@ -33,7 +53,6 @@ try:
 except ImportError as e:
     DEBUG_SYSTEM_AVAILABLE = False
     logger.warning(f"❌ Debug system import error: {e}")
-
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
 @health_router.get("/status")
