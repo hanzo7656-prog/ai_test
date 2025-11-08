@@ -11,10 +11,10 @@ from .cache_debugger import CacheDebugger
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های storage با Dependency Injection
-log_manager = LogManager(debug_manager, alert_manager)
-history_manager = HistoryManager(metrics_collector, debug_manager)
-cache_debugger = CacheDebugger(debug_manager, metrics_collector)
+# ایجاد نمونه‌های storage با Dependency Injection - اصلاح شده
+log_manager = LogManager(debug_manager)  # ✅ فقط 1 آرگومان
+history_manager = HistoryManager(metrics_collector)  # ✅ فقط 1 آرگومان  
+cache_debugger = CacheDebugger(debug_manager)  # ✅ فقط 1 آرگومان
 
 def initialize_storage_system():
     """راه‌اندازی و ارتباط سیستم‌های ذخیره‌سازی"""
