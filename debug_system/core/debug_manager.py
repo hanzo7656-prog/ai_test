@@ -67,7 +67,14 @@ class DebugManager:
             'memory_critical': 95.0
         }
         
+        self.alert_manager = None  # ابتدا None، بعداً تنظیم می‌شود
+        
         self._start_background_monitoring()
+    
+    def set_alert_manager(self, alert_manager):
+        """تنظیم alert manager"""
+        self.alert_manager = alert_manager
+        logger.info("✅ Alert Manager set for Debug Manager")
         
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
@@ -326,6 +333,20 @@ class DebugManager:
         }
         
         self.alerts.append(alert)
+        
+        # اگر alert_manager تنظیم شده، از آن استفاده کن
+        if self.alert_manager:
+            from .alert_manager import AlertLevel, AlertType
+            alert_level = AlertLevel[level.value]
+            self.alert_manager.create_alert(
+                level=alert_level,
+                alert_type=AlertType.PERFORMANCE,
+                title=f"Performance Alert: {message}",
+                message=message,
+                source=source,
+                data=data
+            )
+        
         logger.warning(f"🚨 {level.value} Alert: {message}")
     
     def _is_critical_error(self, error: Exception) -> bool:
