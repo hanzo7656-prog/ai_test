@@ -229,7 +229,8 @@ class AlertManager:
             self.alert_settings['webhook_enabled'] = True
         
         logger.info(f"✅ Added {channel_type} notification channel")
-    async def _send_notifications(self, alert: Dict[str, Any]):
+
+    def _send_notifications(self, alert: Dict[str, Any]):
         """ارسال نوتیفیکیشن برای هشدار"""
     
         # فقط برای هشدارهای ERROR و CRITICAL نوتیفیکیشن بفرست
@@ -237,44 +238,46 @@ class AlertManager:
             return
     
         try:
-            tasks = []
-        
             # ایمیل
             if self.alert_settings['email_enabled'] and 'email' in self.notification_channels:
-                tasks.append(self._send_email_alert(alert))
+                # اجرای غیرهمزمان برای ایمیل
+                import asyncio
+                try:
+                    asyncio.create_task(self._send_email_alert(alert))
+                except:
+                    # اگر create_task شکست خورد، به صورت sync اجرا کن
+                    import threading
+                    thread = threading.Thread(target=lambda: asyncio.run(self._send_email_alert(alert)))
+                    thread.daemon = True
+                    thread.start()
         
             # Slack
             if self.alert_settings['slack_enabled'] and 'slack' in self.notification_channels:
-                tasks.append(self._send_slack_alert(alert))
+                try:
+                    asyncio.create_task(self._send_slack_alert(alert))
+                except:
+                    thread = threading.Thread(target=lambda: asyncio.run(self._send_slack_alert(alert)))
+                    thread.daemon = True
+                    thread.start()
         
             # Webhook
             if self.alert_settings['webhook_enabled'] and 'webhook' in self.notification_channels:
-                tasks.append(self._send_webhook_alert(alert))
+                try:
+                    asyncio.create_task(self._send_webhook_alert(alert))
+                except:
+                    thread = threading.Thread(target=lambda: asyncio.run(self._send_webhook_alert(alert)))
+                    thread.daemon = True
+                    thread.start()
         
             # Console (همیشه فعال)
             if self.alert_settings['console_enabled']:
                 self._send_console_alert(alert)
         
-            # اجرای همزمان فقط اگر task وجود دارد
-            if tasks:
-                # ایجاد event loop اگر وجود ندارد
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # اگر loop در حال اجراست، از create_task استفاده کن
-                        for task in tasks:
-                            asyncio.create_task(task)
-                    else:
-                        # اگر loop در حال اجرا نیست، از run_until_complete استفاده کن
-                        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-                except RuntimeError:
-                    # اگر هیچ loopی وجود ندارد، یک loop جدید ایجاد کن
-                    asyncio.run(asyncio.gather(*tasks, return_exceptions=True))
-        
             alert['notified'] = True
-        
+          
         except Exception as e:
             logger.error(f"❌ Error sending alert notifications: {e}")
+
     async def _send_email_alert(self, alert: Dict[str, Any]):
         """ارسال هشدار از طریق ایمیل"""
         try:
