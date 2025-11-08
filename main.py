@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, WebSocket
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -43,6 +43,20 @@ except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
 
+# ==================== DEBUG SYSTEM IMPORTS ====================
+try:
+    from debug_system.core import initialize_core_system, core_system
+    from debug_system.monitors import initialize_monitors_system, monitors_system
+    from debug_system.tools import initialize_tools_system, tools_system
+    from debug_system.realtime import websocket_manager, live_dashboard, console_stream
+    from debug_system.storage import history_manager, log_manager
+    
+    DEBUG_SYSTEM_AVAILABLE = True
+    print("✅ Complete debug system imported successfully!")
+except ImportError as e:
+    print(f"❌ Debug system import error: {e}")
+    DEBUG_SYSTEM_AVAILABLE = False
+
 print("=" * 60)
 # ==================== پایان کد دیباگ ====================
 
@@ -67,6 +81,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==================== DEBUG SYSTEM INITIALIZATION ====================
+if DEBUG_SYSTEM_AVAILABLE:
+    try:
+        # راه‌اندازی کامل سیستم دیباگ
+        print("🔄 Initializing debug system...")
+        
+        # راه‌اندازی هسته
+        core_system = initialize_core_system()
+        
+        # راه‌اندازی مانیتورها
+        monitors_system = initialize_monitors_system()
+        
+        # تکمیل راه‌اندازی ابزارها با endpoint_monitor
+        tools_system = initialize_tools_system(monitors_system["endpoint_monitor"])
+        
+        # راه‌اندازی سیستم real-time
+        live_dashboard_manager = live_dashboard.LiveDashboardManager(
+            core_system["debug_manager"], 
+            core_system["metrics_collector"]
+        )
+        
+        # شروع برودکست دشبورد
+        asyncio.create_task(live_dashboard_manager.start_dashboard_broadcast())
+        
+        # تنظیم console stream برای debug manager
+        console_stream_manager = console_stream.ConsoleStreamManager()
+        
+        print("✅ Complete debug system initialized and activated!")
+        print(f"   - Core Modules: {len(core_system)}")
+        print(f"   - Monitors: {len(monitors_system)}")
+        print(f"   - Tools: {len(tools_system)}")
+        print(f"   - Real-time Systems: 3 (WebSocket, Dashboard, Console)")
+        
+    except Exception as e:
+        print(f"❌ Debug system initialization error: {e}")
+        DEBUG_SYSTEM_AVAILABLE = False
+else:
+    print("❌ Debug system is not available")
+
 # ثبت روت‌ها
 app.include_router(health_router)
 app.include_router(coins_router)
@@ -77,6 +130,38 @@ app.include_router(raw_coins_router)
 app.include_router(raw_news_router)
 app.include_router(raw_insights_router)
 app.include_router(docs_router)
+
+# ==================== DEBUG ROUTES ====================
+if DEBUG_SYSTEM_AVAILABLE:
+    @app.get("/debug/dashboard")
+    async def debug_dashboard():
+        """صفحه دشبورد دیباگ"""
+        return FileResponse("debug_system/realtime/templates/dashboard.html")
+    
+    @app.get("/debug/console")
+    async def debug_console():
+        """صفحه کنسول دیباگ"""
+        return FileResponse("debug_system/realtime/templates/console.html")
+    
+    @app.websocket("/debug/ws/dashboard")
+    async def websocket_dashboard(websocket: WebSocket):
+        """WebSocket برای دشبورد real-time"""
+        await live_dashboard_manager.connect_dashboard(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except Exception:
+            live_dashboard_manager.disconnect_dashboard(websocket)
+    
+    @app.websocket("/debug/ws/console")
+    async def websocket_console(websocket: WebSocket):
+        """WebSocket برای کنسول real-time"""
+        await console_stream_manager.connect(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except Exception:
+            console_stream_manager.disconnect(websocket)
 
 # ==================== 🗺️ ROADMAP COMPLETE - راهنمای کامل روت‌ها ====================
 
@@ -97,7 +182,13 @@ VORTEXAI_ROADMAP = {
                     "status": "GET /api/health/status - وضعیت کلی سیستم",
                     "overview": "GET /api/health/overview - نمای کلی سیستم",
                     "ping": "GET /api/health/ping - تست حیات سیستم",
-                    "version": "GET /api/health/version - نسخه‌های سیستم"
+                    "version": "GET /api/health/version - نسخه‌های سیستم",
+                    "debug_endpoints": "GET /api/health/debug/endpoints - دیباگ اندپوینت‌ها",
+                    "debug_system": "GET /api/health/debug/system - دیباگ سیستم",
+                    "debug_reports_daily": "GET /api/health/debug/reports/daily - گزارش روزانه",
+                    "debug_reports_performance": "GET /api/health/debug/reports/performance - گزارش عملکرد",
+                    "debug_reports_security": "GET /api/health/debug/reports/security - گزارش امنیتی",
+                    "debug_metrics_live": "GET /api/health/debug/metrics/live - متریک‌های زنده"
                 }
             },
             
@@ -211,10 +302,10 @@ VORTEXAI_ROADMAP = {
     "🔧 DEBUG & MONITORING": {
         "description": "سیستم دیباگ و مانیتورینگ پیشرفته",
         "routes": {
-            "DEBUG_ENDPOINTS": "GET /api/health/debug/endpoints - دیباگ اندپوینت‌ها",
-            "DEBUG_SYSTEM": "GET /api/health/debug/system/metrics - متریک‌های سیستم",
-            "DEBUG_PERFORMANCE": "GET /api/health/debug/performance - دیباگ عملکرد", 
-            "DEBUG_SECURITY": "GET /api/health/debug/security - دیباگ امنیتی",
+            "DEBUG_DASHBOARD": "GET /debug/dashboard - دشبورد دیباگ",
+            "DEBUG_CONSOLE": "GET /debug/console - کنسول دیباگ",
+            "DEBUG_WS_DASHBOARD": "WS /debug/ws/dashboard - WebSocket دشبورد",
+            "DEBUG_WS_CONSOLE": "WS /debug/ws/console - WebSocket کنسول",
             "METRICS_ALL": "GET /api/health/metrics - تمام متریک‌ها",
             "ALERTS_ACTIVE": "GET /api/health/alerts - هشدارهای فعال",
             "REPORTS_DAILY": "GET /api/health/reports/daily - گزارش روزانه",
@@ -244,6 +335,8 @@ VORTEXAI_ROADMAP = {
             "LATEST_NEWS": "/api/news/all?limit=5",
             "EXCHANGES_LIST": "/api/exchanges/list",
             "SYSTEM_METRICS": "/api/health/metrics/system",
+            "DEBUG_ENDPOINTS": "/api/health/debug/endpoints",
+            "DEBUG_SYSTEM": "/api/health/debug/system",
             "COMPLETE_DOCS": "/api/docs/complete",
             "CODE_EXAMPLES": "/api/docs/examples",
             "AI_DATA_SAMPLES": "/api/raw/coins/metadata"
@@ -298,11 +391,13 @@ async def root():
             "bitcoin_data": "/api/coins/details/bitcoin",
             "latest_news": "/api/news/all?limit=5",
             "market_sentiment": "/api/insights/fear-greed",
-            "ai_data_samples": "/api/raw/coins/metadata"
+            "ai_data_samples": "/api/raw/coins/metadata",
+            "debug_endpoints": "/api/health/debug/endpoints",
+            "debug_system": "/api/health/debug/system"
         },
         "system_info": {
             "total_routes": len(app.routes),
-            "debug_system": "active",
+            "debug_system": "active" if DEBUG_SYSTEM_AVAILABLE else "inactive",
             "coinstats_available": COINSTATS_AVAILABLE,
             "startup_time": datetime.now().isoformat(),
             "ai_ready": True
@@ -353,6 +448,33 @@ async def quick_reference():
             }
         },
         
+        "debug_endpoints": {
+            "debug_endpoints": {
+                "url": "/api/health/debug/endpoints",
+                "description": "وضعیت دیباگ اندپوینت‌ها"
+            },
+            "debug_system": {
+                "url": "/api/health/debug/system",
+                "description": "وضعیت کامل سیستم دیباگ"
+            },
+            "debug_dashboard": {
+                "url": "/debug/dashboard",
+                "description": "دشبورد دیباگ real-time"
+            },
+            "debug_console": {
+                "url": "/debug/console",
+                "description": "کنسول دیباگ real-time"
+            },
+            "daily_report": {
+                "url": "/api/health/debug/reports/daily",
+                "description": "گزارش روزانه دیباگ"
+            },
+            "live_metrics": {
+                "url": "/api/health/debug/metrics/live",
+                "description": "متریک‌های زنده"
+            }
+        },
+        
         "ai_data_endpoints": {
             "raw_coins": {
                 "url": "/api/raw/coins/details/{coin_id}",
@@ -373,21 +495,6 @@ async def quick_reference():
             "market_analysis": {
                 "url": "/api/raw/insights/market-analysis",
                 "description": "تحلیل بازار برای AI"
-            }
-        },
-        
-        "debug_endpoints": {
-            "system_metrics": {
-                "url": "/api/health/metrics/system",
-                "description": "متریک‌های سیستم"
-            },
-            "endpoints_debug": {
-                "url": "/api/health/debug/endpoints",
-                "description": "دیباگ اندپوینت‌ها"
-            },
-            "active_alerts": {
-                "url": "/api/health/alerts",
-                "description": "هشدارهای فعال"
             }
         },
         
@@ -435,7 +542,8 @@ async def count_endpoints():
             "insights": len([r for r in routes_info if '/api/insights' in r['path']]),
             "raw_insights": len([r for r in routes_info if '/api/raw/insights' in r['path']]),
             "exchanges": len([r for r in routes_info if '/api/exchanges' in r['path']]),
-            "documentation": len([r for r in routes_info if '/api/docs' in r['path']])
+            "documentation": len([r for r in routes_info if '/api/docs' in r['path']]),
+            "debug": len([r for r in routes_info if '/debug' in r['path']])
         },
         "sample_routes": routes_info[:10]  # نمایش ۱۰ تا اول
     }
@@ -465,9 +573,10 @@ async def system_info():
         "api_status": {
             "total_endpoints": len(app.routes),
             "coinstats_available": COINSTATS_AVAILABLE,
-            "debug_system": "active",
-            "ai_ready": True,
-            "version": "4.0.0"
+            "debug_system_available": DEBUG_SYSTEM_AVAILABLE,
+            "debug_system_status": "active" if DEBUG_SYSTEM_AVAILABLE else "inactive",
+            "version": "4.0.0",
+            "ai_ready": True
         },
         "timestamp": datetime.now().isoformat()
     }
@@ -490,7 +599,8 @@ async def not_found_exception_handler(request, exc):
                     "coins_list": "/api/coins/list", 
                     "news": "/api/news/all",
                     "insights": "/api/insights/fear-greed",
-                    "ai_data": "/api/raw/coins/metadata"
+                    "ai_data": "/api/raw/coins/metadata",
+                    "debug_endpoints": "/api/health/debug/endpoints"
                 }
             },
             "quick_links": {
@@ -519,7 +629,13 @@ if __name__ == "__main__":
     print(f"   • Latest News: http://localhost:{port}/api/news/all?limit=5")
     print(f"   • Fear & Greed: http://localhost:{port}/api/insights/fear-greed")
     print(f"   • AI Data Samples: http://localhost:{port}/api/raw/coins/metadata")
-    print("🔧 Debug System: ACTIVE")
+    print(f"   • Debug Endpoints: http://localhost:{port}/api/health/debug/endpoints")
+    print(f"   • Debug System: http://localhost:{port}/api/health/debug/system")
+    print("🔧 Debug System: " + ("✅ FULLY ACTIVE" if DEBUG_SYSTEM_AVAILABLE else "❌ UNAVAILABLE"))
+    if DEBUG_SYSTEM_AVAILABLE:
+        print(f"   • Real-time Dashboard: http://localhost:{port}/debug/dashboard")
+        print(f"   • Debug Console: http://localhost:{port}/debug/console")
+        print(f"   • System Reports: http://localhost:{port}/api/health/debug/reports/daily")
     print("🤖 AI Ready: ✅ YES")
     print("📈 CoinStats API: " + ("✅ AVAILABLE" if COINSTATS_AVAILABLE else "❌ UNAVAILABLE"))
     print("🚀" * 50)
