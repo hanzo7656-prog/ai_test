@@ -1,49 +1,108 @@
 """
-Debug System Tools
-Development and testing utilities
+VortexAI Debug System
+Complete monitoring and debugging system for VortexAI API
 """
 
-import logging
-from ..core import debug_manager
-from ..storage import history_manager
-from .dev_tools import DevTools
-from .testing_tools import TestingTools
-from .report_generator import ReportGenerator
+__version__ = "1.0.0"
+__author__ = "VortexAI Team"
 
-logger = logging.getLogger(__name__)
+from .core import (
+    DebugManager, debug_manager,
+    RealTimeMetricsCollector, metrics_collector,
+    AlertManager, AlertLevel, AlertType, alert_manager
+)
 
-# ایجاد نمونه‌های ابزار با Dependency Injection صحیح
-dev_tools = DevTools(debug_manager)  # ✅ فقط 1 پارامتر - طبق تعریف اصلی
-testing_tools = TestingTools(debug_manager)  # ✅ فقط 1 پارامتر - طبق تعریف اصلی
-report_generator = ReportGenerator(debug_manager, history_manager)
+from .monitors import (
+    EndpointMonitor, endpoint_monitor,
+    SystemMonitor, system_monitor,
+    PerformanceMonitor, performance_monitor,
+    SecurityMonitor, security_monitor
+)
 
-def initialize_tools_system():
-    """راه‌اندازی و ارتباط ابزارهای توسعه"""
+from .storage import (
+    LogManager, log_manager,
+    HistoryManager, history_manager,
+    CacheDebugger, cache_debugger
+)
+
+from .realtime import (
+    ConsoleStreamManager, console_stream,
+    LiveDashboardManager, live_dashboard,
+    WebSocketManager, websocket_manager
+)
+
+from .tools import (
+    DevTools, dev_tools,
+    TestingTools, testing_tools,
+    ReportGenerator, report_generator
+)
+
+# راه‌اندازی کامل سیستم
+def initialize_debug_system():
+    """راه‌اندازی کامل سیستم دیباگ"""
     try:
-        logger.info("✅ Debug tools system initialized with dependency injection")
-        logger.info(f"   - Dev Tools: {type(dev_tools).__name__}")
-        logger.info(f"   - Testing Tools: {type(testing_tools).__name__}")
-        logger.info(f"   - Report Generator: {type(report_generator).__name__}")
+        from .core import initialize_core_system
+        from .monitors import initialize_monitors_system
+        from .storage import initialize_storage_system
+        from .realtime import initialize_realtime_system
+        from .tools import initialize_tools_system
+        
+        # راه‌اندازی تمام زیرسیستم‌ها
+        core_system = initialize_core_system()
+        monitors_system = initialize_monitors_system()
+        storage_system = initialize_storage_system()
+        realtime_system = initialize_realtime_system()
+        tools_system = initialize_tools_system()
+        
+        print("✅ VortexAI Debug System fully initialized!")
+        print(f"   - Core System: {len(core_system)} modules")
+        print(f"   - Monitors: {len(monitors_system)} monitors")
+        print(f"   - Storage: {len(storage_system)} modules")
+        print(f"   - Real-time: {len(realtime_system)} modules")
+        print(f"   - Tools: {len(tools_system)} tools")
         
         return {
-            "dev_tools": dev_tools,
-            "testing_tools": testing_tools,
-            "report_generator": report_generator
+            "core": core_system,
+            "monitors": monitors_system,
+            "storage": storage_system,
+            "realtime": realtime_system,
+            "tools": tools_system
         }
+        
     except Exception as e:
-        logger.error(f"❌ Tools initialization failed: {e}")
-        return {
-            "dev_tools": dev_tools,
-            "testing_tools": testing_tools,
-            "report_generator": report_generator
-        }
+        print(f"❌ Debug system initialization failed: {e}")
+        raise
 
-# راه‌اندازی اولیه
-tools_system = initialize_tools_system()
+# راه‌اندازی خودکار هنگام ایمپورت
+debug_system = initialize_debug_system()
 
 __all__ = [
+    # Core
+    "DebugManager", "debug_manager",
+    "RealTimeMetricsCollector", "metrics_collector",
+    "AlertManager", "AlertLevel", "AlertType", "alert_manager",
+    
+    # Monitors
+    "EndpointMonitor", "endpoint_monitor",
+    "SystemMonitor", "system_monitor",
+    "PerformanceMonitor", "performance_monitor",
+    "SecurityMonitor", "security_monitor",
+    
+    # Storage
+    "LogManager", "log_manager",
+    "HistoryManager", "history_manager",
+    "CacheDebugger", "cache_debugger",
+    
+    # Real-time
+    "ConsoleStreamManager", "console_stream",
+    "LiveDashboardManager", "live_dashboard",
+    "WebSocketManager", "websocket_manager",
+    
+    # Tools
     "DevTools", "dev_tools",
     "TestingTools", "testing_tools",
     "ReportGenerator", "report_generator",
-    "initialize_tools_system", "tools_system"
+    
+    # Initialization
+    "initialize_debug_system", "debug_system"
 ]
