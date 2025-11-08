@@ -487,9 +487,17 @@ if DEBUG_SYSTEM_AVAILABLE:
         try:
             console_stream_manager = console_stream.ConsoleStreamManager()
             print("   ✅ Console Stream Manager created")
+    
+            # 🔍 این خطوط رو اضافه کن برای دیباگ:
+            print(f"   🔍 Console manager type: {type(console_stream_manager)}")
+            print(f"   🔍 Console manager attributes: {dir(console_stream_manager)}")
+    
         except Exception as e:
             print(f"   ❌ Console Stream Manager error: {e}")
-            # ایجاد fallback ساده
+            import traceback
+            traceback.print_exc()  # 🔍 این خط رو اضافه کن
+    
+            # ایجاد fallback
             class SimpleConsoleManager:
                 def __init__(self):
                     self.active_connections = []
@@ -501,12 +509,11 @@ if DEBUG_SYSTEM_AVAILABLE:
                         self.active_connections.remove(websocket)
                 async def broadcast_message(self, message):
                     pass
-            
+    
             console_stream_manager = SimpleConsoleManager()
             print("   ✅ Fallback Console Manager created")
-        
-        # شروع background tasks
-        print("   🚀 Starting background tasks...")
+                # شروع background tasks
+                print("   🚀 Starting background tasks...")
         
         # تابع برای شروع برودکست دشبورد
         async def start_dashboard_broadcast():
@@ -533,7 +540,7 @@ if DEBUG_SYSTEM_AVAILABLE:
                     
                     await asyncio.sleep(300)
                 except Exception as e:
-                    print(f"   ❌ Cleanup error: {e}")
+                    logger.error(f"   ❌ Cleanup error: {e}")
                     await asyncio.sleep(60)
         
         # راه‌اندازی WebSocket Manager
@@ -657,18 +664,24 @@ app.add_middleware(
 # بعد از ایجاد app (خط 400) این رو اضافه کن:
 
 @app.on_event("startup")
-async def startup_event():
-    """اینجا background tasks رو شروع کن - بعد از راه‌اندازی سرور"""
+async def startup_background_tasks():
+    """شروع تسک‌های background بعد از راه‌اندازی سرور"""
     if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
         try:
+            print("   🚀 Starting background tasks (on startup)...")
+            
             # حالا event loop در حال اجراست
             asyncio.create_task(start_dashboard_broadcast())
-            print("   ✅ Dashboard broadcast task started (on startup)")
+            print("   ✅ Dashboard broadcast task started")
             
             asyncio.create_task(periodic_cleanup())
-            print("   ✅ Periodic cleanup task started (on startup)")
+            print("   ✅ Periodic cleanup task started")
+            
         except Exception as e:
-            print(f"   ❌ Startup tasks error: {e}")
+            # 🔧 این خط رو هم اصلاح کن:
+            logger.error(f"   ❌ Startup background tasks error: {e}")
+    else:
+        print("   ⚠️ Background tasks skipped - debug system not available")
 
 # ثبت روت‌ها
 app.include_router(health_router)
