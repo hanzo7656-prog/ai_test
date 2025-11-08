@@ -1,6 +1,7 @@
 import psutil
 import time
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from collections import deque
@@ -44,143 +45,91 @@ class SystemMonitor:
         """انجام چک سلامت سیستم"""
         try:
             metrics = self.metrics_collector.get_current_metrics()
-        
+            
             # Import مستقیم Enumها برای جلوگیری از circular import
             from ..core.alert_manager import AlertLevel, AlertType
-        
+            
             # بررسی CPU
             cpu_usage = metrics['cpu']['percent']
             if cpu_usage > self.system_thresholds['cpu_critical']:
-                # استفاده از asyncio برای مدیریت event loop
-                import asyncio
-            
-                async def send_cpu_alert():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.CRITICAL,
-                        alert_type=AlertType.SYSTEM,
-                        title="High CPU Usage",
-                        message=f"CPU usage is critically high: {cpu_usage}%",
-                        source="system_monitor",
-                        data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
-                    )
-            
-                # اجرای async function
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_cpu_alert())
-                    else:
-                        loop.run_until_complete(send_cpu_alert())
-                except RuntimeError:
-                    asyncio.run(send_cpu_alert())
-                
+                self._create_alert_safe(
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
+                    title="High CPU Usage",
+                    message=f"CPU usage is critically high: {cpu_usage}%",
+                    source="system_monitor",
+                    data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
+                )
             elif cpu_usage > self.system_thresholds['cpu_warning']:
-                async def send_cpu_warning():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.WARNING,
-                        alert_type=AlertType.SYSTEM,
-                        title="High CPU Usage",
-                        message=f"CPU usage is high: {cpu_usage}%",
-                        source="system_monitor",
-                        data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_warning']}
-                    )
-            
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_cpu_warning())
-                    else:
-                        loop.run_until_complete(send_cpu_warning())
-                except RuntimeError:
-                    asyncio.run(send_cpu_warning())
+                self._create_alert_safe(
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
+                    title="High CPU Usage",
+                    message=f"CPU usage is high: {cpu_usage}%",
+                    source="system_monitor",
+                    data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_warning']}
+                )
 
-            # بررسی حافظه (الگوی مشابه برای memory و disk)
+            # بررسی حافظه
             memory_usage = metrics['memory']['percent']
             if memory_usage > self.system_thresholds['memory_critical']:
-                async def send_memory_alert():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.CRITICAL,
-                        alert_type=AlertType.SYSTEM,
-                        title="High Memory Usage",
-                        message=f"Memory usage is critically high: {memory_usage}%",
-                        source="system_monitor",
-                        data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
-                    )
-            
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_memory_alert())
-                    else:
-                        loop.run_until_complete(send_memory_alert())
-                except RuntimeError:
-                    asyncio.run(send_memory_alert())
-                  
+                self._create_alert_safe(
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
+                    title="High Memory Usage",
+                    message=f"Memory usage is critically high: {memory_usage}%",
+                    source="system_monitor",
+                    data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
+                )
             elif memory_usage > self.system_thresholds['memory_warning']:
-                async def send_memory_warning():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.WARNING,
-                        alert_type=AlertType.SYSTEM,
-                        title="High Memory Usage", 
-                        message=f"Memory usage is high: {memory_usage}%",
-                        source="system_monitor",
-                        data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_warning']}
-                    )
-            
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_memory_warning())
-                    else:
-                        loop.run_until_complete(send_memory_warning())
-                except RuntimeError:
-                    asyncio.run(send_memory_warning())
+                self._create_alert_safe(
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
+                    title="High Memory Usage", 
+                    message=f"Memory usage is high: {memory_usage}%",
+                    source="system_monitor",
+                    data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_warning']}
+                )
 
             # بررسی دیسک
             disk_usage = metrics['disk']['usage_percent']
             if disk_usage > self.system_thresholds['disk_critical']:
-                async def send_disk_alert():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.CRITICAL,
-                        alert_type=AlertType.SYSTEM,
-                        title="High Disk Usage",
-                        message=f"Disk usage is critically high: {disk_usage}%",
-                        source="system_monitor", 
-                        data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
-                    )
-            
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_disk_alert())
-                    else:
-                        loop.run_until_complete(send_disk_alert())
-                except RuntimeError:
-                    asyncio.run(send_disk_alert())
-                
+                self._create_alert_safe(
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
+                    title="High Disk Usage",
+                    message=f"Disk usage is critically high: {disk_usage}%",
+                    source="system_monitor", 
+                    data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
+                )
             elif disk_usage > self.system_thresholds['disk_warning']:
-                async def send_disk_warning():
-                    self.alert_manager.create_alert(
-                        level=AlertLevel.WARNING,
-                        alert_type=AlertType.SYSTEM,
-                        title="High Disk Usage",
-                        message=f"Disk usage is high: {disk_usage}%",
-                        source="system_monitor",
-                        data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_warning']}
-                    )
-            
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.create_task(send_disk_warning())
-                    else:
-                        loop.run_until_complete(send_disk_warning())
-                except RuntimeError:
-                    asyncio.run(send_disk_warning())
-  
+                self._create_alert_safe(
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SYSTEM,
+                    title="High Disk Usage",
+                    message=f"Disk usage is high: {disk_usage}%",
+                    source="system_monitor",
+                    data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_warning']}
+                )
+
         except Exception as e:
             logger.error(f"❌ Error in system health check: {e}")
-        
+
+    def _create_alert_safe(self, level, alert_type, title, message, source, data):
+        """ایجاد هشدار با مدیریت ایمن event loop"""
+        try:
+            # ایجاد هشدار به صورت مستقیم - بدون async
+            self.alert_manager.create_alert(
+                level=level,
+                alert_type=alert_type,
+                title=title,
+                message=message,
+                source=source,
+                data=data
+            )
+        except Exception as e:
+            logger.error(f"❌ Error creating alert: {e}")
+
     def get_system_health(self) -> Dict[str, Any]:
         """دریافت سلامت کلی سیستم"""
         metrics = self.metrics_collector.get_current_metrics()
