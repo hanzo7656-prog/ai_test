@@ -49,7 +49,7 @@ class SystemMonitor:
             cpu_usage = metrics['cpu']['percent']
             if cpu_usage > self.system_thresholds['cpu_critical']:
                 self.alert_manager.create_alert(
-                    level='CRITICAL',
+                    level='CRITICAL',  # استفاده از string به جای enum
                     alert_type='SYSTEM',
                     title="High CPU Usage",
                     message=f"CPU usage is critically high: {cpu_usage}%",
