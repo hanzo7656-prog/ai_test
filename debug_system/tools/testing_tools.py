@@ -8,9 +8,8 @@ import time
 logger = logging.getLogger(__name__)
 
 class TestingTools:
-    def __init__(self, debug_manager, endpoint_monitor):
+    def __init__(self, debug_manager):  # ✅ اصلاح signature - فقط 1 پارامتر
         self.debug_manager = debug_manager
-        self.endpoint_monitor = endpoint_monitor
         
     async def run_load_test(self, 
                           endpoint: str,
@@ -136,12 +135,13 @@ class TestingTools:
             'total_requests': num_requests,
             'successful_requests': 0,
             'failed_requests': 0,
-            'error_breakdown': defaultdict(int),
+            'error_breakdown': {},
             'response_time_stats': {},
             'start_time': datetime.now().isoformat()
         }
         
         response_times = []
+        error_breakdown = {}
         
         for i in range(num_requests):
             try:
@@ -156,7 +156,7 @@ class TestingTools:
                 else:
                     results['failed_requests'] += 1
                     error_type = random.choice(['timeout', 'validation', 'server_error'])
-                    results['error_breakdown'][error_type] += 1
+                    error_breakdown[error_type] = error_breakdown.get(error_type, 0) + 1
                     status_code = 500 if error_type == 'server_error' else 400
                 
                 # ثبت در دیباگ
@@ -177,7 +177,7 @@ class TestingTools:
             except Exception as e:
                 logger.error(f"❌ Reliability test error: {e}")
                 results['failed_requests'] += 1
-                results['error_breakdown']['exception'] += 1
+                error_breakdown['exception'] = error_breakdown.get('exception', 0) + 1
         
         # محاسبه آمار
         if response_times:
@@ -189,6 +189,7 @@ class TestingTools:
             }
         
         results['success_rate'] = (results['successful_requests'] / num_requests) * 100
+        results['error_breakdown'] = error_breakdown
         results['end_time'] = datetime.now().isoformat()
         
         return results
@@ -209,7 +210,7 @@ class TestingTools:
             'reliability_metrics': {
                 'successful_requests': test_results.get('successful_requests', 0),
                 'failed_requests': test_results.get('failed_requests', 0),
-                'error_breakdown': dict(test_results.get('error_breakdown', {}))
+                'error_breakdown': test_results.get('error_breakdown', {})
             },
             'recommendations': self._generate_test_recommendations(test_results)
         }
@@ -235,4 +236,4 @@ class TestingTools:
         return recommendations
 
 # ایجاد نمونه گلوبال
-testing_tools = TestingTools(None, None)  # بعداً مقداردهی می‌شود
+testing_tools = None
