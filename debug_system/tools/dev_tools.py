@@ -8,9 +8,8 @@ import time
 logger = logging.getLogger(__name__)
 
 class DevTools:
-    def __init__(self, debug_manager, endpoint_monitor):
+    def __init__(self, debug_manager):  # ✅ اصلاح signature - فقط 1 پارامتر
         self.debug_manager = debug_manager
-        self.endpoint_monitor = endpoint_monitor
         
     async def generate_test_traffic(self, 
                                   endpoint: str = None,
@@ -62,7 +61,7 @@ class DevTools:
         # شبیه‌سازی status code (۹۵٪ موفق)
         status_code = 200 if random.random() < 0.95 else random.choice([400, 401, 404, 500])
         
-        # شبیه‌سازی استفاده از کش (۷۰٪命中)
+        # شبیه‌سازی استفاده از کش (۷۰٪ hit)
         cache_used = random.random() < 0.7
         
         # شبیه‌سازی فراخوانی API (۳۰٪ مواقع)
