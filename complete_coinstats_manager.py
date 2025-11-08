@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class CompleteCoinStatsManager:
     def __init__(self, api_key: str = None):
         self.base_url = "https://openapiv1.coinstats.app"
-        self.api_key = api_key or "oYGllJrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
+        self.api_key = api_key or "oYGlUrdvcdApdgxLTNs9jUnvR/RUGAMhZjt1Z3YtbpA="
 
         self.session = requests.Session()
         self.headers = {"X-API-KEY": self.api_key}
