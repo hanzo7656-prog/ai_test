@@ -513,7 +513,7 @@ if DEBUG_SYSTEM_AVAILABLE:
             console_stream_manager = SimpleConsoleManager()
             print("   ✅ Fallback Console Manager created")
                 # شروع background tasks
-                print("   🚀 Starting background tasks...")
+            print("   🚀 Starting background tasks...")
         
         # تابع برای شروع برودکست دشبورد
         async def start_dashboard_broadcast():
