@@ -62,7 +62,222 @@ except ImportError as e:
 
 print("=" * 60)
 # ==================== پایان کد دیباگ ====================
+# ==================== DEBUG SYSTEM INITIALIZATION ====================
+live_dashboard_manager = None
+console_stream_manager = None
 
+if DEBUG_SYSTEM_AVAILABLE:
+    try:
+        # راه‌اندازی کامل سیستم دیباگ
+        print("🔄 Initializing debug system...")
+        
+        # بررسی و راه‌اندازی سیستم‌های core
+        print("   🔧 Setting up core systems...")
+        if not core_system:
+            from debug_system.core import initialize_core_system
+            core_system = initialize_core_system()
+            print("   ✅ Core systems initialized")
+        
+        # بررسی و راه‌اندازی مانیتورها
+        print("   📊 Setting up monitors...")
+        if not monitors_system:
+            from debug_system.monitors import initialize_monitors_system
+            monitors_system = initialize_monitors_system()
+            print("   ✅ Monitors system initialized")
+        
+        # بررسی و راه‌اندازی ابزارها
+        print("   🛠️ Setting up tools...")
+        if not tools_system:
+            from debug_system.tools import initialize_tools_system
+            tools_system = initialize_tools_system(monitors_system["endpoint_monitor"])
+            print("   ✅ Tools system initialized")
+        
+        # راه‌اندازی سیستم real-time
+        print("   ⚡ Setting up real-time systems...")
+        
+        # مدیریت event loop
+        import asyncio
+        
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # راه‌اندازی Live Dashboard
+        try:
+            live_dashboard_manager = LiveDashboardManager(
+                debug_manager, 
+                metrics_collector
+            )
+            print("   ✅ Live Dashboard Manager created")
+        except Exception as e:
+            print(f"   ❌ Live Dashboard Manager error: {e}")
+            live_dashboard_manager = None
+        
+        # راه‌اندازی Console Stream
+        try:
+            console_stream_manager = console_stream.ConsoleStreamManager()
+            print("   ✅ Console Stream Manager created")
+        except Exception as e:
+            print(f"   ❌ Console Stream Manager error: {e}")
+            console_stream_manager = None
+        
+        # شروع background tasks
+        print("   🚀 Starting background tasks...")
+        
+        # تابع برای شروع برودکست دشبورد
+        async def start_dashboard_broadcast():
+            if live_dashboard_manager:
+                try:
+                    await live_dashboard_manager.start_dashboard_broadcast()
+                except Exception as e:
+                    print(f"   ❌ Dashboard broadcast error: {e}")
+            else:
+                print("   ⚠️ Dashboard manager not available")
+        
+        # تابع برای پاک‌سازی دوره‌ای
+        async def periodic_cleanup():
+            while True:
+                try:
+                    # پاک‌سازی داده‌های قدیمی
+                    debug_manager.clear_old_data(days=7)
+                    alert_manager.cleanup_old_alerts()
+                    alert_manager.auto_resolve_alerts()
+                    
+                    # پاک‌سازی connectionهای غیرفعال
+                    if hasattr(websocket_manager, 'cleanup_inactive_connections'):
+                        websocket_manager.cleanup_inactive_connections()
+                    
+                    await asyncio.sleep(300)  # هر ۵ دقیقه
+                except Exception as e:
+                    print(f"   ❌ Cleanup error: {e}")
+                    await asyncio.sleep(60)
+        
+        # اجرای background tasks
+        try:
+            # شروع برودکست دشبورد
+            if live_dashboard_manager:
+                asyncio.create_task(start_dashboard_broadcast())
+                print("   ✅ Dashboard broadcast task started")
+            
+            # شروع پاک‌سازی دوره‌ای
+            asyncio.create_task(periodic_cleanup())
+            print("   ✅ Periodic cleanup task started")
+            
+        except Exception as e:
+            print(f"   ❌ Background tasks error: {e}")
+        
+        # راه‌اندازی WebSocket Manager
+        try:
+            # تنظیم هندلرهای پیام برای WebSocket
+            async def handle_debug_message(client_id: str, message: Dict):
+                """هندلر پیام‌های دیباگ"""
+                try:
+                    message_type = message.get('type')
+                    if message_type == 'get_metrics':
+                        # ارسال متریک‌های فعلی
+                        current_metrics = metrics_collector.get_current_metrics()
+                        await websocket_manager.send_message(client_id, {
+                            'type': 'metrics_update',
+                            'data': current_metrics,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                    elif message_type == 'get_alerts':
+                        # ارسال هشدارهای فعال
+                        active_alerts = alert_manager.get_active_alerts()
+                        await websocket_manager.send_message(client_id, {
+                            'type': 'alerts_update',
+                            'data': active_alerts,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                except Exception as e:
+                    print(f"   ❌ WebSocket message handler error: {e}")
+            
+            # ثبت هندلر
+            websocket_manager.message_handlers['debug_message'] = handle_debug_message
+            print("   ✅ WebSocket message handlers registered")
+            
+        except Exception as e:
+            print(f"   ❌ WebSocket setup error: {e}")
+        
+        # راه‌اندازی سیستم لاگینگ real-time
+        try:
+            # تنظیم console stream برای ثبت لاگ‌های مهم
+            def log_to_console(level: str, message: str, data: Dict = None):
+                if console_stream_manager:
+                    console_stream_manager.broadcast_message({
+                        'type': 'log_message',
+                        'level': level,
+                        'message': message,
+                        'data': data or {},
+                        'timestamp': datetime.now().isoformat()
+                    })
+            
+            # اتصال سیستم‌های مختلف به console stream
+            if hasattr(alert_manager, 'set_console_logger'):
+                alert_manager.set_console_logger(log_to_console)
+            
+            if hasattr(debug_manager, 'set_console_logger'):
+                debug_manager.set_console_logger(log_to_console)
+                
+            print("   ✅ Real-time logging configured")
+            
+        except Exception as e:
+            print(f"   ❌ Real-time logging setup error: {e}")
+        
+        # تست اولیه سیستم‌ها
+        print("   🧪 Running initial system tests...")
+        try:
+            # تست متریک‌ها
+            current_metrics = metrics_collector.get_current_metrics()
+            print(f"   ✅ Metrics collector: {len(current_metrics)} metrics collected")
+            
+            # تست دیباگ منیجر
+            endpoint_stats = debug_manager.get_endpoint_stats()
+            total_endpoints = len(endpoint_stats.get('endpoints', {}))
+            print(f"   ✅ Debug manager: {total_endpoints} endpoints monitored")
+            
+            # تست alert manager
+            active_alerts = alert_manager.get_active_alerts()
+            print(f"   ✅ Alert manager: {len(active_alerts)} active alerts")
+            
+            # تست مانیتورها
+            system_health = system_monitor.get_system_health()
+            print(f"   ✅ System monitor: {system_health.get('overall_health', 'unknown')}")
+            
+            performance_report = performance_monitor.analyze_endpoint_performance()
+            print(f"   ✅ Performance monitor: {len(performance_report.get('endpoint_performance', {}))} endpoints analyzed")
+            
+            security_report = security_monitor.get_security_report()
+            print(f"   ✅ Security monitor: {security_report.get('total_suspicious_activities', 0)} security events")
+            
+        except Exception as e:
+            print(f"   ⚠️ Initial tests had issues: {e}")
+        
+        print("✅ Complete debug system initialized and activated!")
+        print(f"   📈 System Status:")
+        print(f"   • Core Modules: {len(core_system) if core_system else 0} systems")
+        print(f"   • Monitors: {len(monitors_system) if monitors_system else 0} monitors")
+        print(f"   • Tools: {len(tools_system) if tools_system else 0} tools")
+        print(f"   • Real-time: {'Active' if live_dashboard_manager else 'Inactive'}")
+        print(f"   • WebSocket: {'Ready' if websocket_manager else 'Not ready'}")
+        print(f"   • Console: {'Active' if console_stream_manager else 'Inactive'}")
+        
+    except Exception as e:
+        print(f"❌ Debug system initialization error: {e}")
+        import traceback
+        traceback.print_exc()
+        DEBUG_SYSTEM_AVAILABLE = False
+        live_dashboard_manager = None
+        console_stream_manager = None
+else:
+    print("❌ Debug system is not available")
+    live_dashboard_manager = None
+    console_stream_manager = None
 # تنظیمات
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,54 +300,6 @@ app.add_middleware(
 )
 
 # ==================== DEBUG SYSTEM INITIALIZATION ====================
-live_dashboard_manager = None
-console_stream_manager = None
-
-if DEBUG_SYSTEM_AVAILABLE:
-    try:
-        # راه‌اندازی کامل سیستم دیباگ
-        print("🔄 Initializing debug system...")
-        
-        # راه‌اندازی هسته (اگر قبلاً راه‌اندازی نشده)
-        if not core_system:
-            from debug_system.core import initialize_core_system
-            core_system = initialize_core_system()
-        
-        # راه‌اندازی مانیتورها (اگر قبلاً راه‌اندازی نشده)
-        if not monitors_system:
-            from debug_system.monitors import initialize_monitors_system
-            monitors_system = initialize_monitors_system()
-        
-        # تکمیل راه‌اندازی ابزارها با endpoint_monitor
-        if not tools_system:
-            from debug_system.tools import initialize_tools_system
-            tools_system = initialize_tools_system(monitors_system["endpoint_monitor"])
-        
-        # راه‌اندازی سیستم real-time
-        live_dashboard_manager = LiveDashboardManager(
-            debug_manager, 
-            metrics_collector
-        )
-        
-        # شروع برودکست دشبورد
-        asyncio.create_task(live_dashboard_manager.start_dashboard_broadcast())
-        
-        # تنظیم console stream
-        console_stream_manager = console_stream.ConsoleStreamManager()
-        
-        print("✅ Complete debug system initialized and activated!")
-        print(f"   - Core Modules: {len(core_system) if core_system else 0}")
-        print(f"   - Monitors: {len(monitors_system) if monitors_system else 0}")
-        print(f"   - Tools: {len(tools_system) if tools_system else 0}")
-        print(f"   - Real-time Systems: Active")
-        
-    except Exception as e:
-        print(f"❌ Debug system initialization error: {e}")
-        import traceback
-        traceback.print_exc()
-        DEBUG_SYSTEM_AVAILABLE = False
-else:
-    print("❌ Debug system is not available")
 
 # ثبت روت‌ها
 app.include_router(health_router)
