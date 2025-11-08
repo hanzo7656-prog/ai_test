@@ -18,29 +18,21 @@ health_router = APIRouter(prefix="/api/health", tags=["Health & Debug"])
 
 DEBUG_SYSTEM_AVAILABLE = os.getenv("DEBUG_SYSTEM_AVAILABLE", "False").lower() == "true"
 
-if DEBUG_SYSTEM_AVAILABLE:
-    try:
-        # ایمپورت core modules
-        from debug_system.core import debug_manager, metrics_collector, alert_manager, AlertLevel, AlertType
-        
-        # ایمپورت monitors - از سیستم مدیریت شده استفاده می‌کنیم
-        from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
-        
-        # ایمپورت storage - از سیستم مدیریت شده استفاده می‌کنیم  
-        from debug_system.storage import storage_system, log_manager, history_manager, cache_debugger
-        
-        # ایمپورت realtime - از سیستم مدیریت شده استفاده می‌کنیم
-        from debug_system.realtime import realtime_system, console_stream, live_dashboard, websocket_manager
-        
-        # ایمپورت tools - از سیستم مدیریت شده استفاده می‌کنیم
-        from debug_system.tools import tools_system, dev_tools, testing_tools, report_generator
-        
-        print("✅ Debug system fully imported for health routes")
-    except ImportError as e:
-        print(f"❌ Debug system import error in health routes: {e}")
-        DEBUG_SYSTEM_AVAILABLE = False
-else:
-    print("❌ Debug system not available for health routes")
+# ایمپورت ماژول‌های دیباگ سیستم
+try:
+    from debug_system.core import debug_manager, metrics_collector, alert_manager
+    from debug_system.core.alert_manager import AlertLevel, AlertType
+    from debug_system.monitors import endpoint_monitor, system_monitor, performance_monitor, security_monitor
+    from debug_system.storage import history_manager, cache_debugger
+    from debug_system.realtime import live_dashboard
+    from debug_system.tools import report_generator, dev_tools, testing_tools
+    
+    DEBUG_SYSTEM_AVAILABLE = True
+    logger.info("✅ Debug system modules imported successfully")
+    
+except ImportError as e:
+    DEBUG_SYSTEM_AVAILABLE = False
+    logger.warning(f"❌ Debug system import error: {e}")
 
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
@@ -55,7 +47,8 @@ async def health_status():
             "api": "running",
             "database": "connected",
             "cache": "connected",
-            "external_apis": "available"
+            "external_apis": "available",
+            "debug_system": "available" if DEBUG_SYSTEM_AVAILABLE else "unavailable"
         }
     }
 
@@ -148,9 +141,9 @@ async def debug_endpoints():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "endpoint_health": monitors_system["endpoint_monitor"].get_all_endpoints_health(),
-        "performance_report": monitors_system["performance_monitor"].get_performance_report(),
-        "bottlenecks": monitors_system["performance_monitor"].analyze_bottlenecks(),
+        "endpoint_health": endpoint_monitor.get_all_endpoints_health(),
+        "performance_report": performance_monitor.get_performance_report(),
+        "bottlenecks": performance_monitor.analyze_bottlenecks(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -161,10 +154,10 @@ async def debug_system():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "system_health": monitors_system["system_monitor"].get_system_health(),
-        "security_report": monitors_system["security_monitor"].get_security_report(),
+        "system_health": system_monitor.get_system_health(),
+        "security_report": security_monitor.get_security_report(),
         "active_alerts": alert_manager.get_active_alerts(),
-        "resource_usage": monitors_system["system_monitor"].get_resource_usage_trend(),
+        "resource_usage": system_monitor.get_resource_usage_trend(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -174,7 +167,7 @@ async def debug_daily_report():
     if not DEBUG_SYSTEM_AVAILABLE:
         raise HTTPException(status_code=503, detail="Debug system not available")
     
-    return tools_system["report_generator"].generate_daily_report()
+    return report_generator.generate_daily_report()
 
 @health_router.get("/debug/reports/performance")
 async def debug_performance_report():
@@ -182,7 +175,7 @@ async def debug_performance_report():
     if not DEBUG_SYSTEM_AVAILABLE:
         raise HTTPException(status_code=503, detail="Debug system not available")
     
-    return tools_system["report_generator"].generate_performance_report()
+    return report_generator.generate_performance_report()
 
 @health_router.get("/debug/reports/security")
 async def debug_security_report():
@@ -190,7 +183,7 @@ async def debug_security_report():
     if not DEBUG_SYSTEM_AVAILABLE:
         raise HTTPException(status_code=503, detail="Debug system not available")
     
-    return tools_system["report_generator"].generate_security_report()
+    return report_generator.generate_security_report()
 
 @health_router.get("/debug/metrics/live")
 async def debug_live_metrics():
@@ -201,7 +194,7 @@ async def debug_live_metrics():
     return {
         "system_metrics": metrics_collector.get_current_metrics(),
         "endpoint_metrics": debug_manager.get_endpoint_stats(),
-        "performance_metrics": monitors_system["performance_monitor"].get_performance_report(),
+        "performance_metrics": performance_monitor.get_performance_report(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -261,9 +254,9 @@ async def debug_performance_bottlenecks():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "bottlenecks": monitors_system["performance_monitor"].analyze_bottlenecks(),
-        "slowest_endpoints": monitors_system["performance_monitor"].get_slowest_endpoints(),
-        "most_called_endpoints": monitors_system["performance_monitor"].get_most_called_endpoints(),
+        "bottlenecks": performance_monitor.analyze_bottlenecks(),
+        "slowest_endpoints": performance_monitor.get_slowest_endpoints(),
+        "most_called_endpoints": performance_monitor.get_most_called_endpoints(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -274,158 +267,12 @@ async def debug_security_overview():
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return {
-        "security_report": monitors_system["security_monitor"].get_security_report(),
+        "security_report": security_monitor.get_security_report(),
         "ip_reputation_sample": {
-            "127.0.0.1": monitors_system["security_monitor"].get_ip_reputation("127.0.0.1")
+            "127.0.0.1": security_monitor.get_ip_reputation("127.0.0.1")
         },
         "timestamp": datetime.now().isoformat()
     }
-
-# ==================== COMPREHENSIVE DEBUG ENDPOINTS ====================
-
-@health_router.get("/debug/endpoints/{endpoint_name}")
-async def debug_single_endpoint(endpoint_name: str):
-    """آمار و اطلاعات دیباگ یک اندپوینت خاص"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return debug_manager.get_endpoint_stats(endpoint_name)
-
-@health_router.get("/debug/endpoints/{endpoint_name}/calls")
-async def get_endpoint_recent_calls(
-    endpoint_name: str,
-    limit: int = Query(50, ge=1, le=1000)
-):
-    """دریافت فراخوانی‌های اخیر یک اندپوینت"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    recent_calls = debug_manager.get_recent_calls(limit)
-    endpoint_calls = [call for call in recent_calls if call['endpoint'] == endpoint_name]
-    return {
-        "endpoint": endpoint_name,
-        "total_calls": len(endpoint_calls),
-        "calls": endpoint_calls,
-        "timestamp": datetime.now().isoformat()
-    }
-
-@health_router.get("/debug/endpoints/health/overview")
-async def get_endpoints_health_overview():
-    """نمای کلی سلامت اندپوینت‌ها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return endpoint_monitor.get_all_endpoints_health()
-
-@health_router.get("/debug/endpoints/performance/slowest")
-async def get_slowest_endpoints(limit: int = Query(10, ge=1, le=50)):
-    """دریافت کندترین اندپوینت‌ها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.get_slowest_endpoints(limit)
-
-@health_router.get("/debug/endpoints/performance/most-called")
-async def get_most_called_endpoints(limit: int = Query(10, ge=1, le=50)):
-    """دریافت پرکاربردترین اندپوینت‌ها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.get_most_called_endpoints(limit)
-
-@health_router.get("/debug/system/metrics")
-async def get_system_metrics_debug():
-    """متریک‌های Real-Time سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return metrics_collector.get_current_metrics()
-
-@health_router.get("/debug/system/metrics/history")
-async def get_system_metrics_history(
-    hours: int = Query(1, ge=1, le=168),
-    limit: int = Query(100, ge=1, le=1000)
-):
-    """تاریخچه متریک‌های سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return metrics_collector.get_metrics_history(hours * 3600)[:limit]
-
-@health_router.get("/debug/system/health")
-async def get_system_health_debug():
-    """وضعیت سلامت سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return system_monitor.get_system_health()
-
-@health_router.get("/debug/system/trends")
-async def get_system_trends(hours: int = Query(6, ge=1, le=72)):
-    """روند استفاده از منابع سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return system_monitor.get_resource_usage_trend(hours)
-
-@health_router.get("/debug/performance")
-async def get_performance_overview():
-    """نمای کلی عملکرد"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.analyze_endpoint_performance()
-
-@health_router.get("/debug/performance/{endpoint_name}")
-async def get_endpoint_performance(endpoint_name: str):
-    """تحلیل عملکرد یک اندپوینت خاص"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.analyze_endpoint_performance(endpoint_name)
-
-@health_router.get("/debug/performance/bottlenecks/detailed")
-async def get_performance_bottlenecks_detailed():
-    """شناسایی bottlenecks عملکرد"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.analyze_bottlenecks()
-
-@health_router.get("/debug/performance/trends/{endpoint_name}")
-async def get_endpoint_performance_trend(
-    endpoint_name: str,
-    hours: int = Query(24, ge=1, le=168)
-):
-    """روند عملکرد یک اندپوینت"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return performance_monitor.track_performance_trend(endpoint_name, hours)
-
-@health_router.get("/debug/security")
-async def get_security_status():
-    """وضعیت امنیتی"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return security_monitor.get_security_report()
-
-@health_router.get("/debug/security/ip/{ip_address}")
-async def get_ip_reputation(ip_address: str):
-    """بررسی اعتبار و reputation یک IP"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return security_monitor.get_ip_reputation(ip_address)
-
-@health_router.get("/debug/security/suspicious")
-async def get_suspicious_activities(hours: int = Query(24, ge=1, le=168)):
-    """فعالیت‌های امنیتی مشکوک"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return security_monitor.get_security_report(hours)
 
 # ==================== REAL-TIME ENDPOINTS ====================
 
@@ -436,6 +283,7 @@ async def websocket_console(websocket: WebSocket):
         await websocket.close(code=1008, reason="Debug system not available")
         return
     
+    from debug_system.realtime import console_stream
     await console_stream.connect(websocket)
     try:
         while True:
@@ -462,19 +310,6 @@ async def websocket_dashboard(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         live_dashboard.disconnect_dashboard(websocket)
-
-@health_router.websocket("/debug/realtime/ws/{client_type}")
-async def websocket_general(websocket: WebSocket, client_type: str):
-    """WebSocket عمومی برای ارتباط Real-Time"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        await websocket.close(code=1008, reason="Debug system not available")
-        return
-    
-    client_id = await websocket_manager.connect(websocket, client_type)
-    try:
-        await websocket_manager.handle_messages(client_id)
-    except WebSocketDisconnect:
-        websocket_manager.disconnect(client_id)
 
 # ==================== METRICS ENDPOINTS ====================
 
@@ -573,28 +408,6 @@ async def get_alert_stats(hours: int = Query(24, ge=1, le=720)):
     
     return alert_manager.get_alert_stats(hours)
 
-@health_router.post("/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(alert_id: int, user: str = "api"):
-    """تأیید یک هشدار"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    success = alert_manager.acknowledge_alert(alert_id, user)
-    if not success:
-        raise HTTPException(status_code=404, detail="Alert not found")
-    return {"status": "acknowledged", "alert_id": alert_id}
-
-@health_router.post("/alerts/{alert_id}/resolve")
-async def resolve_alert(alert_id: int, resolved_by: str = "api", resolution_notes: str = ""):
-    """حل یک هشدار"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    success = alert_manager.resolve_alert(alert_id, resolved_by, resolution_notes)
-    if not success:
-        raise HTTPException(status_code=404, detail="Alert not found")
-    return {"status": "resolved", "alert_id": alert_id}
-
 # ==================== REPORTS ENDPOINTS ====================
 
 @health_router.get("/reports/daily")
@@ -621,20 +434,6 @@ async def get_security_report(days: int = Query(30, ge=1, le=90)):
         raise HTTPException(status_code=503, detail="Debug system not available")
     
     return report_generator.generate_security_report(days)
-
-@health_router.post("/reports/generate")
-async def generate_custom_report(report_config: Dict[str, Any]):
-    """تولید گزارش سفارشی"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    return {
-        "status": "report_request_received",
-        "config": report_config,
-        "estimated_completion": (datetime.now() + timedelta(minutes=5)).isoformat()
-    }
-
-# ==================== TOOLS ENDPOINTS ====================
 
 @health_router.post("/tools/test-traffic")
 async def generate_test_traffic(
