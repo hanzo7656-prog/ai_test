@@ -24,12 +24,14 @@ class SystemMonitor:
             'temperature_critical': 90.0
         }
         
+        self.health_check_running = False
         self._start_system_health_check()
 
     def _start_system_health_check(self):
-        """شروع چک سلامت سیستم"""
+        """شروع چک سلامت سیستم - نسخه اصلاح شده بدون async"""
         def health_check_loop():
-            while True:
+            self.health_check_running = True
+            while self.health_check_running:
                 try:
                     self._perform_health_check()
                     time.sleep(30)  # هر ۳۰ ثانیه
@@ -41,18 +43,23 @@ class SystemMonitor:
         monitor_thread.start()
         logger.info("✅ System health monitoring started")
 
+    def stop_health_check(self):
+        """توقف چک سلامت سیستم"""
+        self.health_check_running = False
+        logger.info("🛑 System health monitoring stopped")
+
     def _perform_health_check(self):
-        """انجام چک سلامت سیستم"""
+        """انجام چک سلامت سیستم - کاملاً synchronous"""
         try:
             metrics = self.metrics_collector.get_current_metrics()
             
             # Import مستقیم Enumها برای جلوگیری از circular import
-            from ..core.alert_manager import AlertLevel, AlertType
+            from debug_system.core.alert_manager import AlertLevel, AlertType
             
             # بررسی CPU
             cpu_usage = metrics['cpu']['percent']
             if cpu_usage > self.system_thresholds['cpu_critical']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.CRITICAL,
                     alert_type=AlertType.SYSTEM,
                     title="High CPU Usage",
@@ -61,7 +68,7 @@ class SystemMonitor:
                     data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
                 )
             elif cpu_usage > self.system_thresholds['cpu_warning']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.WARNING,
                     alert_type=AlertType.SYSTEM,
                     title="High CPU Usage",
@@ -73,7 +80,7 @@ class SystemMonitor:
             # بررسی حافظه
             memory_usage = metrics['memory']['percent']
             if memory_usage > self.system_thresholds['memory_critical']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.CRITICAL,
                     alert_type=AlertType.SYSTEM,
                     title="High Memory Usage",
@@ -82,7 +89,7 @@ class SystemMonitor:
                     data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
                 )
             elif memory_usage > self.system_thresholds['memory_warning']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.WARNING,
                     alert_type=AlertType.SYSTEM,
                     title="High Memory Usage", 
@@ -94,7 +101,7 @@ class SystemMonitor:
             # بررسی دیسک
             disk_usage = metrics['disk']['usage_percent']
             if disk_usage > self.system_thresholds['disk_critical']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.CRITICAL,
                     alert_type=AlertType.SYSTEM,
                     title="High Disk Usage",
@@ -103,7 +110,7 @@ class SystemMonitor:
                     data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
                 )
             elif disk_usage > self.system_thresholds['disk_warning']:
-                self._create_alert_safe(
+                self._create_alert_sync(
                     level=AlertLevel.WARNING,
                     alert_type=AlertType.SYSTEM,
                     title="High Disk Usage",
@@ -115,11 +122,11 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"❌ Error in system health check: {e}")
 
-    def _create_alert_safe(self, level, alert_type, title, message, source, data):
-        """ایجاد هشدار با مدیریت ایمن event loop"""
+    def _create_alert_sync(self, level, alert_type, title, message, source, data):
+        """ایجاد هشدار به صورت کاملاً synchronous"""
         try:
             # ایجاد هشدار به صورت مستقیم - بدون async
-            self.alert_manager.create_alert(
+            alert_result = self.alert_manager.create_alert(
                 level=level,
                 alert_type=alert_type,
                 title=title,
@@ -127,6 +134,12 @@ class SystemMonitor:
                 source=source,
                 data=data
             )
+            
+            if alert_result:
+                logger.info(f"🚨 Alert created: {title}")
+            else:
+                logger.warning(f"⚠️ Alert was not created (might be in cooldown): {title}")
+                
         except Exception as e:
             logger.error(f"❌ Error creating alert: {e}")
 
