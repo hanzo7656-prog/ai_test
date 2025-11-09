@@ -14,50 +14,131 @@ logger = logging.getLogger(__name__)
 # ایجاد روت‌ر سلامت
 health_router = APIRouter(prefix="/api/health", tags=["Health & Debug"])
 
-# ==================== DEBUG SYSTEM AVAILABILITY CHECK ====================
+# ==================== LAZY DEBUG SYSTEM IMPORTS ====================
 
-DEBUG_SYSTEM_AVAILABLE = False
-debug_manager = None
-metrics_collector = None
-alert_manager = None
-endpoint_monitor = None
-system_monitor = None
-performance_monitor = None
-security_monitor = None
-history_manager = None
-cache_debugger = None
-live_dashboard = None
-report_generator = None
-dev_tools = None
-testing_tools = None
+class DebugSystemManager:
+    """مدیریت lazy loading برای سیستم دیباگ"""
+    
+    _initialized = False
+    _modules = {}
+    
+    @classmethod
+    def initialize(cls):
+        """مقداردهی اولیه lazy سیستم دیباگ"""
+        if cls._initialized:
+            return cls._modules
+        
+        try:
+            logger.info("🔄 Initializing debug system (lazy loading)...")
+            
+            # ایمپورت core modules
+            from debug_system.core.debug_manager import debug_manager
+            from debug_system.core.metrics_collector import metrics_collector
+            from debug_system.core.alert_manager import alert_manager, AlertLevel, AlertType
+            
+            cls._modules.update({
+                'debug_manager': debug_manager,
+                'metrics_collector': metrics_collector,
+                'alert_manager': alert_manager,
+                'AlertLevel': AlertLevel,
+                'AlertType': AlertType
+            })
+            
+            # ایمپورت monitors
+            try:
+                from debug_system.monitors.endpoint_monitor import endpoint_monitor
+                from debug_system.monitors.system_monitor import system_monitor
+                from debug_system.monitors.performance_monitor import performance_monitor
+                from debug_system.monitors.security_monitor import security_monitor
+                
+                cls._modules.update({
+                    'endpoint_monitor': endpoint_monitor,
+                    'system_monitor': system_monitor,
+                    'performance_monitor': performance_monitor,
+                    'security_monitor': security_monitor
+                })
+            except ImportError as e:
+                logger.warning(f"⚠️ Could not load monitors: {e}")
+            
+            # ایمپورت storage
+            try:
+                from debug_system.storage.history_manager import history_manager
+                from debug_system.storage.cache_debugger import cache_debugger
+                
+                cls._modules.update({
+                    'history_manager': history_manager,
+                    'cache_debugger': cache_debugger
+                })
+            except ImportError as e:
+                logger.warning(f"⚠️ Could not load storage: {e}")
+            
+            # ایمپورت realtime
+            try:
+                from debug_system.realtime.live_dashboard import live_dashboard
+                from debug_system.realtime.console_stream import console_stream
+                
+                cls._modules.update({
+                    'live_dashboard': live_dashboard,
+                    'console_stream': console_stream
+                })
+            except ImportError as e:
+                logger.warning(f"⚠️ Could not load realtime: {e}")
+            
+            # ایمپورت tools
+            try:
+                from debug_system.tools.report_generator import report_generator
+                from debug_system.tools.dev_tools import dev_tools
+                from debug_system.tools.testing_tools import testing_tools
+                
+                cls._modules.update({
+                    'report_generator': report_generator,
+                    'dev_tools': dev_tools,
+                    'testing_tools': testing_tools
+                })
+            except ImportError as e:
+                logger.warning(f"⚠️ Could not load tools: {e}")
+            
+            cls._initialized = True
+            logger.info("✅ Debug system lazy loading completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Debug system initialization failed: {e}")
+            cls._modules = {}
+        
+        return cls._modules
+    
+    @classmethod
+    def get_module(cls, module_name: str, default=None):
+        """دریافت یک ماژول از سیستم دیباگ"""
+        if not cls._initialized:
+            cls.initialize()
+        return cls._modules.get(module_name, default)
+    
+    @classmethod
+    def is_available(cls):
+        """بررسی آیا سیستم دیباگ در دسترس است"""
+        if not cls._initialized:
+            cls.initialize()
+        return bool(cls._modules.get('debug_manager'))
 
-try:
-    # ایمپورت مستقیم از ماژول‌ها به جای ایمپورت کلی
-    from debug_system.core.debug_manager import debug_manager
-    from debug_system.core.metrics_collector import metrics_collector
-    from debug_system.core.alert_manager import alert_manager, AlertLevel, AlertType
-    from debug_system.monitors.endpoint_monitor import endpoint_monitor
-    from debug_system.monitors.system_monitor import system_monitor
-    from debug_system.monitors.performance_monitor import performance_monitor
-    from debug_system.monitors.security_monitor import security_monitor
-    from debug_system.storage.history_manager import history_manager
-    from debug_system.storage.cache_debugger import cache_debugger
-    from debug_system.realtime.live_dashboard import live_dashboard
-    from debug_system.tools.report_generator import report_generator
-    from debug_system.tools.dev_tools import dev_tools
-    from debug_system.tools.testing_tools import testing_tools
-    
-    DEBUG_SYSTEM_AVAILABLE = True
-    logger.info("✅ Debug system modules imported successfully")
-    
-except ImportError as e:
-    DEBUG_SYSTEM_AVAILABLE = False
-    logger.warning(f"❌ Debug system import error: {e}")
+# تابع کمکی برای دسترسی آسان به ماژول‌ها
+def get_debug_module(module_name: str):
+    """دریافت ماژول دیباگ با مدیریت خطا"""
+    module = DebugSystemManager.get_module(module_name)
+    if module is None:
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Debug module '{module_name}' not available. System may still be initializing."
+        )
+    return module
+
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
 @health_router.get("/status")
 async def health_status():
     """بررسی سلامت کلی سیستم"""
+    debug_available = DebugSystemManager.is_available()
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -67,7 +148,7 @@ async def health_status():
             "database": "connected",
             "cache": "connected",
             "external_apis": "available",
-            "debug_system": "available" if DEBUG_SYSTEM_AVAILABLE else "unavailable"
+            "debug_system": "available" if debug_available else "initializing"
         }
     }
 
@@ -76,6 +157,7 @@ async def system_overview():
     """نمای کلی سیستم"""
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
+    debug_available = DebugSystemManager.is_available()
     
     return {
         "system": {
@@ -93,8 +175,8 @@ async def system_overview():
             "disk_total_gb": round(disk.total / (1024**3), 2)
         },
         "status": {
-            "debug_system_available": DEBUG_SYSTEM_AVAILABLE,
-            "debug_system_status": "active" if DEBUG_SYSTEM_AVAILABLE else "inactive"
+            "debug_system_available": debug_available,
+            "debug_system_status": "active" if debug_available else "initializing"
         }
     }
 
@@ -156,8 +238,8 @@ async def system_metrics():
 @health_router.get("/debug/endpoints")
 async def debug_endpoints():
     """دریافت وضعیت دیباگ اندپوینت‌ها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    endpoint_monitor = get_debug_module('endpoint_monitor')
+    performance_monitor = get_debug_module('performance_monitor')
     
     return {
         "endpoint_health": endpoint_monitor.get_all_endpoints_health(),
@@ -169,8 +251,9 @@ async def debug_endpoints():
 @health_router.get("/debug/system")
 async def debug_system():
     """دریافت وضعیت کامل سیستم دیباگ"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    system_monitor = get_debug_module('system_monitor')
+    security_monitor = get_debug_module('security_monitor')
+    alert_manager = get_debug_module('alert_manager')
     
     return {
         "system_health": system_monitor.get_system_health(),
@@ -183,32 +266,27 @@ async def debug_system():
 @health_router.get("/debug/reports/daily")
 async def debug_daily_report():
     """دریافت گزارش روزانه دیباگ"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     return report_generator.generate_daily_report()
 
 @health_router.get("/debug/reports/performance")
 async def debug_performance_report():
     """دریافت گزارش عملکرد دیباگ"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     return report_generator.generate_performance_report()
 
 @health_router.get("/debug/reports/security")
 async def debug_security_report():
     """دریافت گزارش امنیتی دیباگ"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     return report_generator.generate_security_report()
 
 @health_router.get("/debug/metrics/live")
 async def debug_live_metrics():
     """دریافت متریک‌های real-time"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    metrics_collector = get_debug_module('metrics_collector')
+    debug_manager = get_debug_module('debug_manager')
+    performance_monitor = get_debug_module('performance_monitor')
     
     return {
         "system_metrics": metrics_collector.get_current_metrics(),
@@ -220,8 +298,7 @@ async def debug_live_metrics():
 @health_router.get("/debug/alerts")
 async def debug_alerts():
     """دریافت هشدارهای فعال سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    alert_manager = get_debug_module('alert_manager')
     
     return {
         "active_alerts": alert_manager.get_active_alerts(),
@@ -232,9 +309,7 @@ async def debug_alerts():
 @health_router.post("/debug/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: int, user: str = "system"):
     """تأیید هشدار"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    alert_manager = get_debug_module('alert_manager')
     success = alert_manager.acknowledge_alert(alert_id, user)
     
     if not success:
@@ -250,9 +325,7 @@ async def acknowledge_alert(alert_id: int, user: str = "system"):
 @health_router.post("/debug/alerts/{alert_id}/resolve")
 async def resolve_alert(alert_id: int, resolved_by: str = "system", resolution_notes: str = ""):
     """حل هشدار"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    alert_manager = get_debug_module('alert_manager')
     success = alert_manager.resolve_alert(alert_id, resolved_by, resolution_notes)
     
     if not success:
@@ -269,8 +342,7 @@ async def resolve_alert(alert_id: int, resolved_by: str = "system", resolution_n
 @health_router.get("/debug/performance/bottlenecks")
 async def debug_performance_bottlenecks():
     """دریافت bottlenecks عملکرد"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    performance_monitor = get_debug_module('performance_monitor')
     
     return {
         "bottlenecks": performance_monitor.analyze_bottlenecks(),
@@ -282,8 +354,7 @@ async def debug_performance_bottlenecks():
 @health_router.get("/debug/security/overview")
 async def debug_security_overview():
     """نمای کلی امنیتی"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    security_monitor = get_debug_module('security_monitor')
     
     return {
         "security_report": security_monitor.get_security_report(),
@@ -298,11 +369,8 @@ async def debug_security_overview():
 @health_router.websocket("/debug/realtime/console")
 async def websocket_console(websocket: WebSocket):
     """WebSocket برای کنسول Real-Time"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        await websocket.close(code=1008, reason="Debug system not available")
-        return
+    console_stream = get_debug_module('console_stream')
     
-    from debug_system.realtime import console_stream
     await console_stream.connect(websocket)
     try:
         while True:
@@ -319,9 +387,7 @@ async def websocket_console(websocket: WebSocket):
 @health_router.websocket("/debug/realtime/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     """WebSocket برای دشبورد Real-Time"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        await websocket.close(code=1008, reason="Debug system not available")
-        return
+    live_dashboard = get_debug_module('live_dashboard')
     
     await live_dashboard.connect_dashboard(websocket)
     try:
@@ -335,42 +401,35 @@ async def websocket_dashboard(websocket: WebSocket):
 @health_router.get("/metrics")
 async def get_all_metrics():
     """دریافت تمام متریک‌های سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
-    system_metrics = metrics_collector.get_current_metrics()
-    endpoint_stats = debug_manager.get_endpoint_stats()
-    cache_stats = cache_debugger.get_cache_stats()
+    metrics_collector = get_debug_module('metrics_collector')
+    debug_manager = get_debug_module('debug_manager')
+    cache_debugger = get_debug_module('cache_debugger')
+    performance_monitor = get_debug_module('performance_monitor')
     
     return {
         "timestamp": datetime.now().isoformat(),
-        "system_metrics": system_metrics,
-        "endpoint_metrics": endpoint_stats,
-        "cache_metrics": cache_stats,
+        "system_metrics": metrics_collector.get_current_metrics(),
+        "endpoint_metrics": debug_manager.get_endpoint_stats(),
+        "cache_metrics": cache_debugger.get_cache_stats(),
         "performance_metrics": performance_monitor.analyze_endpoint_performance()
     }
 
 @health_router.get("/metrics/system")
 async def get_system_metrics_detailed():
     """متریک‌های دقیق سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    metrics_collector = get_debug_module('metrics_collector')
     return metrics_collector.get_detailed_metrics()
 
 @health_router.get("/metrics/endpoints")
 async def get_endpoints_metrics():
     """متریک‌های اندپوینت‌ها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    debug_manager = get_debug_module('debug_manager')
     return debug_manager.get_endpoint_stats()
 
 @health_router.get("/metrics/cache")
 async def get_cache_metrics():
     """متریک‌های عملکرد کش"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    cache_debugger = get_debug_module('cache_debugger')
     
     return {
         "stats": cache_debugger.get_cache_stats(),
@@ -387,8 +446,9 @@ async def get_active_alerts(
     source: str = Query(None)
 ):
     """دریافت هشدارهای فعال"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    alert_manager = get_debug_module('alert_manager')
+    AlertLevel = get_debug_module('AlertLevel')
+    AlertType = get_debug_module('AlertType')
     
     return alert_manager.get_active_alerts(
         level=AlertLevel(level) if level else None,
@@ -405,8 +465,9 @@ async def get_alert_history(
     limit: int = Query(100, ge=1, le=1000)
 ):
     """تاریخچه هشدارها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    alert_manager = get_debug_module('alert_manager')
+    AlertLevel = get_debug_module('AlertLevel')
+    AlertType = get_debug_module('AlertType')
     
     start_date = datetime.now() - timedelta(hours=hours)
     
@@ -422,9 +483,7 @@ async def get_alert_history(
 @health_router.get("/alerts/stats")
 async def get_alert_stats(hours: int = Query(24, ge=1, le=720)):
     """آمار هشدارها"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    alert_manager = get_debug_module('alert_manager')
     return alert_manager.get_alert_stats(hours)
 
 # ==================== REPORTS ENDPOINTS ====================
@@ -432,27 +491,23 @@ async def get_alert_stats(hours: int = Query(24, ge=1, le=720)):
 @health_router.get("/reports/daily")
 async def get_daily_report(date: str = None):
     """گزارش روزانه عملکرد سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     report_date = datetime.strptime(date, '%Y-%m-%d') if date else datetime.now()
     return report_generator.generate_daily_report(report_date)
 
 @health_router.get("/reports/performance")
 async def get_performance_report(days: int = Query(7, ge=1, le=30)):
     """گزارش عملکرد سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     return report_generator.generate_performance_report(days)
 
 @health_router.get("/reports/security")
 async def get_security_report(days: int = Query(30, ge=1, le=90)):
     """گزارش امنیتی سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    report_generator = get_debug_module('report_generator')
     return report_generator.generate_security_report(days)
+
+# ==================== TOOLS ENDPOINTS ====================
 
 @health_router.post("/tools/test-traffic")
 async def generate_test_traffic(
@@ -462,8 +517,7 @@ async def generate_test_traffic(
     requests_per_second: int = 10
 ):
     """تولید ترافیک تست برای شبیه‌سازی بار"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    dev_tools = get_debug_module('dev_tools')
     
     background_tasks.add_task(
         dev_tools.generate_test_traffic,
@@ -488,8 +542,7 @@ async def run_load_test(
     duration_seconds: int = 60
 ):
     """اجرای تست بار برای اندپوینت"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    testing_tools = get_debug_module('testing_tools')
     
     background_tasks.add_task(
         testing_tools.run_load_test,
@@ -508,24 +561,19 @@ async def run_load_test(
 @health_router.get("/tools/dependencies")
 async def check_dependencies():
     """بررسی وضعیت وابستگی‌های سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    dev_tools = get_debug_module('dev_tools')
     return dev_tools.run_dependency_check()
 
 @health_router.get("/tools/memory-analysis")
 async def analyze_memory_usage():
     """آنالیز استفاده از حافظه"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
-    
+    dev_tools = get_debug_module('dev_tools')
     return dev_tools.analyze_memory_usage()
 
 @health_router.get("/tools/cache-stats")
 async def get_cache_stats():
     """آمار کامل کش سیستم"""
-    if not DEBUG_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Debug system not available")
+    cache_debugger = get_debug_module('cache_debugger')
     
     return {
         "cache_stats": cache_debugger.get_cache_stats(),
@@ -534,3 +582,11 @@ async def get_cache_stats():
         "most_accessed_keys": cache_debugger.get_most_accessed_keys(),
         "timestamp": datetime.now().isoformat()
     }
+
+# ==================== INITIALIZATION ====================
+
+@health_router.on_event("startup")
+async def startup_event():
+    """رویداد startup برای مقداردهی اولیه سیستم دیباگ"""
+    logger.info("🚀 Initializing debug system on startup...")
+    DebugSystemManager.initialize()
