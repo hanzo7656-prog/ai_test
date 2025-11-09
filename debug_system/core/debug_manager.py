@@ -11,6 +11,16 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum
 
+# ایمپورت سیستم نرمال‌سازی جدید
+try:
+    from ..utils.data_normalizer import data_normalizer
+except ImportError:
+    # Fallback برای مواقع توسعه
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from debug_system.utils.data_normalizer import data_normalizer
+
 logger = logging.getLogger(__name__)
 
 class DebugLevel(Enum):
@@ -31,6 +41,7 @@ class EndpointCall:
     api_calls: int
     memory_used: float
     cpu_impact: float
+    normalization_info: Optional[Dict[str, Any]] = None  # ✅ اضافه شد
 
 @dataclass
 class SystemMetrics:
@@ -40,6 +51,7 @@ class SystemMetrics:
     disk_usage: float
     network_io: Dict[str, int]
     active_connections: int
+    normalization_metrics: Optional[Dict[str, Any]] = None  # ✅ اضافه شد
 
 class DebugManager:
     def __init__(self):
@@ -53,6 +65,12 @@ class DebugManager:
             'cache_hits': 0,
             'cache_misses': 0,
             'api_calls': 0,
+            'normalization_stats': {  # ✅ اضافه شد
+                'total_normalized': 0,
+                'normalization_errors': 0,
+                'avg_quality_score': 0,
+                'common_structures': {}
+            },
             'errors': [],
             'last_call': None
         })
@@ -64,7 +82,8 @@ class DebugManager:
             'cpu_warning': 80.0,  # درصد
             'cpu_critical': 95.0,
             'memory_warning': 85.0,
-            'memory_critical': 95.0
+            'memory_critical': 95.0,
+            'normalization_error_threshold': 10  # ✅ اضافه شد
         }
         
         self.alert_manager = None  # ابتدا None، بعداً تنظیم می‌شود
@@ -78,7 +97,7 @@ class DebugManager:
         
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
-                         api_calls: int = 0):
+                         api_calls: int = 0, normalization_info: Dict[str, Any] = None):
         """ثبت فراخوانی اندپوینت"""
         try:
             # گرفتن متریک‌های سیستم در لحظه فراخوانی
@@ -95,7 +114,8 @@ class DebugManager:
                 cache_used=cache_used,
                 api_calls=api_calls,
                 memory_used=memory_used,
-                cpu_impact=cpu_impact
+                cpu_impact=cpu_impact,
+                normalization_info=normalization_info  # ✅ اضافه شد
             )
             
             self.endpoint_calls.append(call)
@@ -122,6 +142,24 @@ class DebugManager:
                 
             stats['api_calls'] += api_calls
             stats['last_call'] = datetime.now().isoformat()
+            
+            # ✅ آپدیت آمار نرمال‌سازی
+            if normalization_info:
+                norm_stats = stats['normalization_stats']
+                norm_stats['total_normalized'] += 1
+                
+                if normalization_info.get('status') == 'error':
+                    norm_stats['normalization_errors'] += 1
+                
+                # محاسبه میانگین کیفیت
+                quality_score = normalization_info.get('quality_score', 0)
+                current_avg = norm_stats['avg_quality_score']
+                total_norm = norm_stats['total_normalized']
+                norm_stats['avg_quality_score'] = (current_avg * (total_norm - 1) + quality_score) / total_norm
+                
+                # آپدیت ساختارهای رایج
+                structure = normalization_info.get('detected_structure', 'unknown')
+                norm_stats['common_structures'][structure] = norm_stats['common_structures'].get(structure, 0) + 1
             
             # بررسی هشدارهای performance
             self._check_performance_alerts(endpoint, call)
@@ -165,6 +203,10 @@ class DebugManager:
             stats = self.endpoint_stats[endpoint]
             avg_response_time = (stats['total_response_time'] / stats['total_calls']) if stats['total_calls'] > 0 else 0
             
+            # محاسبه آمار نرمال‌سازی
+            norm_stats = stats['normalization_stats']
+            normalization_success_rate = ((norm_stats['total_normalized'] - norm_stats['normalization_errors']) / norm_stats['total_normalized'] * 100) if norm_stats['total_normalized'] > 0 else 0
+            
             return {
                 'endpoint': endpoint,
                 'total_calls': stats['total_calls'],
@@ -178,6 +220,13 @@ class DebugManager:
                     'hit_rate': (stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']) * 100) if (stats['cache_hits'] + stats['cache_misses']) > 0 else 0
                 },
                 'api_calls': stats['api_calls'],
+                'normalization_performance': {  # ✅ اضافه شد
+                    'total_normalized': norm_stats['total_normalized'],
+                    'normalization_errors': norm_stats['normalization_errors'],
+                    'success_rate': round(normalization_success_rate, 2),
+                    'avg_quality_score': round(norm_stats['avg_quality_score'], 2),
+                    'common_structures': norm_stats['common_structures']
+                },
                 'recent_errors': stats['errors'][-10:],  # آخرین ۱۰ خطا
                 'last_call': stats['last_call']
             }
@@ -186,22 +235,39 @@ class DebugManager:
             all_stats = {}
             total_calls = 0
             total_success = 0
+            total_normalized = 0
+            total_norm_errors = 0
             
             for endpoint, stats in self.endpoint_stats.items():
+                norm_stats = stats['normalization_stats']
+                total_normalized += norm_stats['total_normalized']
+                total_norm_errors += norm_stats['normalization_errors']
+                
                 all_stats[endpoint] = {
                     'total_calls': stats['total_calls'],
                     'success_rate': (stats['successful_calls'] / stats['total_calls'] * 100) if stats['total_calls'] > 0 else 0,
                     'average_response_time': round((stats['total_response_time'] / stats['total_calls']), 3) if stats['total_calls'] > 0 else 0,
+                    'normalization_success_rate': ((norm_stats['total_normalized'] - norm_stats['normalization_errors']) / norm_stats['total_normalized'] * 100) if norm_stats['total_normalized'] > 0 else 0,
                     'last_call': stats['last_call']
                 }
                 total_calls += stats['total_calls']
                 total_success += stats['successful_calls']
+            
+            # دریافت متریک‌های کلی نرمال‌سازی
+            overall_norm_metrics = data_normalizer.get_health_metrics()
             
             return {
                 'overall': {
                     'total_endpoints': len(self.endpoint_stats),
                     'total_calls': total_calls,
                     'overall_success_rate': (total_success / total_calls * 100) if total_calls > 0 else 0,
+                    'normalization_overview': {  # ✅ اضافه شد
+                        'total_normalized': total_normalized,
+                        'normalization_errors': total_norm_errors,
+                        'normalization_success_rate': ((total_normalized - total_norm_errors) / total_normalized * 100) if total_normalized > 0 else 0,
+                        'system_success_rate': overall_norm_metrics.success_rate,
+                        'common_structures': overall_norm_metrics.common_structures
+                    },
                     'timestamp': datetime.now().isoformat()
                 },
                 'endpoints': all_stats
@@ -220,7 +286,8 @@ class DebugManager:
                 'cache_used': call.cache_used,
                 'api_calls': call.api_calls,
                 'memory_used': call.memory_used,
-                'cpu_impact': call.cpu_impact
+                'cpu_impact': call.cpu_impact,
+                'normalization_info': call.normalization_info  # ✅ اضافه شد
             }
             for call in recent_calls
         ]
@@ -228,6 +295,10 @@ class DebugManager:
     def get_system_metrics_history(self, hours: int = 1) -> List[Dict[str, Any]]:
         """دریافت تاریخچه متریک‌های سیستم"""
         cutoff_time = datetime.now() - timedelta(hours=hours)
+        
+        # دریافت متریک‌های نرمال‌سازی فعلی
+        current_norm_metrics = data_normalizer.get_health_metrics()
+        
         return [
             {
                 'timestamp': metrics.timestamp.isoformat(),
@@ -235,7 +306,12 @@ class DebugManager:
                 'memory_percent': metrics.memory_percent,
                 'disk_usage': metrics.disk_usage,
                 'network_io': metrics.network_io,
-                'active_connections': metrics.active_connections
+                'active_connections': metrics.active_connections,
+                'normalization_metrics': {  # ✅ اضافه شد
+                    'success_rate': current_norm_metrics.success_rate,
+                    'total_processed': current_norm_metrics.total_processed,
+                    'data_quality': current_norm_metrics.data_quality
+                } if metrics.normalization_metrics is None else metrics.normalization_metrics
             }
             for metrics in self.system_metrics_history
             if metrics.timestamp >= cutoff_time
@@ -247,6 +323,7 @@ class DebugManager:
             while True:
                 try:
                     self._collect_system_metrics()
+                    self._check_normalization_alerts()  # ✅ اضافه شد
                     time.sleep(5)  # هر ۵ ثانیه
                 except Exception as e:
                     logger.error(f"❌ System monitoring error: {e}")
@@ -273,19 +350,60 @@ class DebugManager:
             
             active_connections = len(psutil.net_connections())
             
+            # دریافت متریک‌های نرمال‌سازی
+            norm_metrics = data_normalizer.get_health_metrics()
+            
             metrics = SystemMetrics(
                 timestamp=datetime.now(),
                 cpu_percent=cpu_percent,
                 memory_percent=memory_percent,
                 disk_usage=disk_usage,
                 network_io=network_io,
-                active_connections=active_connections
+                active_connections=active_connections,
+                normalization_metrics={  # ✅ اضافه شد
+                    'success_rate': norm_metrics.success_rate,
+                    'total_processed': norm_metrics.total_processed,
+                    'data_quality': norm_metrics.data_quality
+                }
             )
             
             self.system_metrics_history.append(metrics)
             
         except Exception as e:
             logger.error(f"❌ Error collecting system metrics: {e}")
+    
+    def _check_normalization_alerts(self):
+        """بررسی هشدارهای نرمال‌سازی"""
+        try:
+            metrics = data_normalizer.get_health_metrics()
+            
+            # هشدار برای نرخ موفقیت پایین نرمال‌سازی
+            if metrics.success_rate < 90:
+                self._create_alert(
+                    level=DebugLevel.WARNING,
+                    message=f"Low normalization success rate: {metrics.success_rate}%",
+                    source="data_normalizer",
+                    data={
+                        'success_rate': metrics.success_rate,
+                        'total_processed': metrics.total_processed,
+                        'total_errors': metrics.total_errors
+                    }
+                )
+            
+            # هشدار برای خطاهای متوالی نرمال‌سازی
+            if metrics.total_errors > self.performance_thresholds['normalization_error_threshold']:
+                self._create_alert(
+                    level=DebugLevel.ERROR,
+                    message=f"High normalization errors: {metrics.total_errors}",
+                    source="data_normalizer",
+                    data={
+                        'total_errors': metrics.total_errors,
+                        'threshold': self.performance_thresholds['normalization_error_threshold']
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking normalization alerts: {e}")
     
     def _check_performance_alerts(self, endpoint: str, call: EndpointCall):
         """بررسی هشدارهای performance"""
@@ -319,6 +437,15 @@ class DebugManager:
                 source=endpoint,
                 data={'cpu_usage': call.cpu_impact}
             )
+        
+        # ✅ هشدار برای خطاهای نرمال‌سازی
+        if call.normalization_info and call.normalization_info.get('status') == 'error':
+            self._create_alert(
+                level=DebugLevel.ERROR,
+                message=f"Normalization error in {endpoint}: {call.normalization_info.get('error', 'Unknown error')}",
+                source=endpoint,
+                data=call.normalization_info
+            )
     
     def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
         """ایجاد هشدار جدید"""
@@ -337,22 +464,19 @@ class DebugManager:
         # اگر alert_manager تنظیم شده، از آن استفاده کن
         if self.alert_manager:
             try:
-                # Import مستقیم برای جلوگیری از circular import
-                from .alert_manager import AlertLevel, AlertType
-                
-                # تبدیل DebugLevel به AlertLevel
+                # 🔧 اصلاح: استفاده از string-based comparison به جای import مستقیم
+                # این از circular import جلوگیری می‌کند
                 alert_level_map = {
-                    DebugLevel.INFO: AlertLevel.INFO,
-                    DebugLevel.WARNING: AlertLevel.WARNING,
-                    DebugLevel.ERROR: AlertLevel.ERROR,
-                    DebugLevel.CRITICAL: AlertLevel.CRITICAL
+                    DebugLevel.INFO.value: "INFO",
+                    DebugLevel.WARNING.value: "WARNING", 
+                    DebugLevel.ERROR.value: "ERROR",
+                    DebugLevel.CRITICAL.value: "CRITICAL"
                 }
                 
-                alert_level = alert_level_map.get(level, AlertLevel.INFO)
-                
+                # استفاده از متد alert_manager بدون نیاز به import
                 self.alert_manager.create_alert(
-                    level=alert_level,
-                    alert_type=AlertType.PERFORMANCE,
+                    level=alert_level_map[level.value],
+                    alert_type="PERFORMANCE",  # استفاده از string به جای enum
                     title=f"Performance Alert: {message}",
                     message=message,
                     source=source,
@@ -367,7 +491,7 @@ class DebugManager:
         """بررسی آیا خطا critical است"""
         critical_errors = [
             'Timeout',
-            'ConnectionError',
+            'ConnectionError', 
             'MemoryError',
             'OSError'
         ]
