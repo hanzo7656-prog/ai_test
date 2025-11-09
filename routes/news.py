@@ -17,8 +17,9 @@ async def get_news(limit: int = Query(50, ge=1, le=100)):
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # محدود کردن نتایج بر اساس limit
-        news_items = raw_data.get('result', [])[:limit]
+        # 🔧 اصلاح: استفاده از ساختار جدید manager
+        # manager جدید ساختار {'status': 'success', 'data': [...]} برمی‌گرداند
+        news_items = raw_data.get('data', raw_data.get('result', []))[:limit]
         
         processed_news = []
         for news_item in news_items:
@@ -28,7 +29,7 @@ async def get_news(limit: int = Query(50, ge=1, le=100)):
                 'description': news_item.get('description'),
                 'url': news_item.get('url'),
                 'source': news_item.get('source'),
-                'published_at': news_item.get('publishedAt'),
+                'published_at': news_item.get('published_at', news_item.get('publishedAt')),
                 'sentiment': _analyze_sentiment(news_item),
                 'importance': _calculate_importance(news_item),
                 'tags': news_item.get('tags', []),
@@ -39,7 +40,6 @@ async def get_news(limit: int = Query(50, ge=1, le=100)):
             'status': 'success',
             'data': processed_news,
             'total': len(processed_news),
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -59,8 +59,8 @@ async def get_news_by_type(
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # محدود کردن نتایج
-        news_items = raw_data.get('result', [])[:limit]
+        # 🔧 اصلاح: استفاده از ساختار جدید
+        news_items = raw_data.get('data', raw_data.get('result', []))[:limit]
         
         processed_news = []
         for news_item in news_items:
@@ -70,7 +70,7 @@ async def get_news_by_type(
                 'description': news_item.get('description'),
                 'url': news_item.get('url'),
                 'source': news_item.get('source'),
-                'published_at': news_item.get('publishedAt'),
+                'published_at': news_item.get('published_at', news_item.get('publishedAt')),
                 'type': news_type,
                 'sentiment': _analyze_sentiment(news_item),
                 'importance': _calculate_importance(news_item),
@@ -82,7 +82,6 @@ async def get_news_by_type(
             'data': processed_news,
             'type': news_type,
             'total': len(processed_news),
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -99,8 +98,11 @@ async def get_news_sources():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # 🔧 اصلاح: استفاده از ساختار جدید
+        sources = raw_data.get('data', raw_data.get('result', []))
+        
         processed_sources = []
-        for source in raw_data.get('result', []):
+        for source in sources:
             processed_sources.append({
                 'id': source.get('id'),
                 'name': source.get('name'),
@@ -114,7 +116,6 @@ async def get_news_sources():
             'status': 'success',
             'data': processed_sources,
             'total': len(processed_sources),
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -131,25 +132,27 @@ async def get_news_detail(news_id: str):
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # 🔧 اصلاح: استفاده از ساختار جدید
+        news_data = raw_data.get('data', raw_data.get('result', raw_data))
+        
         processed_detail = {
-            'id': raw_data.get('id'),
-            'title': raw_data.get('title'),
-            'content': raw_data.get('content'),
-            'url': raw_data.get('url'),
-            'source': raw_data.get('source'),
-            'author': raw_data.get('author'),
-            'published_at': raw_data.get('publishedAt'),
-            'sentiment': _analyze_sentiment(raw_data),
-            'importance': _calculate_importance(raw_data),
-            'summary': _generate_summary(raw_data),
-            'key_points': _extract_key_points(raw_data),
+            'id': news_data.get('id'),
+            'title': news_data.get('title'),
+            'content': news_data.get('content', news_data.get('description')),
+            'url': news_data.get('url'),
+            'source': news_data.get('source'),
+            'author': news_data.get('author'),
+            'published_at': news_data.get('published_at', news_data.get('publishedAt')),
+            'sentiment': _analyze_sentiment(news_data),
+            'importance': _calculate_importance(news_data),
+            'summary': _generate_summary(news_data),
+            'key_points': _extract_key_points(news_data),
             'last_updated': datetime.now().isoformat()
         }
         
         return {
             'status': 'success',
             'data': processed_detail,
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -157,7 +160,30 @@ async def get_news_detail(news_id: str):
         logger.error(f"Error in news detail {news_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# توابع کمکی پردازش اخبار
+# 🔧 اضافه کردن endpoint دیباگ برای اخبار
+@news_router.get("/debug/{news_type}", summary="دیباگ اخبار")
+async def debug_news_data(news_type: str = "handpicked"):
+    """endpoint دیباگ برای بررسی ساختار داده اخبار"""
+    try:
+        raw_data = coin_stats_manager.get_news_by_type(news_type)
+        
+        return {
+            'status': 'debug',
+            'manager_response': raw_data,
+            'manager_response_type': str(type(raw_data)),
+            'data_keys': list(raw_data.keys()) if isinstance(raw_data, dict) else 'not_dict',
+            'data_structure': 'See manager_response for details',
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+
+# توابع کمکی پردازش اخبار (بدون تغییر)
 def _analyze_sentiment(news_item: Dict) -> str:
     """تحلیل احساسات خبر"""
     title = news_item.get('title', '').lower()
@@ -201,7 +227,7 @@ def _calculate_importance(news_item: Dict) -> int:
     if any(tag in important_tags for tag in tags):
         score += 2
     
-    return min(score, 5)  # نمره ۱ تا ۵
+    return min(score, 5)
 
 def _calculate_reliability(source: Dict) -> int:
     """محاسبه قابلیت اطمینان منبع"""
@@ -218,7 +244,7 @@ def _calculate_reliability(source: Dict) -> int:
         if rel_source in source_name:
             return score
     
-    return 2  # پیش‌فرض
+    return 2
 
 def _generate_summary(news_item: Dict) -> str:
     """تولید خلاصه خبر"""
@@ -229,14 +255,13 @@ def _generate_summary(news_item: Dict) -> str:
 
 def _extract_key_points(news_item: Dict) -> List[str]:
     """استخراج نکات کلیدی"""
-    # در یک پیاده‌سازی واقعی از NLP استفاده می‌شود
     content = news_item.get('description', '')
     sentences = content.split('.')
     
     key_points = []
-    for sentence in sentences[:3]:  # فقط ۳ جمله اول
+    for sentence in sentences[:3]:
         sentence = sentence.strip()
-        if len(sentence) > 20:  # جملات کوتاه را نادیده بگیر
+        if len(sentence) > 20:
             key_points.append(sentence)
     
     return key_points
