@@ -416,46 +416,87 @@ class CompleteCoinStatsManager:
     # ============================= NEWS ENDPOINTS =========================
 
     def get_news_sources(self) -> Dict:
-        """دریافت منابع خبری - مطابق مستندات صفحه 45"""
+        """دریافت منابع خبری"""
         raw_data = self._make_api_request("news/sources")
-        
-        # نرمال‌سازی داده‌ها
-        normalized_result = self.normalizer.normalize(raw_data, "news/sources")
-        
-        if normalized_result.status == "error":
-            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
-        
+    
+        if "error" in raw_data:
+            return {"error": raw_data["error"], "status": "error"}
+      
+        # پردازش ساختار داده
+        if isinstance(raw_data, dict) and "result" in raw_data:
+            sources = raw_data.get("result", [])
+        elif isinstance(raw_data, dict) and "data" in raw_data:
+            sources = raw_data.get("data", [])
+        elif isinstance(raw_data, list):
+            sources = raw_data
+        else:
+            sources = []
+    
         return {
             "status": "success",
-            "result": normalized_result.data,
-            "normalization_info": normalized_result.normalization_info,
+            "data": sources,
             "timestamp": datetime.now().isoformat()
         }
+
+    def get_news_detail(self, news_id: str) -> Dict:
+        """دریافت جزئیات خبر"""
+        raw_data = self._make_api_request(f"news/{news_id}")
+      
+        if "error" in raw_data:
+            return {"error": raw_data["error"], "status": "error"}
+    
+        # اگر داده مستقیم است، برمی‌گردانیم
+        if isinstance(raw_data, dict) and "id" in raw_data:
+            return {
+                "status": "success",
+                "data": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            # پردازش ساختارهای دیگر
+            if isinstance(raw_data, dict) and "result" in raw_data:
+                news_data = raw_data.get("result", {})
+            elif isinstance(raw_data, dict) and "data" in raw_data:
+                news_data = raw_data.get("data", {})
+            else:
+                news_data = raw_data
+            
+            return {
+                "status": "success",
+                "data": news_data,
+                "timestamp": datetime.now().isoformat()
+            }
 
     def get_news(self, limit: int = 50) -> Dict:
-        """دریافت اخبار عمومی - مطابق مستندات صفحه 46"""
+        """دریافت اخبار عمومی - بدون داده ساختگی"""
         raw_data = self._make_api_request("news")
-        
-        # نرمال‌سازی داده‌ها
-        normalized_result = self.normalizer.normalize(raw_data, "news")
-        
-        if normalized_result.status == "error":
-            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
-        
-        # اعمال limit دستی (چون API پارامتر limit ندارد)
-        limited_data = normalized_result.data[:limit] if normalized_result.data else []
-        
+    
+        if "error" in raw_data:
+            return {"error": raw_data["error"], "status": "error"}
+    
+    ‌    # پردازش ساختار داده
+        if isinstance(raw_data, dict) and "result" in raw_data:
+            news_list = raw_data.get("result", [])
+        elif isinstance(raw_data, dict) and "data" in raw_data:
+            news_list = raw_data.get("data", [])
+        elif isinstance(raw_data, list):
+            news_list = raw_data
+        else:
+            news_list = []
+    
+        # فقط داده‌های موجود را برمی‌گردانیم، چیزی نمی‌سازیم
+        limited_data = news_list[:limit]
+    
         return {
-            "status": "success",
-            "result": limited_data,
+            "status": "success", 
+            "data": limited_data,
             "total": len(limited_data),
-            "normalization_info": normalized_result.normalization_info,
             "timestamp": datetime.now().isoformat()
         }
 
-    def get_news_by_type(self, news_type: str = "handpicked", limit: int = 10) -> Dict:
+    def get_news_by_type(self, news_type: str = "trending", limit: int = 10) -> Dict:
         """دریافت اخبار بر اساس نوع - اصلاح شده"""
-        valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
+        valid_types = ["trending", "latest", "bullish", "bearish"]
         if news_type not in valid_types:
             news_type = "handpicked"
         
@@ -507,33 +548,6 @@ class CompleteCoinStatsManager:
                 "status": "error", 
                 "error": f"Unexpected news format: {type(raw_data)}",
                 "raw_data": raw_data,
-                "timestamp": datetime.now().isoformat()
-            }
-
-    def get_news_detail(self, news_id: str) -> Dict:
-        """دریافت جزئیات خبر - مطابق مستندات صفحه 48-49"""
-        raw_data = self._make_api_request(f"news/{news_id}")
-        
-        # برای جزئیات خبر، داده را مستقیماً برمی‌گردانیم
-        if isinstance(raw_data, dict) and "error" not in raw_data:
-            return {
-                "status": "success",
-                "result": raw_data,
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            normalized_result = self.normalizer.normalize(raw_data, f"news/{news_id}")
-            
-            if normalized_result.status == "error":
-                return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
-            
-            # اولین آیتم را برمی‌گردانیم
-            result_data = normalized_result.data[0] if normalized_result.data else {}
-            
-            return {
-                "status": "success",
-                "result": result_data,
-                "normalization_info": normalized_result.normalization_info,
                 "timestamp": datetime.now().isoformat()
             }
 
