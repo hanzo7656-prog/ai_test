@@ -11,6 +11,22 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# ایمپورت سیستم نرمال‌سازی جدید
+try:
+    from debug_system.utils.data_normalizer import data_normalizer
+except ImportError:
+    # Fallback برای مواقع توسعه
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from debug_system.utils.data_normalizer import data_normalizer
+
+# ایمپورت complete_coinstats_manager برای وضعیت API
+try:
+    from complete_coinstats_manager import coin_stats_manager
+except ImportError:
+    coin_stats_manager = None
+
 # ایجاد روت‌ر سلامت
 health_router = APIRouter(prefix="/api/health", tags=["Health & Debug"])
 
@@ -221,6 +237,18 @@ async def health_status():
     """بررسی سلامت کلی سیستم"""
     debug_status = DebugSystemManager.get_status_report()
     
+    # بررسی وضعیت API خارجی
+    api_status = "unknown"
+    if coin_stats_manager:
+        try:
+            api_check = coin_stats_manager.get_api_status()
+            api_status = api_check.get('status', 'unknown')
+        except Exception as e:
+            api_status = f"error: {str(e)}"
+    
+    # دریافت متریک‌های نرمال‌سازی
+    normalization_metrics = data_normalizer.get_health_metrics()
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -229,13 +257,26 @@ async def health_status():
             "api": "running",
             "database": "connected",
             "cache": "connected",
-            "external_apis": "available",
+            "external_apis": api_status,
             "debug_system": {
                 "available": debug_status['core_available'],
                 "loaded_modules": debug_status['loaded_modules'],
                 "total_modules": debug_status['total_modules'],
                 "status": "fully_initialized" if debug_status['loaded_modules'] == debug_status['total_modules'] else "partially_initialized"
+            },
+            "data_normalization": {
+                "available": True,
+                "success_rate": normalization_metrics.success_rate,
+                "total_processed": normalization_metrics.total_processed,
+                "status": "optimal" if normalization_metrics.success_rate > 95 else "degraded"
             }
+        },
+        "normalization_metrics": {
+            "success_rate": normalization_metrics.success_rate,
+            "total_processed": normalization_metrics.total_processed,
+            "total_errors": normalization_metrics.total_errors,
+            "common_structures": normalization_metrics.common_structures,
+            "data_quality": normalization_metrics.data_quality
         }
     }
 
@@ -245,6 +286,9 @@ async def system_overview():
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     debug_status = DebugSystemManager.get_status_report()
+    
+    # متریک‌های نرمال‌سازی
+    normalization_metrics = data_normalizer.get_health_metrics()
     
     return {
         "system": {
@@ -261,7 +305,13 @@ async def system_overview():
             "disk_used_gb": round(disk.used / (1024**3), 2),
             "disk_total_gb": round(disk.total / (1024**3), 2)
         },
-        "debug_system": debug_status
+        "debug_system": debug_status,
+        "data_normalization": {
+            "success_rate": normalization_metrics.success_rate,
+            "total_requests": normalization_metrics.total_processed,
+            "performance_metrics": normalization_metrics.performance_metrics,
+            "data_quality": normalization_metrics.data_quality
+        }
     }
 
 @health_router.get("/ping")
@@ -316,6 +366,98 @@ async def system_metrics():
         },
         "timestamp": datetime.now().isoformat()
     }
+
+# ==================== DATA NORMALIZATION ENDPOINTS ====================
+
+@health_router.get("/normalization/metrics")
+async def get_normalization_metrics():
+    """دریافت متریک‌های کامل نرمال‌سازی داده"""
+    try:
+        metrics = data_normalizer.get_health_metrics()
+        analysis = data_normalizer.get_deep_analysis()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "metrics": {
+                "success_rate": metrics.success_rate,
+                "total_processed": metrics.total_processed,
+                "total_success": metrics.total_success,
+                "total_errors": metrics.total_errors,
+                "performance_metrics": metrics.performance_metrics,
+                "data_quality": metrics.data_quality
+            },
+            "common_structures": metrics.common_structures,
+            "alerts": metrics.alerts,
+            "analysis_overview": analysis.get("system_overview", {}),
+            "recommendations": analysis.get("recommendations", [])
+        }
+    except Exception as e:
+        logger.error(f"❌ Error getting normalization metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get normalization metrics: {str(e)}")
+
+@health_router.get("/normalization/analysis")
+async def get_normalization_analysis():
+    """دریافت تحلیل عمیق نرمال‌سازی"""
+    try:
+        analysis = data_normalizer.get_deep_analysis()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "analysis": analysis
+        }
+    except Exception as e:
+        logger.error(f"❌ Error getting normalization analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get normalization analysis: {str(e)}")
+
+@health_router.get("/normalization/structures")
+async def get_detected_structures():
+    """دریافت ساختارهای شناسایی شده"""
+    try:
+        metrics = data_normalizer.get_health_metrics()
+        analysis = data_normalizer.get_deep_analysis()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "structure_analysis": metrics.common_structures,
+            "endpoint_patterns": analysis.get("endpoint_patterns", {}),
+            "performance_analysis": analysis.get("performance_analysis", {})
+        }
+    except Exception as e:
+        logger.error(f"❌ Error getting structure analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get structure analysis: {str(e)}")
+
+@health_router.post("/normalization/reset-metrics")
+async def reset_normalization_metrics():
+    """بازنشانی متریک‌های نرمال‌سازی (برای تست)"""
+    try:
+        data_normalizer.reset_metrics()
+        
+        return {
+            "status": "success",
+            "message": "Normalization metrics reset successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Error resetting normalization metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset metrics: {str(e)}")
+
+@health_router.post("/normalization/clear-cache")
+async def clear_normalization_cache():
+    """پاک‌سازی کش نرمال‌سازی"""
+    try:
+        data_normalizer.clear_cache()
+        
+        return {
+            "status": "success",
+            "message": "Normalization cache cleared successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Error clearing normalization cache: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
 
 # ==================== DEBUG ENDPOINTS ====================
 
@@ -490,12 +632,21 @@ async def get_all_metrics():
     cache_debugger = get_debug_module('cache_debugger')
     performance_monitor = get_debug_module('performance_monitor')
     
+    # اضافه کردن متریک‌های نرمال‌سازی
+    normalization_metrics = data_normalizer.get_health_metrics()
+    
     return {
         "timestamp": datetime.now().isoformat(),
         "system_metrics": metrics_collector.get_current_metrics(),
         "endpoint_metrics": debug_manager.get_endpoint_stats(),
         "cache_metrics": cache_debugger.get_cache_stats(),
-        "performance_metrics": performance_monitor.analyze_endpoint_performance()
+        "performance_metrics": performance_monitor.analyze_endpoint_performance(),
+        "normalization_metrics": {
+            "success_rate": normalization_metrics.success_rate,
+            "total_processed": normalization_metrics.total_processed,
+            "common_structures": normalization_metrics.common_structures,
+            "data_quality": normalization_metrics.data_quality
+        }
     }
 
 @health_router.get("/metrics/system")
@@ -678,3 +829,7 @@ async def startup_event():
     # گزارش وضعیت نهایی
     status = DebugSystemManager.get_status_report()
     logger.info(f"🎉 Debug system startup completed. Loaded {status['loaded_modules']}/{status['total_modules']} modules")
+    
+    # گزارش وضعیت نرمال‌سازی
+    normalization_metrics = data_normalizer.get_health_metrics()
+    logger.info(f"📊 Data normalization system ready. Success rate: {normalization_metrics.success_rate}%")
