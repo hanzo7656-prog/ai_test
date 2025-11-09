@@ -488,15 +488,10 @@ if DEBUG_SYSTEM_AVAILABLE:
             console_stream_manager = console_stream
             print("   ✅ Console Stream Manager created")
     
-            # 🔍 این خطوط رو اضافه کن برای دیباگ:
-            print(f"   🔍 Console manager type: {type(console_stream_manager)}")
-            print(f"   🔍 Console manager attributes: {dir(console_stream_manager)}")
-    
+            
         except Exception as e:
             print(f"   ❌ Console Stream Manager error: {e}")
-            import traceback
-            traceback.print_exc()  # 🔍 این خط رو اضافه کن
-    
+            
             # ایجاد fallback
             class SimpleConsoleManager:
                 def __init__(self):
@@ -512,9 +507,7 @@ if DEBUG_SYSTEM_AVAILABLE:
     
             console_stream_manager = SimpleConsoleManager()
             print("   ✅ Fallback Console Manager created")
-                # شروع background tasks
-            print("   🚀 Starting background tasks...")
-        
+            
         # تابع برای شروع برودکست دشبورد
         async def start_dashboard_broadcast():
             if live_dashboard_manager:
