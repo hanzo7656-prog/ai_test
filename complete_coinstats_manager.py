@@ -168,31 +168,48 @@ class CompleteCoinStatsManager:
         }
 
     def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
-        """دریافت جزئیات کوین - مطابق مستندات صفحه 35-36"""
+        """دریافت جزئیات کوین - اصلاح شده"""
         params = {"currency": currency}
         raw_data = self._make_api_request(f"coins/{coin_id}", params)
-        
-        # نرمال‌سازی داده‌ها - انتظار دیکشنری برای جزئیات کوین
-        if isinstance(raw_data, dict) and "error" not in raw_data:
-            # برای جزئیات کوین، داده را مستقیماً برمی‌گردانیم (لیست نیست)
-            return {
-                "status": "success",
-                "result": raw_data,
-                "timestamp": datetime.now().isoformat()
-            }
+    
+        # 🔧 دیباگ: بررسی ساختار واقعی داده
+        logger.info(f"🔍 [DEBUG] Coin details raw data type: {type(raw_data)}")
+        logger.info(f"🔍 [DEBUG] Coin details raw data: {raw_data}")
+    
+        # پردازش هوشمند بر اساس ساختار واقعی
+        if isinstance(raw_data, list):
+            if len(raw_data) > 0:
+                # API یک لیست برمی‌گرداند - اولین آیتم را برمی‌گردانیم
+                coin_data = raw_data[0]
+                return {
+                    "status": "success",
+                    "data": coin_data,
+                    "raw_structure": "list",
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": "Coin not found",
+                    "timestamp": datetime.now().isoformat()
+                }
+    
+        elif isinstance(raw_data, dict):
+            if "error" in raw_data:
+                return raw_data
+            else:
+                # اگر دیکشنری است، مستقیماً برمی‌گردانیم
+                return {
+                    "status": "success",
+                    "data": raw_data,
+                    "raw_structure": "dict", 
+                    "timestamp": datetime.now().isoformat()
+                }
+    
         else:
-            normalized_result = self.normalizer.normalize(raw_data, f"coins/{coin_id}")
-            
-            if normalized_result.status == "error":
-                return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
-            
-            # برای جزئیات کوین، اولین آیتم را برمی‌گردانیم
-            result_data = normalized_result.data[0] if normalized_result.data else {}
-            
             return {
-                "status": "success",
-                "result": result_data,
-                "normalization_info": normalized_result.normalization_info,
+                "status": "error", 
+                "error": f"Unexpected data format: {type(raw_data)}",
                 "timestamp": datetime.now().isoformat()
             }
 
@@ -404,30 +421,77 @@ class CompleteCoinStatsManager:
         }
 
     def get_news_by_type(self, news_type: str = "handpicked", limit: int = 10) -> Dict:
-        """دریافت اخبار بر اساس نوع - مطابق مستندات صفحه 47"""
+        """دریافت اخبار بر اساس نوع - اصلاح شده"""
         valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
         if news_type not in valid_types:
             news_type = "handpicked"
-            
+          
         raw_data = self._make_api_request(f"news/type/{news_type}")
-        
-        # نرمال‌سازی داده‌ها
-        normalized_result = self.normalizer.normalize(raw_data, f"news/type/{news_type}")
-        
-        if normalized_result.status == "error":
-            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
-        
-        # اعمال limit
-        limited_data = normalized_result.data[:limit] if normalized_result.data else []
-        
-        return {
-            "status": "success",
-            "result": limited_data,
-            "type": news_type,
-            "total": len(limited_data),
-            "normalization_info": normalized_result.normalization_info,
-            "timestamp": datetime.now().isoformat()
-        }
+    
+        # 🔧 دیباگ: بررسی ساختار واقعی
+        logger.info(f"🔍 [DEBUG] News raw data type: {type(raw_data)}")
+        logger.info(f"🔍 [DEBUG] News raw data keys: {raw_data.keys() if isinstance(raw_data, dict) else 'not dict'}")
+    
+        # پردازش هوشمند
+        if isinstance(raw_data, dict):
+            if "result" in raw_data:
+                # ساختار مستندات: {"result": [], "type": "handpicked", "total": 0}
+                news_list = raw_data.get("result", [])
+                limited_data = news_list[:limit]
+            
+                return {
+                    "status": "success",
+                    "data": limited_data,
+                    "type": news_type,
+                    "total": len(limited_data),
+                    "raw_structure": "dict_with_result",
+                    "timestamp": datetime.now().isoformat()
+                }
+            elif "data" in raw_data:
+                # ساختار جایگزین
+                news_list = raw_data.get("data", [])
+                limited_data = news_list[:limit]
+            
+                return {
+                    "status": "success", 
+                    "data": limited_data,
+                    "type": news_type,
+                    "total": len(limited_data),
+                    "raw_structure": "dict_with_data",
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                # جستجو برای لیست در سطوح مختلف
+                news_list = self._find_list_in_dict(raw_data)
+                limited_data = news_list[:limit]
+            
+                return {
+                    "status": "success",
+                    "data": limited_data,
+                    "type": news_type, 
+                    "total": len(limited_data),
+                    "raw_structure": "auto_detected",
+                    "timestamp": datetime.now().isoformat()
+                }
+    
+        elif isinstance(raw_data, list):
+            # اگر مستقیم لیست برگرداند
+            limited_data = raw_data[:limit]
+            return {
+                "status": "success",
+                "data": limited_data,
+                "type": news_type,
+                "total": len(limited_data),
+                "raw_structure": "direct_list",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+        else:
+            return {
+                "status": "error",
+                "error": f"Unexpected news format: {type(raw_data)}",
+                "timestamp": datetime.now().isoformat()
+            }
 
     def get_news_detail(self, news_id: str) -> Dict:
         """دریافت جزئیات خبر - مطابق مستندات صفحه 48-49"""
