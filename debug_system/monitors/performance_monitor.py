@@ -306,7 +306,7 @@ class PerformanceMonitor:
             'timestamp': datetime.now().isoformat()
         }
 
-    def generate_performance_report(self) -> Dict[str, Any]:
+    def get_performance_report(self) -> Dict[str, Any]:
         """تولید گزارش کامل عملکرد"""
         performance_overview = self.analyze_endpoint_performance()
         slowest_endpoints = self.get_slowest_endpoints(10)
@@ -390,6 +390,48 @@ class PerformanceMonitor:
             recommendations.append("Consider architectural improvements for low-performing endpoints")
         
         return recommendations
+
+    def analyze_bottlenecks(self) -> List[Dict[str, Any]]:
+        """آنالیز bottlenecks در اندپوینت‌ها"""
+        all_stats = self.debug_manager.get_endpoint_stats()
+        bottlenecks = []
+        
+        for endpoint, stats in all_stats['endpoints'].items():
+            issues = []
+            
+            # بررسی زمان پاسخ بالا
+            if stats.get('average_response_time', 0) > 2.0:
+                issues.append({
+                    'type': 'slow_response',
+                    'severity': 'high',
+                    'message': f'Average response time {stats["average_response_time"]}s exceeds threshold'
+                })
+            
+            # بررسی نرخ خطای بالا
+            if stats.get('success_rate', 100) < 95:
+                issues.append({
+                    'type': 'high_error_rate',
+                    'severity': 'medium',
+                    'message': f'Success rate {stats["success_rate"]}% below threshold'
+                })
+            
+            # بررسی نرخ کش پایین
+            cache_hit_rate = stats.get('cache_performance', {}).get('hit_rate', 0)
+            if cache_hit_rate < 50 and stats.get('total_calls', 0) > 10:
+                issues.append({
+                    'type': 'low_cache_efficiency',
+                    'severity': 'low',
+                    'message': f'Cache hit rate {cache_hit_rate}% is low'
+                })
+            
+            if issues:
+                bottlenecks.append({
+                    'endpoint': endpoint,
+                    'issues': issues,
+                    'total_calls': stats.get('total_calls', 0)
+                })
+        
+        return sorted(bottlenecks, key=lambda x: len(x['issues']), reverse=True)
 
 # ایجاد نمونه گلوبال (بعداً در main.py مقداردهی می‌شود)
 performance_monitor = None
