@@ -6,6 +6,16 @@ from collections import defaultdict, deque
 import inspect
 import functools
 
+# ایمپورت سیستم نرمال‌سازی جدید
+try:
+    from ..utils.data_normalizer import data_normalizer
+except ImportError:
+    # Fallback برای مواقع توسعه
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from debug_system.utils.data_normalizer import data_normalizer
+
 logger = logging.getLogger(__name__)
 
 class EndpointMonitor:
@@ -14,6 +24,17 @@ class EndpointMonitor:
         self.endpoint_registry = {}
         self.dependency_graph = defaultdict(list)
         self.performance_baselines = {}
+        
+        # آمار کیفیت داده نرمال‌سازی
+        self.normalization_quality = defaultdict(lambda: {
+            'total_calls': 0,
+            'failed_normalizations': 0,
+            'avg_quality_score': 0,
+            'structure_patterns': defaultdict(int),
+            'last_check': None
+        })
+        
+        logger.info("✅ Endpoint Monitor Initialized - With Data Quality Tracking")
         
     def monitor_endpoint(self, endpoint_name: str, method: str = "GET"):
         """دکوراتور برای مانیتورینگ اندپوینت"""
@@ -24,6 +45,7 @@ class EndpointMonitor:
                 cache_used = False
                 api_calls = 0
                 status_code = 200
+                normalization_info = None
                 
                 try:
                     # اجرای اندپوینت
@@ -32,6 +54,10 @@ class EndpointMonitor:
                     # بررسی اگر نتیجه شامل status_code باشد
                     if isinstance(result, dict) and 'status_code' in result:
                         status_code = result['status_code']
+                    
+                    # استخراج اطلاعات نرمال‌سازی از نتیجه
+                    if isinstance(result, dict):
+                        normalization_info = result.get('normalization_info')
                     
                     return result
                     
@@ -46,7 +72,7 @@ class EndpointMonitor:
                     # جمع‌آوری پارامترها (بدون اطلاعات حساس)
                     safe_params = self._sanitize_parameters(kwargs)
                     
-                    # ثبت در دیباگ منیجر
+                    # ثبت در دیباگ منیجر با اطلاعات نرمال‌سازی
                     self.debug_manager.log_endpoint_call(
                         endpoint=endpoint_name,
                         method=method,
@@ -54,8 +80,13 @@ class EndpointMonitor:
                         response_time=response_time,
                         status_code=status_code,
                         cache_used=cache_used,
-                        api_calls=api_calls
+                        api_calls=api_calls,
+                        normalization_info=normalization_info  # ✅ اضافه شد
                     )
+                    
+                    # آپدیت آمار کیفیت نرمال‌سازی
+                    if normalization_info:
+                        self._update_normalization_quality(endpoint_name, normalization_info)
             
             # ثبت اندپوینت در رجیستری
             self.endpoint_registry[endpoint_name] = {
@@ -66,6 +97,29 @@ class EndpointMonitor:
             
             return wrapper
         return decorator
+
+    def _update_normalization_quality(self, endpoint: str, normalization_info: Dict[str, Any]):
+        """آپدیت آمار کیفیت نرمال‌سازی"""
+        quality_metrics = self.normalization_quality[endpoint]
+        quality_metrics['total_calls'] += 1
+        quality_metrics['last_check'] = datetime.now().isoformat()
+        
+        # ثبت وضعیت نرمال‌سازی
+        if normalization_info.get('status') == 'error':
+            quality_metrics['failed_normalizations'] += 1
+        
+        # آپدیت امتیاز کیفیت
+        quality_score = normalization_info.get('quality_score', 0)
+        current_avg = quality_metrics['avg_quality_score']
+        total_calls = quality_metrics['total_calls']
+        
+        quality_metrics['avg_quality_score'] = (
+            (current_avg * (total_calls - 1) + quality_score) / total_calls
+        )
+        
+        # ثبت الگوی ساختاری
+        structure = normalization_info.get('detected_structure', 'unknown')
+        quality_metrics['structure_patterns'][structure] += 1
 
     def track_api_call(self, endpoint_name: str, api_name: str):
         """ردیابی فراخوانی API خارجی"""
@@ -85,7 +139,6 @@ class EndpointMonitor:
 
     def _log_api_call(self, endpoint: str, api_name: str, duration: float, params: Dict):
         """ثبت فراخوانی API خارجی"""
-        # این متد می‌تواند برای ثبت جزئیات فراخوانی‌های خارجی استفاده شود
         logger.debug(f"🔗 API Call: {endpoint} -> {api_name} ({duration:.3f}s)")
 
     def _sanitize_parameters(self, params: Dict) -> Dict:
@@ -115,6 +168,9 @@ class EndpointMonitor:
         # ارزیابی سلامت بر اساس آمار
         health_score = self._calculate_health_score(stats)
         
+        # اطلاعات کیفیت نرمال‌سازی
+        quality_info = self.normalization_quality.get(endpoint, {})
+        
         return {
             'endpoint': endpoint,
             'status': self._get_health_status(health_score),
@@ -123,6 +179,12 @@ class EndpointMonitor:
                 'average_response_time': stats['average_response_time'],
                 'success_rate': stats['success_rate'],
                 'cache_hit_rate': stats['cache_performance']['hit_rate']
+            },
+            'data_quality': {  # ✅ اضافه شد
+                'normalization_success_rate': stats.get('normalization_performance', {}).get('success_rate', 0),
+                'avg_quality_score': quality_info.get('avg_quality_score', 0),
+                'structure_patterns': dict(quality_info.get('structure_patterns', {})),
+                'failed_normalizations': quality_info.get('failed_normalizations', 0)
             },
             'last_updated': datetime.now().isoformat()
         }
@@ -134,19 +196,35 @@ class EndpointMonitor:
         
         for endpoint, stats in all_stats['endpoints'].items():
             health_score = self._calculate_health_score(stats)
+            quality_info = self.normalization_quality.get(endpoint, {})
+            
             health_report[endpoint] = {
                 'status': self._get_health_status(health_score),
                 'health_score': health_score,
                 'performance': {
                     'average_response_time': stats['average_response_time'],
                     'success_rate': stats['success_rate']
+                },
+                'data_quality': {  # ✅ اضافه شد
+                    'normalization_success_rate': stats.get('normalization_performance', {}).get('success_rate', 0),
+                    'avg_quality_score': quality_info.get('avg_quality_score', 0),
+                    'quality_level': self._assess_data_quality_level(quality_info)
                 }
             }
+        
+        # متریک‌های کلی نرمال‌سازی
+        normalization_metrics = data_normalizer.get_health_metrics()
         
         return {
             'overall_health': self._calculate_overall_health(health_report),
             'endpoints': health_report,
             'total_endpoints': len(health_report),
+            'data_normalization_overview': {  # ✅ اضافه شد
+                'system_success_rate': normalization_metrics.success_rate,
+                'total_processed': normalization_metrics.total_processed,
+                'common_structures': normalization_metrics.common_structures,
+                'data_quality': normalization_metrics.data_quality
+            },
             'timestamp': datetime.now().isoformat()
         }
 
@@ -154,28 +232,49 @@ class EndpointMonitor:
         """محاسبه امتیاز سلامت"""
         score = 0
         
-        # امتیاز بر اساس نرخ موفقیت (50%)
+        # امتیاز بر اساس نرخ موفقیت (40%)
         success_rate = stats.get('success_rate', 0)
-        score += (success_rate / 100) * 50
+        score += (success_rate / 100) * 40
         
-        # امتیاز بر اساس زمان پاسخ (30%)
+        # امتیاز بر اساس زمان پاسخ (25%)
         avg_response = stats.get('average_response_time', 0)
         if avg_response < 0.5:
-            score += 30
-        elif avg_response < 1.0:
             score += 25
-        elif avg_response < 2.0:
+        elif avg_response < 1.0:
             score += 20
+        elif avg_response < 2.0:
+            score += 15
         elif avg_response < 3.0:
             score += 10
         else:
             score += 5
             
-        # امتیاز بر اساس کش (20%)
+        # امتیاز بر اساس کش (15%)
         cache_hit_rate = stats.get('cache_performance', {}).get('hit_rate', 0)
-        score += (cache_hit_rate / 100) * 20
+        score += (cache_hit_rate / 100) * 15
+        
+        # امتیاز بر اساس کیفیت داده نرمال‌سازی (20%) ✅ اضافه شد
+        norm_performance = stats.get('normalization_performance', {})
+        norm_success_rate = norm_performance.get('success_rate', 100)
+        score += (norm_success_rate / 100) * 20
         
         return min(score, 100)
+
+    def _assess_data_quality_level(self, quality_info: Dict) -> str:
+        """ارزیابی سطح کیفیت داده"""
+        avg_quality = quality_info.get('avg_quality_score', 0)
+        failed_count = quality_info.get('failed_normalizations', 0)
+        total_calls = quality_info.get('total_calls', 1)
+        failure_rate = (failed_count / total_calls) * 100
+        
+        if failure_rate > 20 or avg_quality < 60:
+            return "POOR"
+        elif failure_rate > 10 or avg_quality < 75:
+            return "FAIR"
+        elif failure_rate > 5 or avg_quality < 85:
+            return "GOOD"
+        else:
+            return "EXCELLENT"
 
     def _get_health_status(self, health_score: float) -> str:
         """تعیین وضعیت سلامت بر اساس امتیاز"""
@@ -224,32 +323,55 @@ class EndpointMonitor:
             'calls': 0,
             'total_time': 0,
             'errors': 0,
-            'cache_hits': 0
+            'cache_hits': 0,
+            'normalization_errors': 0,
+            'total_quality_score': 0
         })
         
         for call in filtered_calls:
             ep = endpoint_performance[call['endpoint']]
             ep['calls'] += 1
             ep['total_time'] += call['response_time']
+            
             if call['status_code'] >= 400:
                 ep['errors'] += 1
+                
             if call['cache_used']:
                 ep['cache_hits'] += 1
+            
+            # آمار نرمال‌سازی ✅ اضافه شد
+            norm_info = call.get('normalization_info', {})
+            if norm_info.get('status') == 'error':
+                ep['normalization_errors'] += 1
+            ep['total_quality_score'] += norm_info.get('quality_score', 0)
         
         # محاسبه میانگین‌ها
         report = {}
         for endpoint, data in endpoint_performance.items():
+            total_calls = data['calls']
             report[endpoint] = {
-                'total_calls': data['calls'],
-                'average_response_time': data['total_time'] / data['calls'] if data['calls'] > 0 else 0,
-                'error_rate': (data['errors'] / data['calls'] * 100) if data['calls'] > 0 else 0,
-                'cache_hit_rate': (data['cache_hits'] / data['calls'] * 100) if data['calls'] > 0 else 0
+                'total_calls': total_calls,
+                'average_response_time': data['total_time'] / total_calls if total_calls > 0 else 0,
+                'error_rate': (data['errors'] / total_calls * 100) if total_calls > 0 else 0,
+                'cache_hit_rate': (data['cache_hits'] / total_calls * 100) if total_calls > 0 else 0,
+                'normalization_performance': {  # ✅ اضافه شد
+                    'error_rate': (data['normalization_errors'] / total_calls * 100) if total_calls > 0 else 0,
+                    'avg_quality_score': (data['total_quality_score'] / total_calls) if total_calls > 0 else 0
+                }
             }
+        
+        # متریک‌های کلی نرمال‌سازی
+        system_norm_metrics = data_normalizer.get_health_metrics()
         
         return {
             'time_period_hours': hours,
             'total_calls': len(filtered_calls),
             'endpoint_performance': report,
+            'system_normalization_metrics': {  # ✅ اضافه شد
+                'success_rate': system_norm_metrics.success_rate,
+                'total_processed': system_norm_metrics.total_processed,
+                'data_quality': system_norm_metrics.data_quality
+            },
             'timestamp': datetime.now().isoformat()
         }
 
@@ -286,6 +408,22 @@ class EndpointMonitor:
                     'message': f'Cache hit rate {cache_hit_rate}% is low'
                 })
             
+            # بررسی مشکلات نرمال‌سازی ✅ اضافه شد
+            norm_perf = stats.get('normalization_performance', {})
+            if norm_perf.get('success_rate', 100) < 90:
+                issues.append({
+                    'type': 'normalization_issues',
+                    'severity': 'medium',
+                    'message': f'Normalization success rate {norm_perf["success_rate"]}% is low'
+                })
+            
+            if norm_perf.get('avg_quality_score', 100) < 70:
+                issues.append({
+                    'type': 'data_quality_issues',
+                    'severity': 'high',
+                    'message': f'Data quality score {norm_perf["avg_quality_score"]}% is low'
+                })
+            
             if issues:
                 bottlenecks.append({
                     'endpoint': endpoint,
@@ -295,5 +433,12 @@ class EndpointMonitor:
         
         return sorted(bottlenecks, key=lambda x: len(x['issues']), reverse=True)
 
-# ایجاد نمونه گلوبال (بعداً در main.py مقداردهی می‌شود)
+# ایجاد نمونه گلوبال
 endpoint_monitor = None
+
+def initialize_endpoint_monitor(debug_manager):
+    """تابع مقداردهی اولیه برای endpoint monitor"""
+    global endpoint_monitor
+    endpoint_monitor = EndpointMonitor(debug_manager)
+    logger.info("✅ Endpoint Monitor Global Instance Initialized")
+    return endpoint_monitor
