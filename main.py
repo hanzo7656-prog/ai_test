@@ -485,7 +485,7 @@ if DEBUG_SYSTEM_AVAILABLE:
         
         # راه‌اندازی Console Stream
         try:
-            console_stream_manager = console_stream.ConsoleStreamManager()
+            console_stream_manager = console_stream
             print("   ✅ Console Stream Manager created")
     
             # 🔍 این خطوط رو اضافه کن برای دیباگ:
