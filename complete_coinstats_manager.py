@@ -9,6 +9,16 @@ from typing import Dict, List, Optional, Any, Union
 import glob
 from pathlib import Path
 
+# ایمپورت سیستم نرمال‌سازی جدید
+try:
+    from debug_system.utils.data_normalizer import DataNormalizer, data_normalizer
+except ImportError:
+    # Fallback برای مواقع توسعه
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from debug_system.utils.data_normalizer import DataNormalizer, data_normalizer
+
 logger = logging.getLogger(__name__)
 
 class CompleteCoinStatsManager:
@@ -19,6 +29,9 @@ class CompleteCoinStatsManager:
         self.session = requests.Session()
         self.headers = {"X-API-KEY": self.api_key}
         self.session.headers.update(self.headers)
+        
+        # سیستم نرمال‌سازی
+        self.normalizer = data_normalizer
         
         # تنظیمات کش
         self.cache_dir = "./coinstats_cache"
@@ -31,7 +44,7 @@ class CompleteCoinStatsManager:
         self.last_request_time = 0
         self.min_interval = 0.2  # 200ms بین درخواست‌ها
         
-        logger.info("✅ CoinStats Manager Initialized - Hybrid Mode Ready")
+        logger.info("✅ CoinStats Manager Initialized - With Smart Data Normalization")
 
     def _rate_limit(self):
         """مدیریت ریت لیمیت"""
@@ -92,7 +105,7 @@ class CompleteCoinStatsManager:
 
         url = f"{self.base_url}/{endpoint}"
         try:
-            logger.info(f"🔍 API Request: {endpoint}")
+            logger.info(f"🔍 API Request: {endpoint} - Params: {params}")
             
             response = self.session.get(
                 url,
@@ -138,17 +151,74 @@ class CompleteCoinStatsManager:
         # اضافه کردن فیلترهای اختیاری
         params.update(filters)
         
-        return self._make_api_request("coins", params)
+        raw_data = self._make_api_request("coins", params)
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "coins/list")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "meta": normalized_result.metadata,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_coin_details(self, coin_id: str, currency: str = "USD") -> Dict:
         """دریافت جزئیات کوین - مطابق مستندات صفحه 35-36"""
         params = {"currency": currency}
-        return self._make_api_request(f"coins/{coin_id}", params)
+        raw_data = self._make_api_request(f"coins/{coin_id}", params)
+        
+        # نرمال‌سازی داده‌ها - انتظار دیکشنری برای جزئیات کوین
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            # برای جزئیات کوین، داده را مستقیماً برمی‌گردانیم (لیست نیست)
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            normalized_result = self.normalizer.normalize(raw_data, f"coins/{coin_id}")
+            
+            if normalized_result.status == "error":
+                return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+            
+            # برای جزئیات کوین، اولین آیتم را برمی‌گردانیم
+            result_data = normalized_result.data[0] if normalized_result.data else {}
+            
+            return {
+                "status": "success",
+                "result": result_data,
+                "normalization_info": normalized_result.normalization_info,
+                "timestamp": datetime.now().isoformat()
+            }
 
-    def get_coin_charts(self, coin_id: str, period: str = "all") -> Dict:
+    def get_coin_charts(self, coin_id: str, period: str = "1w") -> Dict:
         """دریافت چارت کوین - مطابق مستندات صفحه 37"""
-        params = {"period": period}
-        return self._make_api_request(f"coins/{coin_id}/charts", params)
+        # اصلاح پارامترها بر اساس مستندات - باید coinIds باشد
+        params = {
+            "period": period,
+            "coinIds": coin_id  # ✅ اصلاح بر اساس مستندات
+        }
+        raw_data = self._make_api_request("coins/charts", params)
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, f"coins/charts/{coin_id}")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "coin_id": coin_id,
+            "period": period,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_coins_charts(self, coin_ids: str, period: str = "all") -> Dict:
         """دریافت چارت چندکوینه - مطابق مستندات صفحه 34-35"""
@@ -156,7 +226,22 @@ class CompleteCoinStatsManager:
             "coinIds": coin_ids,
             "period": period
         }
-        return self._make_api_request("coins/charts", params)
+        raw_data = self._make_api_request("coins/charts", params)
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "coins/charts/multiple")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "coin_ids": coin_ids,
+            "period": period,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_coin_price_avg(self, coin_id: str = "bitcoin", timestamp: str = "1636315200") -> Dict:
         """دریافت قیمت متوسط - مطابق مستندات صفحه 38"""
@@ -165,7 +250,21 @@ class CompleteCoinStatsManager:
             "coinId": coin_id,
             "timestamp": timestamp_fixed
         }
-        return self._make_api_request("coins/price/avg", params)
+        raw_data = self._make_api_request("coins/price/avg", params)
+        
+        # برای قیمت متوسط، داده را مستقیماً برمی‌گردانیم
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "success",
+                "result": {"price": raw_data} if not isinstance(raw_data, dict) else raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
 
     def get_exchange_price(self, exchange: str = "Binance", from_coin: str = "BTC", 
                           to_coin: str = "ETH", timestamp: str = "1636315200") -> Dict:
@@ -177,66 +276,259 @@ class CompleteCoinStatsManager:
             "to": to_coin,
             "timestamp": timestamp_fixed
         }
-        return self._make_api_request("coins/price/exchange", params)
+        raw_data = self._make_api_request("coins/price/exchange", params)
+        
+        # برای قیمت صرافی، داده را مستقیماً برمی‌گردانیم
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "success",
+                "result": {"price": raw_data} if not isinstance(raw_data, dict) else raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
 
     # ============================= EXCHANGES ENDPOINTS ===========================
 
     def get_exchanges(self) -> Dict:
         """دریافت لیست صرافی‌ها - مطابق مستندات صفحه 40-41"""
-        return self._make_api_request("tickers/exchanges")
+        raw_data = self._make_api_request("tickers/exchanges")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "exchanges/list")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_markets(self) -> Dict:
         """دریافت مارکت‌ها - مطابق مستندات صفحه 43"""
-        return self._make_api_request("markets")
+        # اصلاح endpoint بر اساس مستندات - باید tickers/markets باشد
+        raw_data = self._make_api_request("tickers/markets")  # ✅ اصلاح شده
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "markets")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_fiats(self) -> Dict:
         """دریافت ارزهای فیات - مطابق مستندات صفحه 42"""
-        return self._make_api_request("fiats")
+        raw_data = self._make_api_request("fiats")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "fiats")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_currencies(self) -> Dict:
         """دریافت ارزها - مطابق مستندات صفحه 44"""
-        return self._make_api_request("currencies")
+        raw_data = self._make_api_request("currencies")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "currencies")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     # ============================= NEWS ENDPOINTS =========================
 
     def get_news_sources(self) -> Dict:
         """دریافت منابع خبری - مطابق مستندات صفحه 45"""
-        return self._make_api_request("news/sources")
+        raw_data = self._make_api_request("news/sources")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "news/sources")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_news(self, limit: int = 50) -> Dict:
         """دریافت اخبار عمومی - مطابق مستندات صفحه 46"""
-        # توجه: در مستندات پارامتر limit وجود ندارد
-        return self._make_api_request("news")
+        raw_data = self._make_api_request("news")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, "news")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        # اعمال limit دستی (چون API پارامتر limit ندارد)
+        limited_data = normalized_result.data[:limit] if normalized_result.data else []
+        
+        return {
+            "status": "success",
+            "result": limited_data,
+            "total": len(limited_data),
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_news_by_type(self, news_type: str = "handpicked", limit: int = 10) -> Dict:
         """دریافت اخبار بر اساس نوع - مطابق مستندات صفحه 47"""
         valid_types = ["handpicked", "trending", "latest", "bullish", "bearish"]
         if news_type not in valid_types:
             news_type = "handpicked"
-        return self._make_api_request(f"news/type/{news_type}")
+            
+        raw_data = self._make_api_request(f"news/type/{news_type}")
+        
+        # نرمال‌سازی داده‌ها
+        normalized_result = self.normalizer.normalize(raw_data, f"news/type/{news_type}")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        # اعمال limit
+        limited_data = normalized_result.data[:limit] if normalized_result.data else []
+        
+        return {
+            "status": "success",
+            "result": limited_data,
+            "type": news_type,
+            "total": len(limited_data),
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_news_detail(self, news_id: str) -> Dict:
         """دریافت جزئیات خبر - مطابق مستندات صفحه 48-49"""
-        return self._make_api_request(f"news/{news_id}")
+        raw_data = self._make_api_request(f"news/{news_id}")
+        
+        # برای جزئیات خبر، داده را مستقیماً برمی‌گردانیم
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            normalized_result = self.normalizer.normalize(raw_data, f"news/{news_id}")
+            
+            if normalized_result.status == "error":
+                return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+            
+            # اولین آیتم را برمی‌گردانیم
+            result_data = normalized_result.data[0] if normalized_result.data else {}
+            
+            return {
+                "status": "success",
+                "result": result_data,
+                "normalization_info": normalized_result.normalization_info,
+                "timestamp": datetime.now().isoformat()
+            }
 
     # ============================= INSIGHTS ENDPOINTS =========================
 
     def get_btc_dominance(self, period_type: str = "all") -> Dict:
         """دریافت دامیننس بیت کوین - مطابق مستندات صفحه 49-50"""
         params = {"type": period_type}
-        return self._make_api_request("insights/btc-dominance", params)
+        raw_data = self._make_api_request("insights/btc-dominance", params)
+        
+        # برای دامیننس، داده را مستقیماً برمی‌گردانیم
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "success",
+                "result": {"dominance": raw_data} if not isinstance(raw_data, dict) else raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
 
     def get_fear_greed(self) -> Dict:
         """دریافت شاخص ترس و طمع - مطابق مستندات صفحه 50-51"""
-        return self._make_api_request("insights/fear-and-greed")
+        raw_data = self._make_api_request("insights/fear-and-greed")
+        
+        # برای شاخص ترس و طمع، داده را مستقیماً برمی‌گردانیم
+        if isinstance(raw_data, dict) and "error" not in raw_data:
+            return {
+                "status": "success",
+                "result": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "success",
+                "result": {"value": raw_data} if not isinstance(raw_data, dict) else raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
 
     def get_fear_greed_chart(self) -> Dict:
         """دریافت چارت ترس و طمع - مطابق مستندات صفحه 51-52"""
-        return self._make_api_request("insights/fear-and-greed/chart")
+        raw_data = self._make_api_request("insights/fear-and-greed/chart")
+        
+        # نرمال‌سازی داده‌های چارت
+        normalized_result = self.normalizer.normalize(raw_data, "fear-greed/chart")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Dict:
         """دریافت چارت رنگین‌کمان - مطابق مستندات صفحه 52-53"""
-        return self._make_api_request(f"insights/rainbow-chart/{coin_id}")
+        raw_data = self._make_api_request(f"insights/rainbow-chart/{coin_id}")
+        
+        # نرمال‌سازی داده‌های چارت
+        normalized_result = self.normalizer.normalize(raw_data, f"rainbow-chart/{coin_id}")
+        
+        if normalized_result.status == "error":
+            return {"error": normalized_result.normalization_info.get("error", "Normalization failed"), "status": "error"}
+        
+        return {
+            "status": "success",
+            "result": normalized_result.data,
+            "coin_id": coin_id,
+            "normalization_info": normalized_result.normalization_info,
+            "timestamp": datetime.now().isoformat()
+        }
 
     # ============================= HYBRID DATA METHODS =========================
 
@@ -248,6 +540,7 @@ class CompleteCoinStatsManager:
         if "error" in raw_data:
             return raw_data
         
+        # پردازش اضافی روی داده‌های نرمال‌شده
         processed_coins = []
         for coin in raw_data.get('result', []):
             processed_coins.append({
@@ -266,7 +559,7 @@ class CompleteCoinStatsManager:
             'status': 'success',
             'data': processed_coins,
             'pagination': raw_data.get('meta', {}),
-            'raw_data': raw_data,  # داده خام برای reference
+            'normalization_info': raw_data.get('normalization_info', {}),
             'timestamp': datetime.now().isoformat()
         }
 
@@ -277,11 +570,9 @@ class CompleteCoinStatsManager:
         if "error" in raw_data:
             return raw_data
         
-        # اگر داده مستقیماً لیست است
-        exchanges_list = raw_data if isinstance(raw_data, list) else raw_data.get('data', [])
-        
+        # پردازش اضافی
         processed_exchanges = []
-        for exchange in exchanges_list:
+        for exchange in raw_data.get('result', []):
             processed_exchanges.append({
                 'id': exchange.get('id'),
                 'name': exchange.get('name'),
@@ -298,7 +589,7 @@ class CompleteCoinStatsManager:
             'status': 'success',
             'data': processed_exchanges,
             'total': len(processed_exchanges),
-            'raw_data': raw_data,
+            'normalization_info': raw_data.get('normalization_info', {}),
             'timestamp': datetime.now().isoformat()
         }
 
@@ -309,18 +600,9 @@ class CompleteCoinStatsManager:
         if "error" in raw_data:
             return raw_data
         
-        # ساختار پیش‌فرض برای داده‌های ناقص
-        default_data = {
-            'value': 50,
-            'value_classification': 'Neutral',
-            'timestamp': datetime.now().isoformat(),
-            'time_until_update': '24h'
-        }
+        # پردازش و تحلیل پیشرفته
+        fear_greed_data = raw_data.get('result', {})
         
-        # ترکیب داده‌های واقعی با پیش‌فرض
-        fear_greed_data = {**default_data, **raw_data}
-        
-        # تحلیل احساسات
         value = fear_greed_data.get('value', 50)
         if value >= 75:
             sentiment = "extreme_greed"
@@ -355,7 +637,8 @@ class CompleteCoinStatsManager:
         return {
             'status': 'success',
             'data': processed_data,
-            'raw_data': raw_data,
+            'raw_data': raw_data.get('result'),
+            'normalization_info': raw_data.get('normalization_info', {}),
             'timestamp': datetime.now().isoformat()
         }
 
@@ -432,7 +715,8 @@ class CompleteCoinStatsManager:
             return {
                 'status': 'connected' if test_data and 'result' in test_data else 'disconnected',
                 'timestamp': datetime.now().isoformat(),
-                'cache_info': self.get_cache_info()
+                'cache_info': self.get_cache_info(),
+                'normalization_stats': self.normalizer.get_health_metrics()  # ✅ اضافه شد
             }
         except Exception as e:
             return {
