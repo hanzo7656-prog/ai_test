@@ -59,19 +59,30 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # پردازش داده‌ها
+        # 🔍 دیباگ: بررسی ساختار واقعی داده
+        logger.info(f"🔍 Route received data: {raw_data}")
+        
+        # 🔧 اصلاح: استفاده از ساختار جدید manager
+        # manager جدید ساختار {'status': 'success', 'data': {...}} برمی‌گرداند
+        coin_data = raw_data.get('data', {})
+        
+        if not coin_data:
+            # اگر داده خالی است، از raw_data مستقیم استفاده کن
+            coin_data = raw_data
+        
+        # پردازش داده‌ها با ساختار جدید
         processed_data = {
-            'id': raw_data.get('id'),
-            'name': raw_data.get('name'),
-            'symbol': raw_data.get('symbol'),
-            'price': raw_data.get('price'),
-            'price_change_24h': raw_data.get('priceChange1d'),
-            'price_change_1h': raw_data.get('priceChange1h'),
-            'price_change_1w': raw_data.get('priceChange1w'),
-            'volume_24h': raw_data.get('volume'),
-            'market_cap': raw_data.get('marketCap'),
-            'rank': raw_data.get('rank'),
-            'website': raw_data.get('websiteUrl'),
+            'id': coin_data.get('id'),
+            'name': coin_data.get('name'),
+            'symbol': coin_data.get('symbol'),
+            'price': coin_data.get('price'),
+            'price_change_24h': coin_data.get('price_change_24h', coin_data.get('priceChange1d')),
+            'price_change_1h': coin_data.get('price_change_1h', coin_data.get('priceChange1h')),
+            'price_change_1w': coin_data.get('price_change_1w', coin_data.get('priceChange1w')),
+            'volume_24h': coin_data.get('volume_24h', coin_data.get('volume')),
+            'market_cap': coin_data.get('market_cap', coin_data.get('marketCap')),
+            'rank': coin_data.get('rank'),
+            'website': coin_data.get('website', coin_data.get('websiteUrl')),
             'last_updated': datetime.now().isoformat()
         }
         
@@ -84,7 +95,7 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
     except Exception as e:
         logger.error(f"Error in coin details for {coin_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @coins_router.get("/charts/{coin_id}", summary="چارت نماد")
 async def get_coin_charts(coin_id: str, period: str = Query("1w")):
     """دریافت چارت پردازش شده نماد"""
