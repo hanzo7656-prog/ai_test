@@ -475,7 +475,7 @@ class DebugManager:
                 
                 # استفاده از متد alert_manager بدون نیاز به import
                 self.alert_manager.create_alert(
-                    level=alert_level_map[level.value],
+                    level=level.value
                     alert_type="PERFORMANCE",  # استفاده از string به جای enum
                     title=f"Performance Alert: {message}",
                     message=message,
