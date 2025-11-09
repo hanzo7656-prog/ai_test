@@ -24,14 +24,14 @@ class DebugSystemManager:
     
     @classmethod
     def initialize(cls):
-        """مقداردهی اولیه lazy سیستم دیباگ"""
+        """مقداردهی اولیه lazy سیستم دیباگ - نسخه اصلاح شده"""
         if cls._initialized:
             return cls._modules
         
         try:
             logger.info("🔄 Initializing debug system (lazy loading)...")
             
-            # ایمپورت core modules
+            # ایمپورت core modules - اینها همیشه باید کار کنند
             from debug_system.core.debug_manager import debug_manager
             from debug_system.core.metrics_collector import metrics_collector
             from debug_system.core.alert_manager import alert_manager, AlertLevel, AlertType
@@ -44,12 +44,18 @@ class DebugSystemManager:
                 'AlertType': AlertType
             })
             
-            # ایمپورت monitors
+            # ایمپورت monitors - با dependency injection درست
             try:
-                from debug_system.monitors.endpoint_monitor import endpoint_monitor
-                from debug_system.monitors.system_monitor import system_monitor
-                from debug_system.monitors.performance_monitor import performance_monitor
-                from debug_system.monitors.security_monitor import security_monitor
+                from debug_system.monitors.endpoint_monitor import EndpointMonitor
+                from debug_system.monitors.system_monitor import SystemMonitor
+                from debug_system.monitors.performance_monitor import PerformanceMonitor
+                from debug_system.monitors.security_monitor import SecurityMonitor
+                
+                # ایجاد نمونه با dependencyهای لازم
+                endpoint_monitor = EndpointMonitor(debug_manager)
+                system_monitor = SystemMonitor(metrics_collector, alert_manager)
+                performance_monitor = PerformanceMonitor(debug_manager, alert_manager)
+                security_monitor = SecurityMonitor(alert_manager)
                 
                 cls._modules.update({
                     'endpoint_monitor': endpoint_monitor,
@@ -57,8 +63,13 @@ class DebugSystemManager:
                     'performance_monitor': performance_monitor,
                     'security_monitor': security_monitor
                 })
+                
+                logger.info("✅ Monitors initialized with dependency injection")
+                
             except ImportError as e:
                 logger.warning(f"⚠️ Could not load monitors: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error initializing monitors: {e}")
             
             # ایمپورت storage
             try:
@@ -69,50 +80,92 @@ class DebugSystemManager:
                     'history_manager': history_manager,
                     'cache_debugger': cache_debugger
                 })
+                
+                logger.info("✅ Storage modules loaded")
+                
             except ImportError as e:
                 logger.warning(f"⚠️ Could not load storage: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error loading storage: {e}")
             
             # ایمپورت realtime
             try:
-                from debug_system.realtime.live_dashboard import live_dashboard
-                from debug_system.realtime.console_stream import console_stream
+                from debug_system.realtime.live_dashboard import LiveDashboardManager
+                from debug_system.realtime.console_stream import ConsoleStreamManager
+                
+                # ایجاد live dashboard با dependency
+                live_dashboard = LiveDashboardManager(debug_manager, metrics_collector)
+                console_stream = ConsoleStreamManager()
                 
                 cls._modules.update({
                     'live_dashboard': live_dashboard,
                     'console_stream': console_stream
                 })
+                
+                logger.info("✅ Realtime modules initialized")
+                
             except ImportError as e:
                 logger.warning(f"⚠️ Could not load realtime: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error initializing realtime: {e}")
             
-            # ایمپورت tools
+            # ایمپورت tools - این مشکل اصلی بود!
             try:
-                from debug_system.tools.report_generator import report_generator
-                from debug_system.tools.dev_tools import dev_tools
-                from debug_system.tools.testing_tools import testing_tools
+                from debug_system.tools.report_generator import ReportGenerator
+                from debug_system.tools.dev_tools import DevTools
+                from debug_system.tools.testing_tools import TestingTools
+                
+                # ایجاد tools با dependencyهای لازم
+                history_manager_instance = cls._modules.get('history_manager')
+                report_generator = ReportGenerator(debug_manager, history_manager_instance)
+                dev_tools = DevTools(debug_manager)
+                testing_tools = TestingTools(debug_manager)
                 
                 cls._modules.update({
                     'report_generator': report_generator,
                     'dev_tools': dev_tools,
                     'testing_tools': testing_tools
                 })
+                
+                logger.info("✅ Tools initialized with dependencies")
+                
             except ImportError as e:
-                logger.warning(f"⚠️ Could not load tools: {e}")
+                logger.error(f"❌ Could not load tools: {e}")
+            except Exception as e:
+                logger.error(f"❌ Error initializing tools: {e}")
             
             cls._initialized = True
-            logger.info("✅ Debug system lazy loading completed")
+            
+            # لاگ ماژول‌های load شده
+            loaded_modules = [name for name, module in cls._modules.items() if module is not None]
+            failed_modules = [name for name, module in cls._modules.items() if module is None]
+            
+            logger.info(f"✅ Debug system initialization completed")
+            logger.info(f"📦 Loaded modules ({len(loaded_modules)}): {loaded_modules}")
+            
+            if failed_modules:
+                logger.warning(f"⚠️ Failed modules ({len(failed_modules)}): {failed_modules}")
             
         except Exception as e:
             logger.error(f"❌ Debug system initialization failed: {e}")
-            cls._modules = {}
+            # حتی اگر خطا داد، حداقل core modules را نگه دار
+            cls._modules = cls._modules or {}
         
         return cls._modules
     
     @classmethod
     def get_module(cls, module_name: str, default=None):
-        """دریافت یک ماژول از سیستم دیباگ"""
+        """دریافت یک ماژول از سیستم دیباگ - نسخه اصلاح شده"""
         if not cls._initialized:
             cls.initialize()
-        return cls._modules.get(module_name, default)
+        
+        module = cls._modules.get(module_name, default)
+        
+        # اگر ماژول None باشد، پیام خطای مفید
+        if module is None and module_name in cls._modules:
+            logger.warning(f"⚠️ Module '{module_name}' is None")
+        
+        return module
     
     @classmethod
     def is_available(cls):
@@ -120,16 +173,45 @@ class DebugSystemManager:
         if not cls._initialized:
             cls.initialize()
         return bool(cls._modules.get('debug_manager'))
+    
+    @classmethod
+    def get_status_report(cls):
+        """دریافت گزارش وضعیت سیستم دیباگ"""
+        if not cls._initialized:
+            cls.initialize()
+        
+        loaded_modules = [name for name, module in cls._modules.items() if module is not None]
+        failed_modules = [name for name, module in cls._modules.items() if module is None]
+        
+        return {
+            'initialized': cls._initialized,
+            'total_modules': len(cls._modules),
+            'loaded_modules': len(loaded_modules),
+            'failed_modules': len(failed_modules),
+            'available_modules': loaded_modules,
+            'missing_modules': failed_modules,
+            'core_available': bool(cls._modules.get('debug_manager'))
+        }
 
 # تابع کمکی برای دسترسی آسان به ماژول‌ها
 def get_debug_module(module_name: str):
-    """دریافت ماژول دیباگ با مدیریت خطا"""
+    """دریافت ماژول دیباگ با مدیریت خطا - نسخه نهایی"""
     module = DebugSystemManager.get_module(module_name)
+    
     if module is None:
+        status_report = DebugSystemManager.get_status_report()
+        
+        logger.error(f"❌ Debug module '{module_name}' is not available. Status: {status_report}")
+        
         raise HTTPException(
             status_code=503, 
-            detail=f"Debug module '{module_name}' not available. System may still be initializing."
+            detail={
+                "error": f"Debug module '{module_name}' not properly initialized",
+                "system_status": status_report,
+                "hint": "Check server logs for initialization errors"
+            }
         )
+    
     return module
 
 # ==================== BASIC HEALTH ENDPOINTS ====================
@@ -137,7 +219,7 @@ def get_debug_module(module_name: str):
 @health_router.get("/status")
 async def health_status():
     """بررسی سلامت کلی سیستم"""
-    debug_available = DebugSystemManager.is_available()
+    debug_status = DebugSystemManager.get_status_report()
     
     return {
         "status": "healthy",
@@ -148,7 +230,12 @@ async def health_status():
             "database": "connected",
             "cache": "connected",
             "external_apis": "available",
-            "debug_system": "available" if debug_available else "initializing"
+            "debug_system": {
+                "available": debug_status['core_available'],
+                "loaded_modules": debug_status['loaded_modules'],
+                "total_modules": debug_status['total_modules'],
+                "status": "fully_initialized" if debug_status['loaded_modules'] == debug_status['total_modules'] else "partially_initialized"
+            }
         }
     }
 
@@ -157,7 +244,7 @@ async def system_overview():
     """نمای کلی سیستم"""
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
-    debug_available = DebugSystemManager.is_available()
+    debug_status = DebugSystemManager.get_status_report()
     
     return {
         "system": {
@@ -174,10 +261,7 @@ async def system_overview():
             "disk_used_gb": round(disk.used / (1024**3), 2),
             "disk_total_gb": round(disk.total / (1024**3), 2)
         },
-        "status": {
-            "debug_system_available": debug_available,
-            "debug_system_status": "active" if debug_available else "initializing"
-        }
+        "debug_system": debug_status
     }
 
 @health_router.get("/ping")
@@ -590,3 +674,7 @@ async def startup_event():
     """رویداد startup برای مقداردهی اولیه سیستم دیباگ"""
     logger.info("🚀 Initializing debug system on startup...")
     DebugSystemManager.initialize()
+    
+    # گزارش وضعیت نهایی
+    status = DebugSystemManager.get_status_report()
+    logger.info(f"🎉 Debug system startup completed. Loaded {status['loaded_modules']}/{status['total_modules']} modules")
