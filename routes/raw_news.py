@@ -82,14 +82,18 @@ async def get_raw_news_by_type(
 
 @raw_news_router.get("/sources", summary="داده‌های خام منابع خبری")
 async def get_raw_news_sources():
-    """دریافت داده‌های خام منابع خبری از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
+    """دریافت داده‌های خام منابع خبری از CoinStats API"""
     try:
         raw_data = coin_stats_manager.get_news_sources()
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        sources_list = raw_data.get('result', [])
+        # 🔥 رفع مشکل: بررسی نوع داده
+        if isinstance(raw_data, list):
+            sources_list = raw_data
+        else:
+            sources_list = []
         
         # تحلیل منابع خبری
         sources_analysis = _analyze_news_sources(sources_list)
@@ -101,13 +105,15 @@ async def get_raw_news_sources():
             'api_version': 'v1',
             'timestamp': datetime.now().isoformat(),
             'analysis': sources_analysis,
-            'data': raw_data
+            'data': {
+                'sources': sources_list,
+                'raw_response': raw_data
+            }
         }
         
     except Exception as e:
         logger.error(f"Error in raw news sources: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @raw_news_router.get("/detail/{news_id}", summary="داده‌های خام جزئیات خبر")
 async def get_raw_news_detail(news_id: str):
     """دریافت داده‌های خام جزئیات کامل یک خبر از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
@@ -247,6 +253,42 @@ async def get_news_metadata():
         logger.error(f"Error in news metadata: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@raw_news_router.get("/debug/manager", summary="دیباگ مدیر اخبار")
+async def debug_news_manager():
+    """بررسی ساختار داده‌های برگشتی از coin_stats_manager"""
+    try:
+        # تست تمام متدها
+        news_data = coin_stats_manager.get_news()
+        news_by_type = coin_stats_manager.get_news_by_type("latest")
+        sources_data = coin_stats_manager.get_news_sources()
+        
+        return {
+            'status': 'debug',
+            'timestamp': datetime.now().isoformat(),
+            'get_news_structure': {
+                'type': type(news_data).__name__,
+                'keys': list(news_data.keys()) if isinstance(news_data, dict) else 'not_dict',
+                'sample': str(news_data)[:200] if news_data else 'empty'
+            },
+            'get_news_by_type_structure': {
+                'type': type(news_by_type).__name__,
+                'keys': list(news_by_type.keys()) if isinstance(news_by_type, dict) else 'not_dict',
+                'sample': str(news_by_type)[:200] if news_by_type else 'empty'
+            },
+            'get_news_sources_structure': {
+                'type': type(sources_data).__name__,
+                'is_list': isinstance(sources_data, list),
+                'length': len(sources_data) if isinstance(sources_data, list) else 'not_list',
+                'sample': sources_data[:3] if isinstance(sources_data, list) and sources_data else 'empty'
+            }
+        }
+        
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
 # ============================ توابع کمکی برای هوش مصنوعی ============================
 
 def _analyze_news_data(news_items: List[Dict]) -> Dict[str, Any]:
