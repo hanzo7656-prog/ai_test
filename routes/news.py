@@ -23,11 +23,17 @@ async def get_news(
             logger.error(f"❌ News API error: {raw_data['error']}")
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        news_items = raw_data.get('data', [])
+        # بررسی ساختار داده‌ها
+        if isinstance(raw_data, dict):
+            news_items = raw_data.get('data', raw_data.get('result', []))
+        elif isinstance(raw_data, list):
+            news_items = raw_data
+        else:
+            news_items = []
         
         # پردازش ساده داده‌ها
         processed_news = []
-        for news_item in news_items:
+        for news_item in news_items[:limit]:
             processed_news.append({
                 'id': news_item.get('id'),
                 'title': news_item.get('title'),
@@ -81,10 +87,16 @@ async def get_news_by_type(
             logger.error(f"❌ {news_type} news API error: {raw_data['error']}")
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        news_items = raw_data.get('data', [])
+        # بررسی ساختار داده‌ها
+        if isinstance(raw_data, dict):
+            news_items = raw_data.get('data', raw_data.get('result', []))
+        elif isinstance(raw_data, list):
+            news_items = raw_data
+        else:
+            news_items = []
         
         processed_news = []
-        for news_item in news_items:
+        for news_item in news_items[:limit]:
             processed_news.append({
                 'id': news_item.get('id'),
                 'title': news_item.get('title'),
@@ -130,26 +142,44 @@ async def get_news_sources():
             logger.error(f"❌ News sources API error: {raw_data['error']}")
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        sources = raw_data.get('data', [])
+        # 🔥 رفع مشکل اصلی: بررسی نوع داده
+        if isinstance(raw_data, list):
+            # اگر داده مستقیم لیست است
+            sources = raw_data
+        elif isinstance(raw_data, dict):
+            # اگر داده دیکشنری است
+            sources = raw_data.get('data', raw_data.get('result', []))
+        else:
+            sources = []
         
         processed_sources = []
         for source in sources:
-            processed_sources.append({
-                'id': source.get('id'),
-                'name': source.get('name'),
-                'url': source.get('url'),
-                'description': source.get('description'),
-                'language': source.get('language', 'en'),
-                'country': source.get('country'),
-                'category': source.get('category', 'crypto'),
-                'last_updated': datetime.now().isoformat()
-            })
+            # بررسی اینکه هر آیتم source دیکشنری است
+            if isinstance(source, dict):
+                processed_sources.append({
+                    'id': source.get('id'),
+                    'name': source.get('name'),
+                    'url': source.get('url'),
+                    'description': source.get('description'),
+                    'language': source.get('language', 'en'),
+                    'country': source.get('country'),
+                    'category': source.get('category', 'crypto'),
+                    'last_updated': datetime.now().isoformat()
+                })
+            else:
+                # اگر آیتم دیکشنری نیست، به صورت ساده ذخیره کن
+                processed_sources.append({
+                    'id': str(source) if source else 'unknown',
+                    'name': str(source),
+                    'raw_data': source
+                })
         
         response = {
             'status': 'success',
             'data': processed_sources,
             'meta': {
-                'total': len(processed_sources)
+                'total': len(processed_sources),
+                'data_structure': 'processed'
             },
             'timestamp': datetime.now().isoformat()
         }
@@ -175,10 +205,18 @@ async def get_news_detail(news_id: str):
             logger.error(f"❌ News detail API error: {raw_data['error']}")
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        news_data = raw_data.get('data', {})
+        # بررسی ساختار داده‌ها
+        if isinstance(raw_data, dict):
+            news_data = raw_data.get('data', raw_data.get('result', {}))
+        else:
+            news_data = raw_data if raw_data else {}
+        
+        # اگر news_data دیکشنری نیست، از raw_data استفاده کن
+        if not isinstance(news_data, dict):
+            news_data = raw_data if isinstance(raw_data, dict) else {}
         
         processed_detail = {
-            'id': news_data.get('id'),
+            'id': news_data.get('id', news_id),
             'title': news_data.get('title'),
             'content': news_data.get('content', news_data.get('description')),
             'url': news_data.get('url'),
@@ -188,7 +226,8 @@ async def get_news_detail(news_id: str):
             'image_url': news_data.get('imageUrl'),
             'tags': news_data.get('tags', []),
             'categories': news_data.get('categories', []),
-            'last_updated': datetime.now().isoformat()
+            'last_updated': datetime.now().isoformat(),
+            'raw_data_available': bool(news_data)
         }
         
         response = {
@@ -206,80 +245,6 @@ async def get_news_detail(news_id: str):
         logger.error(f"🚨 Error in news detail {news_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@news_router.get("/raw/all", summary="اخبار خام")
-async def get_raw_news(
-    limit: int = Query(50, ge=1, le=100, description="تعداد اخبار (۱ تا ۱۰۰)")
-):
-    """دریافت داده‌های خام اخبار بدون پردازش"""
-    try:
-        logger.info(f"📰 Fetching raw news - Limit: {limit}")
-        
-        raw_data = coin_stats_manager.get_news(limit=limit)
-        
-        if "error" in raw_data:
-            logger.error(f"❌ Raw news API error: {raw_data['error']}")
-            raise HTTPException(status_code=500, detail=raw_data["error"])
-        
-        response = {
-            'status': 'success',
-            'data': raw_data.get('data', []),
-            'meta': {
-                'total': len(raw_data.get('data', [])),
-                'limit': limit,
-                'data_type': 'raw'
-            },
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        logger.info(f"✅ Raw news fetched successfully - Total: {len(raw_data.get('data', []))}")
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🚨 Error in raw news: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@news_router.get("/raw/type/{news_type}", summary="اخبار خام بر اساس نوع")
-async def get_raw_news_by_type(
-    news_type: str,
-    limit: int = Query(10, ge=1, le=50, description="تعداد اخبار (۱ تا ۵۰)")
-):
-    """دریافت داده‌های خام اخبار بر اساس نوع بدون پردازش"""
-    try:
-        valid_types = ["latest", "trending", "featured", "breaking", "analysis", "handpicked"]
-        if news_type not in valid_types:
-            raise HTTPException(status_code=400, detail=f"Invalid news type. Valid types: {valid_types}")
-        
-        logger.info(f"📰 Fetching raw {news_type} news - Limit: {limit}")
-        
-        raw_data = coin_stats_manager.get_news_by_type(news_type, limit=limit)
-        
-        if "error" in raw_data:
-            logger.error(f"❌ Raw {news_type} news API error: {raw_data['error']}")
-            raise HTTPException(status_code=500, detail=raw_data["error"])
-        
-        response = {
-            'status': 'success',
-            'data': raw_data.get('data', []),
-            'meta': {
-                'type': news_type,
-                'total': len(raw_data.get('data', [])),
-                'limit': limit,
-                'data_type': 'raw'
-            },
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        logger.info(f"✅ Raw {news_type} news fetched successfully - Total: {len(raw_data.get('data', []))}")
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🚨 Error in raw {news_type} news: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
 @news_router.get("/debug/{news_type}", summary="دیباگ اخبار")
 async def debug_news_data(news_type: str = "handpicked"):
     """ابزار دیباگ برای بررسی ساختار داده اخبار"""
@@ -287,12 +252,19 @@ async def debug_news_data(news_type: str = "handpicked"):
         raw_data = coin_stats_manager.get_news_by_type(news_type)
         
         # نمونه‌ای از داده‌ها برای نمایش
-        sample_data = raw_data.get('data', [])
+        if isinstance(raw_data, dict):
+            sample_data = raw_data.get('data', raw_data.get('result', []))
+        elif isinstance(raw_data, list):
+            sample_data = raw_data
+        else:
+            sample_data = []
+            
         sample_item = sample_data[0] if sample_data else {}
         
         return {
             'status': 'debug',
             'endpoint': f"news/type/{news_type}",
+            'raw_data_type': type(raw_data).__name__,
             'manager_response_keys': list(raw_data.keys()) if isinstance(raw_data, dict) else 'not_dict',
             'data_count': len(sample_data),
             'sample_item_structure': {
