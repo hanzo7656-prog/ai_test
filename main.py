@@ -393,7 +393,7 @@ try:
     from routes.raw_coins import raw_coins_router
     from routes.raw_news import raw_news_router
     from routes.raw_insights import raw_insights_router
-    from router.raw_exchanges import raw_exchanges_router
+    from routes.raw_exchanges import raw_exchanges_router
     from routes.docs import docs_router
     print("✅ All routers imported successfully!")
 except ImportError as e:
@@ -686,6 +686,7 @@ app.include_router(insights_router)
 app.include_router(raw_coins_router)
 app.include_router(raw_news_router)
 app.include_router(raw_insights_router)
+app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
