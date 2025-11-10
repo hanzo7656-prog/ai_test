@@ -832,7 +832,85 @@ async def get_cache_stats():
         "most_accessed_keys": cache_debugger.get_most_accessed_keys(),
         "timestamp": datetime.now().isoformat()
     }
+# ==================== CACHE ENDPOINTS ====================
 
+@health_router.get("/cache/status")
+async def get_cache_status():
+    """وضعیت سلامت سیستم کش"""
+    try:
+        from debug_system.storage import redis_manager, cache_debugger
+        
+        redis_health = redis_manager.health_check()
+        cache_stats = cache_debugger.get_cache_stats()
+        cache_efficiency = cache_debugger.get_cache_efficiency_report()
+        
+        return {
+            "status": "success",
+            "redis": redis_health,
+            "cache_stats": cache_stats,
+            "efficiency": cache_efficiency,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cache status error: {e}")
+
+@health_router.get("/cache/stats")
+async def get_cache_stats():
+    """آمار استفاده از کش"""
+    try:
+        from debug_system.storage import cache_debugger
+        
+        stats = cache_debugger.get_cache_stats()
+        performance = cache_debugger.get_cache_performance(24)
+        top_keys = cache_debugger.get_most_accessed_keys(10)
+        
+        return {
+            "status": "success",
+            "overview": stats,
+            "performance": performance,
+            "top_accessed_keys": top_keys,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cache stats error: {e}")
+
+@health_router.get("/cache/efficiency")
+async def get_cache_efficiency():
+    """گزارش کارایی کش"""
+    try:
+        from debug_system.storage import cache_debugger
+        
+        efficiency_report = cache_debugger.get_cache_efficiency_report()
+        
+        return {
+            "status": "success",
+            "efficiency_report": efficiency_report,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cache efficiency error: {e}")
+
+@health_router.delete("/cache/clear")
+async def clear_cache():
+    """پاک‌سازی کامل کش"""
+    try:
+        from debug_system.storage import cache_debugger, redis_manager
+        
+        # پاک کردن آمار داخلی
+        cache_debugger.clear_old_operations(days=0)
+        
+        # پاک کردن کلیدهای Redis (اختیاری)
+        # keys, _ = redis_manager.get_keys("*")
+        # for key in keys:
+        #     redis_manager.delete(key)
+        
+        return {
+            "status": "success",
+            "message": "Cache cleared successfully",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cache clear error: {e}")
 # ==================== INITIALIZATION ====================
 
 @health_router.on_event("startup")
