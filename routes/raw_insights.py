@@ -9,13 +9,17 @@ logger = logging.getLogger(__name__)
 raw_insights_router = APIRouter(prefix="/api/raw/insights", tags=["Raw Insights"])
 
 @raw_insights_router.get("/btc-dominance", summary="داده‌های دامیننس بیت‌کوین")
-async def get_raw_btc_dominance(type: str = Query("all")):
-    """دریافت داده‌های خام دامیننس بیت‌کوین از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
+async def get_raw_btc_dominance(type: str = Query("all", description="بازه زمانی: all, 24h, 1w, 1m, 3m, 1y")):
+    """دریافت داده‌های خام دامیننس بیت‌کوین از CoinStats API"""
     try:
+        # اگر type خالی است، مقدار پیش‌فرض تنظیم کن
+        if not type or type.strip() == "":
+            type = "all"
+            
         raw_data = coin_stats_manager.get_btc_dominance(type)
         
-        if "error" in raw_data:
-            raise HTTPException(status_code=500, detail=raw_data["error"])
+        if not raw_data or "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data.get("error", "No data available"))
         
         # تحلیل داده‌های دامیننس
         dominance_analysis = _analyze_btc_dominance_data(raw_data, type)
@@ -34,7 +38,7 @@ async def get_raw_btc_dominance(type: str = Query("all")):
     except Exception as e:
         logger.error(f"Error in raw BTC dominance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+        
 @raw_insights_router.get("/fear-greed", summary="داده‌های شاخص ترس و طمع")
 async def get_raw_fear_greed():
     """دریافت داده‌های خام شاخص ترس و طمع از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
@@ -87,33 +91,59 @@ async def get_raw_fear_greed_chart():
         logger.error(f"Error in raw fear-greed chart: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@raw_insights_router.get("/rainbow-chart/{coin_id}", summary="داده‌های چارت رنگین‌کمان")
-async def get_raw_rainbow_chart(coin_id: str):
-    """دریافت داده‌های خام چارت رنگین‌کمان از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
-    try:
-        raw_data = coin_stats_manager.get_rainbow_chart(coin_id)
-        
-        if "error" in raw_data:
-            raise HTTPException(status_code=500, detail=raw_data["error"])
-        
-        # تحلیل چارت رنگین‌کمان
-        rainbow_analysis = _analyze_rainbow_chart_data(raw_data, coin_id)
-        
+def _analyze_rainbow_chart_data(rainbow_data: Dict, coin_id: str) -> Dict[str, Any]:
+    """تحلیل داده‌های چارت رنگین‌کمان"""
+    data_points = rainbow_data.get('data', [])
+    
+    if not data_points:
+        return {'analysis': 'no_rainbow_chart_data_available'}
+    
+    # استخراج داده‌های قیمتی با تبدیل به float
+    prices = []
+    for point in data_points:
+        if isinstance(point, dict):
+            price = point.get('price')
+            if price is not None:
+                try:
+                    # تبدیل قیمت به عدد
+                    if isinstance(price, str):
+                        price = float(price.replace(',', ''))
+                    else:
+                        price = float(price)
+                    prices.append(price)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Could not convert price to float: {price}, error: {e}")
+                    continue
+    
+    if not prices:
         return {
-            'status': 'success',
-            'data_type': 'raw_rainbow_chart',
-            'source': 'coinstats_api',
-            'api_version': 'v1',
+            'analysis': 'no_valid_price_data_in_rainbow_chart',
             'coin_id': coin_id,
-            'timestamp': datetime.now().isoformat(),
-            'analysis': rainbow_analysis,
-            'data': raw_data
+            'data_points_received': len(data_points),
+            'data_sample': data_points[:3] if data_points else []
         }
-        
-    except Exception as e:
-        logger.error(f"Error in raw rainbow chart for {coin_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+    
+    current_price = prices[-1] if prices else 0
+    min_price = min(prices)
+    max_price = max(prices)
+    
+    # تحلیل موقعیت در چرخه بازار
+    cycle_position = _analyze_market_cycle_position(current_price, min_price, max_price)
+    
+    return {
+        'coin_id': coin_id,
+        'data_points_count': len(data_points),
+        'valid_price_points': len(prices),
+        'price_analysis': {
+            'current_price': current_price,
+            'historical_min': min_price,
+            'historical_max': max_price,
+            'price_range_percentage': ((current_price - min_price) / (max_price - min_price)) * 100 if max_price > min_price else 0
+        },
+        'market_cycle_analysis': cycle_position,
+        'analysis_timestamp': datetime.now().isoformat()
+    }
+    
 @raw_insights_router.get("/market-analysis", summary="تحلیل کلی بازار")
 async def get_market_analysis():
     """دریافت تحلیل جامع بازار از داده‌های واقعی - برای آموزش هوش مصنوعی"""
@@ -486,33 +516,45 @@ def _get_dominance_trading_suggestion(dominance: float) -> str:
 
 def _analyze_market_cycle_position(current_price: float, min_price: float, max_price: float) -> Dict[str, Any]:
     """تحلیل موقعیت در چرخه بازار"""
-    if max_price <= min_price:
-        return {'position': 'unknown', 'phase': 'insufficient_data'}
-    
-    position_percentage = ((current_price - min_price) / (max_price - min_price)) * 100
-    
-    if position_percentage <= 20:
-        phase = "accumulation"
-        suggestion = "منطقه خرید - قیمت در کف تاریخی"
-    elif position_percentage <= 40:
-        phase = "early_uptrend"
-        suggestion = "روند صعودی اولیه - فرصت‌های خوب"
-    elif position_percentage <= 60:
-        phase = "mid_cycle"
-        suggestion = "میانه چرخه - روند ثابت"
-    elif position_percentage <= 80:
-        phase = "late_uptrend"
-        suggestion = "انتهای روند صعودی - احتیاط"
-    else:
-        phase = "distribution"
-        suggestion = "منطقه فروش - قیمت در سقف تاریخی"
-    
-    return {
-        'position_percentage': round(position_percentage, 2),
-        'market_phase': phase,
-        'trading_suggestion': suggestion,
-        'risk_level': 'high' if position_percentage >= 80 else 'low' if position_percentage <= 20 else 'medium'
-    }
+    try:
+        if max_price <= min_price:
+            return {
+                'position': 'unknown', 
+                'phase': 'insufficient_data',
+                'error': 'max_price <= min_price'
+            }
+        
+        position_percentage = ((current_price - min_price) / (max_price - min_price)) * 100
+        
+        if position_percentage <= 20:
+            phase = "accumulation"
+            suggestion = "منطقه خرید - قیمت در کف تاریخی"
+        elif position_percentage <= 40:
+            phase = "early_uptrend" 
+            suggestion = "روند صعودی اولیه - فرصت‌های خوب"
+        elif position_percentage <= 60:
+            phase = "mid_cycle"
+            suggestion = "میانه چرخه - روند ثابت"
+        elif position_percentage <= 80:
+            phase = "late_uptrend"
+            suggestion = "انتهای روند صعودی - احتیاط"
+        else:
+            phase = "distribution"
+            suggestion = "منطقه فروش - قیمت در سقف تاریخی"
+        
+        return {
+            'position_percentage': round(position_percentage, 2),
+            'market_phase': phase,
+            'trading_suggestion': suggestion,
+            'risk_level': 'high' if position_percentage >= 80 else 'low' if position_percentage <= 20 else 'medium'
+        }
+    except Exception as e:
+        logger.error(f"Error in market cycle analysis: {e}")
+        return {
+            'position': 'error',
+            'phase': 'calculation_error',
+            'error_message': str(e)
+        }
 
 def _get_insights_field_descriptions() -> Dict[str, str]:
     """توضیحات فیلدهای بینش‌های بازار"""
