@@ -244,45 +244,35 @@ async def get_exchange_details(exchange_id: str):
 # ============================ توابع کمکی برای هوش مصنوعی ============================
 
 def _analyze_exchanges_data(exchanges: List[Dict]) -> Dict[str, Any]:
-    """تحلیل داده‌های واقعی صرافی‌ها"""
+    """تحلیل داده‌های واقعی صرافی‌ها با فیلدهای موجود"""
     if not exchanges:
         return {}
     
-    # استخراج داده‌های عددی
-    trust_scores = [ex.get('trust_score', 0) for ex in exchanges if ex.get('trust_score')]
-    volumes_24h = [ex.get('trade_volume_24h_btc', 0) for ex in exchanges if ex.get('trade_volume_24h_btc')]
-    years_established = [ex.get('year_established', 0) for ex in exchanges if ex.get('year_established')]
-    
-    # تحلیل کشورها
-    countries = {}
-    for ex in exchanges:
-        country = ex.get('country', 'Unknown')
-        countries[country] = countries.get(country, 0) + 1
+    # استفاده از فیلدهای واقعی موجود
+    volumes_24h = [ex.get('volume24h', 0) for ex in exchanges if ex.get('volume24h')]
+    volumes_7d = [ex.get('volume7d', 0) for ex in exchanges if ex.get('volume7d')]
+    changes_24h = [ex.get('change24h', 0) for ex in exchanges if ex.get('change24h')]
+    ranks = [ex.get('rank', 0) for ex in exchanges if ex.get('rank')]
     
     return {
         'total_exchanges': len(exchanges),
-        'trust_score_stats': {
-            'min': min(trust_scores) if trust_scores else 0,
-            'max': max(trust_scores) if trust_scores else 0,
-            'average': sum(trust_scores) / len(trust_scores) if trust_scores else 0,
-            'high_trust': len([s for s in trust_scores if s >= 8])
+        'volume_stats_24h': {
+            'total': sum(volumes_24h) if volumes_24h else 0,
+            'average': sum(volumes_24h) / len(volumes_24h) if volumes_24h else 0,
+            'min': min(volumes_24h) if volumes_24h else 0,
+            'max': max(volumes_24h) if volumes_24h else 0
         },
-        'volume_stats': {
-            'total_volume_24h_btc': sum(volumes_24h) if volumes_24h else 0,
-            'average_volume': sum(volumes_24h) / len(volumes_24h) if volumes_24h else 0,
-            'top_exchanges': len([v for v in volumes_24h if v > 1000])  # صرافی‌های با حجم بالا
+        'performance_stats': {
+            'positive_24h': len([c for c in changes_24h if c > 0]),
+            'negative_24h': len([c for c in changes_24h if c < 0]),
+            'average_change': sum(changes_24h) / len(changes_24h) if changes_24h else 0
         },
-        'establishment_stats': {
-            'oldest': min(years_established) if years_established else 0,
-            'newest': max(years_established) if years_established else 0,
-            'average_year': sum(years_established) / len(years_established) if years_established else 0
-        },
-        'geographical_distribution': {
-            'total_countries': len(countries),
-            'top_countries': dict(sorted(countries.items(), key=lambda x: x[1], reverse=True)[:5])
+        'rank_distribution': {
+            'top_10': len([r for r in ranks if r <= 10]),
+            'top_50': len([r for r in ranks if r <= 50]),
+            'average_rank': sum(ranks) / len(ranks) if ranks else 0
         }
     }
-
 def _analyze_markets_data(markets: List[Dict]) -> Dict[str, Any]:
     """تحلیل داده‌های واقعی مارکت‌ها"""
     if not markets:
@@ -322,24 +312,42 @@ def _analyze_markets_data(markets: List[Dict]) -> Dict[str, Any]:
         }
     }
 
-def _analyze_fiats_data(fiats: List[Dict]) -> Dict[str, Any]:
-    """تحلیل داده‌های واقعی ارزهای فیات"""
-    if not fiats:
+def _analyze_markets_data(markets: List[Dict]) -> Dict[str, Any]:
+    """تحلیل داده‌های واقعی مارکت‌ها با فیلدهای موجود"""
+    if not markets:
         return {}
     
-    symbols = [f.get('symbol', '') for f in fiats]
-    decimal_digits = [f.get('decimal_digits', 0) for f in fiats if f.get('decimal_digits') is not None]
+    # استفاده از فیلدهای واقعی
+    base_assets = {}
+    quote_assets = {}
+    prices = [m.get('price', 0) for m in markets if m.get('price')]
+    volumes = [m.get('volume', 0) for m in markets if m.get('volume')]
+    
+    for market in markets:
+        base = market.get('from')  # ✅ استفاده از فیلد واقعی
+        quote = market.get('to')   # ✅ استفاده از فیلد واقعی
+        
+        if base:
+            base_assets[base] = base_assets.get(base, 0) + 1
+        if quote:
+            quote_assets[quote] = quote_assets.get(quote, 0) + 1
     
     return {
-        'total_fiats': len(fiats),
-        'symbol_stats': {
-            'unique_symbols': len(set(symbols)),
-            'common_symbols': [sym for sym in set(symbols) if symbols.count(sym) > 1]
+        'total_markets': len(markets),
+        'price_stats': {
+            'min': min(prices) if prices else 0,
+            'max': max(prices) if prices else 0,
+            'average': sum(prices) / len(prices) if prices else 0
         },
-        'formatting_stats': {
-            'average_decimals': sum(decimal_digits) / len(decimal_digits) if decimal_digits else 0,
-            'min_decimals': min(decimal_digits) if decimal_digits else 0,
-            'max_decimals': max(decimal_digits) if decimal_digits else 0
+        'volume_stats': {
+            'total_volume': sum(volumes) if volumes else 0,
+            'average_volume': sum(volumes) / len(volumes) if volumes else 0
+        },
+        'asset_distribution': {
+            'unique_base_assets': len(base_assets),
+            'unique_quote_assets': len(quote_assets),
+            'top_base_assets': dict(sorted(base_assets.items(), key=lambda x: x[1], reverse=True)[:5]),
+            'top_quote_assets': dict(sorted(quote_assets.items(), key=lambda x: x[1], reverse=True)[:3])
         }
     }
 
@@ -417,56 +425,137 @@ def _extract_market_structure(market: Dict) -> Dict[str, Any]:
     return structure
 
 def _get_exchanges_field_descriptions() -> Dict[str, str]:
-    """توضیحات فیلدهای صرافی‌ها و مارکت‌ها"""
+    """توضیحات فیلدهای واقعی صرافی‌ها و مارکت‌ها"""
     return {
-        # فیلدهای صرافی
-        'id': 'شناسه یکتا صرافی',
-        'name': 'نام صرافی',
-        'year_established': 'سال تأسیس',
-        'country': 'کشور محل استقرار',
-        'trust_score': 'امتیاز اعتماد (1-10)',
-        'trade_volume_24h_btc': 'حجم معاملات 24 ساعته به بیت‌کوین',
-        'url': 'آدرس وبسایت',
-        'image': 'آدرس لوگو',
+        # ==================== فیلدهای صرافی‌ها ====================
+        'id': 'شناسه یکتا صرافی در سیستم CoinStats',
+        'name': 'نام رسمی صرافی',
+        'rank': 'رتبه صرافی بر اساس حجم معاملات (هرچه کمتر، بهتر)',
+        'volume24h': 'حجم معاملات 24 ساعته (USD)',
+        'volume7d': 'حجم معاملات 7 روزه (USD)',
+        'volume1m': 'حجم معاملات 1 ماهه (USD)',
+        'change24h': 'تغییر حجم معاملات 24 ساعته (درصد)',
+        'url': 'آدرس وبسایت رسمی صرافی',
+        'icon': 'آدرس تصویر لوگو صرافی',
         
-        # فیلدهای مارکت
-        'exchangeId': 'شناسه صرافی',
-        'baseAsset': 'ارز پایه',
-        'quoteAsset': 'ارز متقابل',
-        'price': 'قیمت فعلی',
-        'volume24h': 'حجم معاملات 24 ساعته',
+        # ==================== فیلدهای مارکت‌ها ====================
+        'exchange': 'نام صرافی میزبان مارکت',
+        'from': 'ارز پایه در جفت معاملاتی (ارز فروخته شده)',
+        'to': 'ارز متقابل در جفت معاملاتی (ارز خریداری شده)',
+        'pair': 'نماد جفت معاملاتی (فرمت: BASE/QUOTE)',
+        'price': 'قیمت فعلی جفت ارز',
+        'pairPrice': 'قیمت جفت ارز (ممکن است با price متفاوت باشد)',
+        'volume': 'حجم معاملات 24 ساعته (USD)',
+        'pairVolume': 'حجم معاملات بر اساس ارز پایه',
+        '_created_at': 'تاریخ ایجاد رکورد در دیتابیس (ISO format)',
+        '_updated_at': 'تاریخ آخرین بروزرسانی داده (ISO format)',
         
-        # فیلدهای فیات
-        'symbol': 'نماد ارز',
-        'name': 'نام ارز',
-        'symbol_native': 'نماد محلی',
-        'decimal_digits': 'تعداد اعشار',
-        'rounding': 'گرد کردن',
-        'code': 'کد ارز',
-        'name_plural': 'نام جمع'
+        # ==================== فیلدهای ارزهای فیات ====================
+        'symbol': 'نماد ارز فیات (مانند $ برای USD)',
+        'symbol_native': 'نماد محلی ارز فیات',
+        'decimal_digits': 'تعداد اعشار مجاز برای این ارز',
+        'rounding': 'الگوی گرد کردن اعداد برای این ارز',
+        'code': 'کد استاندارد ارز (ISO 4217)',
+        'name_plural': 'نام جمع ارز (مانند dollars برای USD)',
+        
+        # ==================== فیلدهای ارزهای دیجیتال ====================
+        'currency_code': 'کد ارز دیجیتال',
+        'currency_name': 'نام کامل ارز دیجیتال',
+        'rate': 'نرخ تبدیل به USD',
+        'is_fiat': 'آیا ارز فیات است یا دیجیتال',
+        'is_active': 'آیا ارز فعال است',
+        
+        # ==================== فیلدهای عمومی ====================
+        'timestamp': 'زمان تولید پاسخ (ISO format)',
+        'status': 'وضعیت درخواست (success/error)',
+        'data_type': 'نوع داده بازگشتی',
+        'source': 'منبع داده (coinstats_api)',
+        'api_version': 'نسخه API استفاده شده',
+        
+        # ==================== فیلدهای آماری ====================
+        'total_exchanges': 'تعداد کل صرافی‌های بازگشتی',
+        'total_markets': 'تعداد کل مارکت‌های بازگشتی',
+        'total_fiats': 'تعداد کل ارزهای فیات',
+        'total_currencies': 'تعداد کل ارزهای دیجیتال',
+        
+        # ==================== فیلدهای تحلیل ====================
+        'price_stats': 'آمار قیمت‌ها (min, max, average)',
+        'volume_stats': 'آمار حجم معاملات',
+        'asset_distribution': 'توزیع ارزهای پایه و متقابل',
+        'performance_stats': 'آمار عملکرد صرافی‌ها',
+        'rank_distribution': 'توزیع رتبه‌های صرافی‌ها',
+        
+        # ==================== فیلدهای متادیتا ====================
+        'data_structure': 'ساختار داده‌های بازگشتی',
+        'available_endpoints': 'لیست endpointهای در دسترس',
+        'field_descriptions': 'توضیحات فیلدهای موجود'
     }
 
 def _get_exchange_field_description(field: str) -> str:
     """توضیحات فیلدهای صرافی"""
     descriptions = {
-        'id': 'شناسه یکتای صرافی در سیستم',
-        'name': 'نام رسمی صرافی',
-        'year_established': 'سال تأسیس صرافی',
-        'country': 'کشور محل ثبت صرافی',
-        'trust_score': 'امتیاز اعتماد از 1 تا 10',
-        'trade_volume_24h_btc': 'حجم معاملات 24 ساعته به بیت‌کوین',
-        'url': 'آدرس وبسایت رسمی',
-        'image': 'آدرس تصویر لوگو'
+        'id': 'شناسه یکتای صرافی در سیستم CoinStats - برای استفاده در API calls',
+        'name': 'نام رسمی و شناخته شده صرافی در بازار',
+        'rank': 'رتبه صرافی بر اساس حجم معاملات 24 ساعته - عدد کمتر نشان‌دهنده رتبه بهتر است',
+        'volume24h': 'حجم کل معاملات 24 ساعته صرافی به دلار آمریکا (USD)',
+        'volume7d': 'حجم کل معاملات 7 روز گذشته صرافی به دلار آمریکا',
+        'volume1m': 'حجم کل معاملات 30 روز گذشته صرافی به دلار آمریکا',
+        'change24h': 'درصد تغییر حجم معاملات نسبت به 24 ساعت قبل - مثبت نشان‌دهنده رشد است',
+        'url': 'آدرس کامل وبسایت رسمی صرافی برای دسترسی مستقیم',
+        'icon': 'آدرس تصویر لوگو صرافی با کیفیت مناسب برای نمایش',
+        
+        # فیلدهای اضافی که ممکن است در آینده اضافه شوند
+        'trust_score': 'امتیاز اعتماد صرافی از 1 تا 10 (در صورت موجود بودن)',
+        'year_established': 'سال تأسیس صرافی (در صورت موجود بودن)',
+        'country': 'کشور محل ثبت و فعالیت صرافی (در صورت موجود بودن)',
+        'trading_pairs': 'تعداد جفت‌ارزهای فعال در صرافی (در صورت موجود بودن)',
+        'has_trading_incentive': 'آیا صرافی incentive معاملاتی ارائه می‌دهد',
+        'centralized': 'آیا صرافی متمرکز است (true/false)',
+        'public_notice': 'اطلاعیه عمومی مربوط به صرافی',
+        'alert_notice': 'هشدارهای امنیتی مربوط به صرافی'
     }
     return descriptions.get(field, 'فیلد اطلاعات صرافی')
 
 def _get_market_field_description(field: str) -> str:
     """توضیحات فیلدهای مارکت"""
     descriptions = {
-        'exchangeId': 'شناسه صرافی میزبان مارکت',
-        'baseAsset': 'ارز پایه در جفت معاملاتی',
-        'quoteAsset': 'ارز متقابل در جفت معاملاتی',
-        'price': 'قیمت فعلی جفت ارز',
-        'volume24h': 'حجم معاملات 24 ساعته'
+        'exchange': 'نام صرافی میزبان این مارکت معاملاتی',
+        'from': 'ارز پایه (base currency) - ارزی که خرید و فروش می‌شود',
+        'to': 'ارز متقابل (quote currency) - ارزی که برای قیمت‌گذاری استفاده می‌شود',
+        'pair': 'نماد کامل جفت معاملاتی به فرمت استاندارد BASE/QUOTE',
+        'price': 'آخرین قیمت معامله شده این جفت ارز',
+        'pairPrice': 'قیمت جفت ارز - ممکن است در برخی موارد با price متفاوت باشد',
+        'volume': 'حجم کل معاملات 24 ساعته این جفت ارز به دلار آمریکا',
+        'pairVolume': 'حجم معاملات بر اساس واحد ارز پایه',
+        '_created_at': 'تاریخ و زمان اولین ذخیره‌سازی این رکورد در دیتابیس',
+        '_updated_at': 'تاریخ و زمان آخرین بروزرسانی این داده',
+        
+        # فیلدهای اضافی
+        'last_updated': 'زمان آخرین بروزرسانی قیمت',
+        'price_change_24h': 'تغییر قیمت 24 ساعته (درصد)',
+        'price_change_7d': 'تغییر قیمت 7 روزه (درصد)',
+        'market_cap': 'ارزش بازار این جفت ارز (در صورت محاسبه)',
+        'liquidity': 'نقدینگی بازار (در صورت موجود بودن)',
+        'spread': 'اختلاف قیمت خرید و فروش (bid-ask spread)'
     }
     return descriptions.get(field, 'فیلد اطلاعات مارکت')
+
+def _get_fiat_field_description(field: str) -> str:
+    """توضیحات فیلدهای ارزهای فیات"""
+    descriptions = {
+        'symbol': 'نماد گرافیکی ارز (مانند $، €، £)',
+        'symbol_native': 'نماد محلی ارز در کشور مبدأ',
+        'decimal_digits': 'تعداد رقم‌های اعشار مجاز برای این ارز',
+        'rounding': 'الگوریتم گرد کردن اعداد برای این ارز',
+        'code': 'کد سه حرفی استاندارد ISO 4217 (مانند USD, EUR, GBP)',
+        'name_plural': 'نام جمع ارز برای استفاده در متون',
+        
+        # فیلدهای اضافی
+        'name': 'نام رسمی و کامل ارز',
+        'symbol_position': 'موقعیت نماد نسبت به عدد (before/after)',
+        'space_between': 'آیا بین نماد و عدد فاصله وجود دارد',
+        'decimal_separator': 'جداکننده اعشار (معمولاً نقطه یا کاما)',
+        'thousands_separator': 'جداکننده هزارگان',
+        'smallest_denomination': 'کوچکترین واحد پول قابل معامله'
+    }
+    return descriptions.get(field, 'فیلد اطلاعات ارز فیات')
