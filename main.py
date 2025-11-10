@@ -11,37 +11,6 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum
 
-# در سیستم مادر از environment variables استفاده کن:
-import redis
-import os
-
-redis_client = redis.Redis.from_url(
-    os.getenv('REDIS_URL'),
-    decode_responses=True
-)
-
-
-# 🔽 این بلوک رو جایگزین کن (خط ۲۲)
-print("=" * 60)
-print("🔗 REDIS CONNECTION TEST")
-print("=" * 60)
-
-try:
-    redis_client = redis.Redis.from_url(
-        os.getenv('REDIS_URL'),
-        decode_responses=True,
-        socket_connect_timeout=5,
-        socket_timeout=5
-    )
-    redis_client.ping()
-    print("✅ Connected to Redis Cloud successfully!")
-    print(f"📊 Redis Info: {redis_client.info()}")
-except Exception as e:
-    print(f"❌ Redis connection failed: {e}")
-    redis_client = None
-
-print("=" * 60)
-
 logger = logging.getLogger(__name__)
 
 class DebugLevel(Enum):
@@ -418,6 +387,8 @@ print("=" * 60)
 try:
     from routes.health import health_router
     from routes.coins import coins_router
+    from routes.health import health_router
+    from routes.coins import coins_router
     from routes.exchanges import exchanges_router
     from routes.news import news_router
     from routes.insights import insights_router
@@ -438,15 +409,27 @@ except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
 
+# 🔽 سیستم کش - این بلوک رو اضافه کن
 try:
-    from cache.redis_manager import redis_manager
-    from cache.cache_decorators import cache_response
-    print("✅ Cache system imported successfully!")
+    from debug_system.storage import redis_manager, cache_debugger
+    redis_health = redis_manager.health_check()
+    print(f"✅ Cache system imported - Redis: {redis_health['status']}")
+    
+    # تست عملکرد کش
+    test_success = cache_debugger.set_data("system_startup_test", {"status": "ok", "time": datetime.now().isoformat()}, 60)
+    if test_success:
+        print("✅ Cache system test: PASSED")
+    else:
+        print("⚠️ Cache system test: FAILED")
+    
     CACHE_AVAILABLE = True
 except ImportError as e:
     print(f"❌ Cache system import error: {e}")
     CACHE_AVAILABLE = False
-
+except Exception as e:
+    print(f"❌ Cache system initialization error: {e}")
+    CACHE_AVAILABLE = False
+    
 # ==================== DEBUG SYSTEM IMPORTS ====================
 DEBUG_SYSTEM_AVAILABLE = False
 live_dashboard_manager = None
