@@ -12,17 +12,14 @@ exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
-        # دریافت داده خام - ممکن است لیست مستقیم باشد
-        raw_data = coin_stats_manager.get_exchanges()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("tickers/exchanges")
         
-        # اگر لیست است، مستقیماً پردازش کنیم
-        if isinstance(raw_data, list):
-            exchanges_data = raw_data
-        else:
-            # اگر دیکشنری است، از کلید data استفاده کنیم
-            if "error" in raw_data:
-                raise HTTPException(status_code=500, detail=raw_data["error"])
-            exchanges_data = raw_data.get('data', [])
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # پردازش داده‌ها - استفاده از ساختار واقعی API
+        exchanges_data = raw_data.get("data", [])
         
         processed_exchanges = []
         for exchange in exchanges_data:
@@ -88,17 +85,14 @@ async def get_markets():
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
-        # دریافت داده خام - ممکن است لیست مستقیم باشد
-        raw_data = coin_stats_manager.get_fiats()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("fiats")
         
-        # اگر لیست است، مستقیماً پردازش کنیم
-        if isinstance(raw_data, list):
-            fiats_data = raw_data
-        else:
-            # اگر دیکشنری است، از کلید data استفاده کنیم
-            if "error" in raw_data:
-                raise HTTPException(status_code=500, detail=raw_data["error"])
-            fiats_data = raw_data.get('data', [])
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # پردازش داده‌ها - استفاده از ساختار واقعی API
+        fiats_data = raw_data.get("data", [])
         
         processed_fiats = []
         for fiat in fiats_data:
@@ -153,7 +147,7 @@ async def get_currencies():
 @exchanges_router.get("/price", summary="قیمت صرافی")
 async def get_exchange_price(
     exchange: str = Query("Binance"),
-    from_coin: str = Query("BTC"),
+    from_coin: str = Query("BTC"), 
     to_coin: str = Query("USDT"),
     timestamp: str = Query(None)
 ):
@@ -162,25 +156,21 @@ async def get_exchange_price(
         if not timestamp:
             timestamp = str(int(datetime.now().timestamp()))
             
-        raw_data = coin_stats_manager.get_exchange_price(exchange, from_coin, to_coin, timestamp)
+        # دریافت مستقیم از API
+        params = {
+            "exchange": exchange,
+            "from": from_coin,
+            "to": to_coin,
+            "timestamp": timestamp
+        }
+        raw_data = coin_stats_manager._make_api_request("coins/price/exchange", params)
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # بررسی ساختارهای مختلف برای یافتن قیمت
-        price = None
-        
-        # ساختار 1: قیمت در data.data.price
-        if isinstance(raw_data.get('data'), dict):
-            price = raw_data['data'].get('price')
-        
-        # ساختار 2: قیمت در data.price  
-        elif 'price' in raw_data:
-            price = raw_data.get('price')
-            
-        # ساختار 3: قیمت مستقیماً در ریشه
-        elif 'data' in raw_data and isinstance(raw_data['data'], dict):
-            price = raw_data['data'].get('price')
+        # پردازش قیمت - استفاده از ساختار واقعی API
+        price_data = raw_data.get("data", {})
+        price = price_data.get('price')
         
         return {
             'status': 'success',
