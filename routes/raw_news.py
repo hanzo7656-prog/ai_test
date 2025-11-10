@@ -402,10 +402,10 @@ def _perform_sentiment_analysis(news_items: List[Dict]) -> Dict[str, Any]:
         sentiment_counts[result['sentiment']['overall']] += 1
     
     return {
-        'total_analyzed': len(news_items),
+        'total_analyzed': len(sentiment_results),
         'sentiment_distribution': sentiment_counts,
         'dominant_sentiment': max(sentiment_counts, key=sentiment_counts.get),
-        'sentiment_confidence': sum(result['sentiment']['confidence'] for result in sentiment_results) / len(sentiment_results),
+        'sentiment_confidence': sum(result['sentiment']['confidence'] for result in sentiment_results) / len(sentiment_results) if sentiment_results else 0,
         'detailed_results': sentiment_results[:10]  # نمونه‌ای از نتایج
     }
 
