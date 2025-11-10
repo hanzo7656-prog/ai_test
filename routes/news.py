@@ -142,34 +142,29 @@ async def get_news_sources():
             logger.error(f"❌ News sources API error: {raw_data['error']}")
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # 🔥 رفع مشکل اصلی: بررسی نوع داده
+        # 🔥 رفع مشکل: بررسی مستقیم نوع داده
         if isinstance(raw_data, list):
-            # اگر داده مستقیم لیست است
             sources = raw_data
-        elif isinstance(raw_data, dict):
-            # اگر داده دیکشنری است
-            sources = raw_data.get('data', raw_data.get('result', []))
         else:
             sources = []
         
         processed_sources = []
         for source in sources:
-            # بررسی اینکه هر آیتم source دیکشنری است
             if isinstance(source, dict):
                 processed_sources.append({
-                    'id': source.get('id'),
-                    'name': source.get('name'),
-                    'url': source.get('url'),
-                    'description': source.get('description'),
+                    'id': source.get('id', 'unknown'),
+                    'name': source.get('name', 'Unknown'),
+                    'url': source.get('url', ''),
+                    'description': source.get('description', ''),
                     'language': source.get('language', 'en'),
-                    'country': source.get('country'),
+                    'country': source.get('country', ''),
                     'category': source.get('category', 'crypto'),
                     'last_updated': datetime.now().isoformat()
                 })
             else:
-                # اگر آیتم دیکشنری نیست، به صورت ساده ذخیره کن
+                # اگر دیکشنری نیست، به صورت ساده ذخیره کن
                 processed_sources.append({
-                    'id': str(source) if source else 'unknown',
+                    'id': 'unknown',
                     'name': str(source),
                     'raw_data': source
                 })
@@ -178,8 +173,7 @@ async def get_news_sources():
             'status': 'success',
             'data': processed_sources,
             'meta': {
-                'total': len(processed_sources),
-                'data_structure': 'processed'
+                'total': len(processed_sources)
             },
             'timestamp': datetime.now().isoformat()
         }
@@ -192,7 +186,7 @@ async def get_news_sources():
     except Exception as e:
         logger.error(f"🚨 Error in news sources: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
+        
 @news_router.get("/detail/{news_id}", summary="جزئیات خبر")
 async def get_news_detail(news_id: str):
     """دریافت جزئیات کامل یک خبر"""
