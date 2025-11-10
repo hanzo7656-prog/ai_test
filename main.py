@@ -438,6 +438,15 @@ except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
 
+try:
+    from cache.redis_manager import redis_manager
+    from cache.cache_decorators import cache_response
+    print("✅ Cache system imported successfully!")
+    CACHE_AVAILABLE = True
+except ImportError as e:
+    print(f"❌ Cache system import error: {e}")
+    CACHE_AVAILABLE = False
+
 # ==================== DEBUG SYSTEM IMPORTS ====================
 DEBUG_SYSTEM_AVAILABLE = False
 live_dashboard_manager = None
