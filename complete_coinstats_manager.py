@@ -437,44 +437,121 @@ class CompleteCoinStatsManager:
         }
 
     def get_fear_greed(self) -> Dict:
-        """دریافت شاخص ترس و طمع - مطابق مستندات صفحه 50-51"""
+        """دریافت شاخص ترس و طمع - ساختار جدید"""
         raw_data = self._make_api_request("insights/fear-and-greed")
-        
+    
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش ساختار جدید API
+        if "now" in raw_data:
+            return {
+                "status": "success",
+                "data": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            # Fallback برای ساختار قدیمی
+            return {
+                "status": "success", 
+                "data": raw_data,
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def get_fear_greed_processed(self) -> Dict:
+        """دریافت شاخص ترس و طمع پردازش شده - ساختار جدید"""
+        raw_data = self.get_fear_greed()
+    
+        if "error" in raw_data:
+            return raw_data
+    
+        fear_greed_data = raw_data.get('data', {})
+    
+        # پردازش ساختار جدید
+        if "now" in fear_greed_data:
+            current_data = fear_greed_data["now"]
+            value = current_data.get('value', 50)
+            value_classification = current_data.get('value_classification', 'Neutral')
+        else:
+            # Fallback برای ساختار قدیمی
+            value = fear_greed_data.get('value', 50)
+            value_classification = fear_greed_data.get('value_classification', 'Neutral')
+    
+        # تحلیل و پردازش
+        if value >= 75:
+            sentiment = "extreme_greed"
+            recommendation = "CAUTION: Consider taking profits"
+        elif value >= 55:
+            sentiment = "greed" 
+            recommendation = "OPTIMISTIC: Good for holding"
+        elif value >= 45:
+            sentiment = "neutral"
+            recommendation = "NEUTRAL: Good for accumulation"
+        elif value >= 25:
+            sentiment = "fear"
+            recommendation = "CAUTIOUS: Look for opportunities"
+        else:
+            sentiment = "extreme_fear"
+            recommendation = "OPPORTUNITY: Potential for rebounds"
+    
+        processed_data = {
+            'value': value,
+            'value_classification': value_classification,
+            'timestamp': datetime.now().isoformat(),
+            'analysis': {
+                'sentiment': sentiment,
+                'risk_level': 'high' if value >= 75 or value <= 25 else 'medium',
+                'market_condition': sentiment.replace('_', ' ').title()
+            },
+            'recommendation': recommendation,
+            'last_updated': datetime.now().isoformat()
+        }
+    
         return {
-            "status": "success",
-            "data": raw_data,
-            "timestamp": datetime.now().isoformat()
+            'status': 'success',
+            'data': processed_data,
+            'timestamp': datetime.now().isoformat()
         }
 
     def get_fear_greed_chart(self) -> Dict:
-        """دریافت چارت ترس و طمع - مطابق مستندات صفحه 51-52"""
+        """دریافت چارت ترس و طمع - ساختار جدید"""
         raw_data = self._make_api_request("insights/fear-and-greed/chart")
-        
+      
         if "error" in raw_data:
             return raw_data
-        
+     
+        # پردازش ساختار جدید
+        chart_data = raw_data.get('data', [])
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": chart_data,
             "timestamp": datetime.now().isoformat()
         }
 
     def get_rainbow_chart(self, coin_id: str = "bitcoin") -> Dict:
-        """دریافت چارت رنگین‌کمان - مطابق مستندات صفحه 52-53"""
+        """دریافت چارت رنگین‌کمان - ساختار جدید"""
         raw_data = self._make_api_request(f"insights/rainbow-chart/{coin_id}")
-        
+    
         if "error" in raw_data:
             return raw_data
-        
-        return {
-            "status": "success",
-            "data": raw_data.get("result", []),
-            "coin_id": coin_id,
-            "timestamp": datetime.now().isoformat()
-        }
+    
+        # پردازش ساختار جدید (لیست مستقیم)
+        if isinstance(raw_data, list):
+            return {
+                "status": "success",
+                "data": raw_data,
+                "coin_id": coin_id,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            # Fallback برای ساختار قدیمی
+            return {
+                "status": "success",
+                "data": raw_data.get('result', []),
+                "coin_id": coin_id,
+                "timestamp": datetime.now().isoformat()
+            }
 
     # ============================= ADVANCED METHODS =========================
 
