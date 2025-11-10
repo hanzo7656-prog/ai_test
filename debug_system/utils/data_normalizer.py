@@ -868,5 +868,69 @@ class DataNormalizer:
         self._reset_metrics()
         logger.info("🔄 Data Normalizer metrics reset")
 
+
+    def get_deep_analysis(self, raw_data: Any = None, endpoint: str = None) -> Dict[str, Any]:
+        """آنالیز عمیق داده‌ها"""
+        analysis = {
+            "timestamp": datetime.now().isoformat(),
+            "system_overview": {
+                "total_requests": self.metrics['total_processed'],
+                "success_rate": self.get_health_metrics().success_rate,
+                "most_common_structure": max(
+                    self.metrics['structure_counts'].items(), 
+                    key=lambda x: x[1],
+                    default=('unknown', 0)
+                ),
+                "avg_confidence": f"{sum(self.metrics['confidence_scores']) / len(self.metrics['confidence_scores']):.1f}%" if self.metrics['confidence_scores'] else "0%"
+            },
+            "endpoint_intelligence": self.get_endpoint_intelligence(),
+            "structure_analysis": self.metrics['structure_counts'],
+            "performance_analysis": {
+                "avg_processing_time": f"{sum(self.metrics['processing_times']) / len(self.metrics['processing_times']) * 1000:.2f}ms" if self.metrics['processing_times'] else "0ms",
+                "pattern_efficiency": f"{(self.metrics['pattern_matches'] / self.metrics['total_processed'] * 100) if self.metrics['total_processed'] > 0 else 0:.1f}%"
+            },
+            "known_patterns": {k: v.value for k, v in self.known_patterns.items()},
+            "alerts_and_warnings": self.metrics['alerts'][-20:],
+            "recommendations": self._generate_recommendations()
+        }
+    
+        if raw_data is not None:
+            analysis["specific_data_analysis"] = self._analyze_specific_data(raw_data, endpoint)
+          
+        return analysis
+
+    def _generate_recommendations(self) -> List[str]:
+        """تولید توصیه‌ها"""
+        recommendations = []
+        metrics = self.get_health_metrics()
+    
+        if metrics.success_rate < 95:
+            recommendations.append("🔄 نرخ موفقیت نرمال‌سازی پایین است. الگوهای جدید را بررسی کنید.")
+        
+        if metrics.performance_metrics['pattern_efficiency'] < '80%':
+            recommendations.append("🎯 کارایی الگوها پایین است. endpointهای جدید را به known patterns اضافه کنید.")
+        
+        if metrics.data_quality['avg_quality_score'] < 80:
+            recommendations.append("📊 کیفیت داده‌ها نیاز به بهبود دارد.")
+        
+        if not recommendations:
+            recommendations.append("✅ سیستم در وضعیت مطلوب قرار دارد.")
+        
+        return recommendations
+
+    def _analyze_specific_data(self, raw_data: Any, endpoint: str = None) -> Dict[str, Any]:
+        """آنالیز داده خاص"""
+        structure_type, confidence, pattern_used = self._detect_structure_advanced(raw_data, endpoint or "analysis")
+    
+        return {
+            "detected_structure": structure_type.value,
+            "confidence": confidence,
+            "pattern_used": pattern_used,
+            "data_type": type(raw_data).__name__,
+            "data_size": len(raw_data) if hasattr(raw_data, '__len__') else 'unknown',
+            "structure_complexity": self._calculate_structure_complexity(raw_data),
+            "sample_preview": str(raw_data)[:200] + "..." if len(str(raw_data)) > 200 else str(raw_data),
+            "endpoint_context": endpoint,
+        }
 # نمونه گلوبال
 data_normalizer = DataNormalizer()
