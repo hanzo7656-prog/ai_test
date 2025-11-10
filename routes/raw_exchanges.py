@@ -118,13 +118,29 @@ async def get_raw_currencies():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # پردازش ساختار واقعی API
+        # پردازش ساختار واقعی API با مدیریت خطا
         if isinstance(raw_data, list):
             currencies_list = raw_data
         else:
             currencies_list = raw_data.get('data', raw_data.get('result', []))
         
-        currency_stats = _analyze_currencies_data(currencies_list)
+        # بررسی که currencies_list معتبر است
+        if not isinstance(currencies_list, (list, dict)):
+            currencies_list = []
+        
+        # اگر currencies_list دیکشنری است (ساختار نرخ ارز)
+        if isinstance(currencies_list, dict):
+            # این endpoint احتمالاً نرخ تبدیل ارزها را برمی‌گرداند
+            currency_stats = {
+                'total_currencies': len(currencies_list),
+                'currency_codes': list(currencies_list.keys()),
+                'sample_rates': dict(list(currencies_list.items())[:5])  # 5 نمونه اول
+            }
+            total_count = len(currencies_list)
+        else:
+            # اگر لیست است
+            currency_stats = _analyze_currencies_data(currencies_list)
+            total_count = len(currencies_list)
         
         return {
             'status': 'success',
@@ -133,14 +149,16 @@ async def get_raw_currencies():
             'api_version': 'v1',
             'timestamp': datetime.now().isoformat(),
             'statistics': currency_stats,
-            'total_currencies': len(currencies_list),
+            'total_currencies': total_count,
             'data': raw_data
         }
         
     except Exception as e:
         logger.error(f"Error in raw currencies: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+        # مدیریت بهتر خطا
+        error_message = str(e) if str(e) else "Unknown error in currencies endpoint"
+        raise HTTPException(status_code=500, detail=error_message)
+        
 @raw_exchanges_router.get("/metadata", summary="متادیتای صرافی‌ها و مارکت‌ها")
 async def get_exchanges_metadata():
     """دریافت متادیتای کامل صرافی‌ها و مارکت‌ها - برای آموزش هوش مصنوعی"""
@@ -351,17 +369,34 @@ def _analyze_markets_data(markets: List[Dict]) -> Dict[str, Any]:
         }
     }
 
-def _analyze_currencies_data(currencies: List[Dict]) -> Dict[str, Any]:
-    """تحلیل داده‌های واقعی ارزها"""
+def _analyze_currencies_data(currencies: Any) -> Dict[str, Any]:
+    """تحلیل داده‌های واقعی ارزها با مدیریت انواع مختلف"""
     if not currencies:
-        return {}
+        return {'analysis': 'no_data_available'}
     
-    # این endpoint ممکن است ساختار متفاوتی داشته باشد
-    return {
-        'total_currencies': len(currencies),
-        'data_structure_sample': currencies[0] if currencies else {},
-        'available_fields': list(currencies[0].keys()) if currencies else []
-    }
+    if isinstance(currencies, dict):
+        # ساختار نرخ تبدیل ارزها
+        rates = list(currencies.values())
+        return {
+            'data_type': 'exchange_rates',
+            'total_currencies': len(currencies),
+            'rate_stats': {
+                'min': min(rates) if rates else 0,
+                'max': max(rates) if rates else 0,
+                'average': sum(rates) / len(rates) if rates else 0
+            },
+            'base_currency': 'USD',  # فرض می‌کنیم پایه USD است
+            'top_currencies': dict(list(currencies.items())[:10])
+        }
+    elif isinstance(currencies, list):
+        # ساختار لیست ارزها
+        return {
+            'total_currencies': len(currencies),
+            'data_structure_sample': currencies[0] if currencies else {},
+            'available_fields': list(currencies[0].keys()) if currencies else []
+        }
+    else:
+        return {'analysis': 'unknown_data_structure', 'data_type': type(currencies).__name__}
 
 def _analyze_single_exchange(exchange: Dict) -> Dict[str, Any]:
     """تحلیل داده‌های یک صرافی خاص"""
