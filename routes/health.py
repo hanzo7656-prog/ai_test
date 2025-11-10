@@ -833,3 +833,115 @@ async def startup_event():
     # گزارش وضعیت نرمال‌سازی
     normalization_metrics = data_normalizer.get_health_metrics()
     logger.info(f"📊 Data normalization system ready. Success rate: {normalization_metrics.success_rate}%")
+
+
+# ==================== ROUTERS HEALTH DEBUG ====================
+
+@health_router.get("/debug/routers", summary="بررسی سلامت تمام روترهای سیستم")
+async def debug_routers_health():
+    """بررسی سلامت کامل تمام روترهای سیستم - برای مانیتورینگ پیشرفته"""
+    
+    routers_info = {
+        "health_router": {"file": "routes/health.py", "endpoints": [], "status": "unknown"},
+        "coins_router": {"file": "routes/coins.py", "endpoints": [], "status": "unknown"},
+        "exchanges_router": {"file": "routes/exchanges.py", "endpoints": [], "status": "unknown"},
+        "news_router": {"file": "routes/news.py", "endpoints": [], "status": "unknown"},
+        "insights_router": {"file": "routes/insights.py", "endpoints": [], "status": "unknown"},
+        "raw_coins_router": {"file": "routes/raw_coins.py", "endpoints": [], "status": "unknown"},
+        "raw_news_router": {"file": "routes/raw_news.py", "endpoints": [], "status": "unknown"},
+        "raw_insights_router": {"file": "routes/raw_insights.py", "endpoints": [], "status": "unknown"},
+        "raw_exchanges_router": {"file": "routes/raw_exchanges.py", "endpoints": [], "status": "unknown"},
+        "docs_router": {"file": "routes/docs.py", "endpoints": [], "status": "unknown"}
+    }
+    
+    # جمع‌آوری اطلاعات از تمام مسیرها
+    from fastapi import FastAPI
+    app = None
+    # پیدا کردن نمونه app از context
+    for route in health_router.routes:
+        if hasattr(route, 'app'):
+            app = route.app
+            break
+    
+    if not app:
+        return {"error": "Could not find app instance"}
+    
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            path = route.path
+            
+            # تشخیص روتر بر اساس مسیر
+            if path.startswith("/api/health"):
+                router = "health_router"
+            elif path.startswith("/api/coins") and not path.startswith("/api/raw/coins"):
+                router = "coins_router"
+            elif path.startswith("/api/raw/coins"):
+                router = "raw_coins_router"
+            elif path.startswith("/api/exchanges") and not path.startswith("/api/raw/exchanges"):
+                router = "exchanges_router"
+            elif path.startswith("/api/raw/exchanges"):
+                router = "raw_exchanges_router"
+            elif path.startswith("/api/news") and not path.startswith("/api/raw/news"):
+                router = "news_router"
+            elif path.startswith("/api/raw/news"):
+                router = "raw_news_router"
+            elif path.startswith("/api/insights") and not path.startswith("/api/raw/insights"):
+                router = "insights_router"
+            elif path.startswith("/api/raw/insights"):
+                router = "raw_insights_router"
+            elif path.startswith("/api/docs"):
+                router = "docs_router"
+            else:
+                continue
+            
+            if router in routers_info:
+                routers_info[router]["endpoints"].append({
+                    "path": path,
+                    "methods": list(route.methods),
+                    "name": getattr(route, "name", "Unknown")
+                })
+    
+    # محاسبه وضعیت سلامت
+    for router_name, info in routers_info.items():
+        endpoint_count = len(info["endpoints"])
+        if endpoint_count > 0:
+            info["status"] = "healthy"
+            info["endpoint_count"] = endpoint_count
+        else:
+            info["status"] = "no_endpoints"
+            info["endpoint_count"] = 0
+    
+    # بررسی خاص raw_insights_router
+    raw_insights_info = routers_info["raw_insights_router"]
+    rainbow_chart_exists = any("/rainbow-chart/" in endpoint["path"] for endpoint in raw_insights_info["endpoints"])
+    raw_insights_info["rainbow_chart_available"] = rainbow_chart_exists
+    
+    # آمار کلی
+    total_endpoints = sum(info["endpoint_count"] for info in routers_info.values())
+    healthy_routers = sum(1 for info in routers_info.values() if info["status"] == "healthy")
+    
+    return {
+        "system_overview": {
+            "total_routers": len(routers_info),
+            "healthy_routers": healthy_routers,
+            "total_endpoints": total_endpoints,
+            "timestamp": datetime.now().isoformat()
+        },
+        "routers_health": routers_info,
+        "issues_detected": {
+            "raw_insights_missing_rainbow": not rainbow_chart_exists,
+            "routers_with_no_endpoints": [
+                name for name, info in routers_info.items() 
+                if info["status"] == "no_endpoints"
+            ]
+        },
+        "recommendations": [
+            recommendation for recommendation in [
+                "Add rainbow-chart endpoint to raw_insights_router" if not rainbow_chart_exists else None,
+                "Check router registration for: " + ", ".join([
+                    name for name, info in routers_info.items() 
+                    if info["status"] == "no_endpoints"
+                ]) if any(info["status"] == "no_endpoints" for info in routers_info.values()) else None
+            ] if recommendation is not None
+        ]
+    }
