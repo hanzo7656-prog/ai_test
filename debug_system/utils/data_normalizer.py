@@ -144,6 +144,10 @@ class DataNormalizer:
         
         logger.info("🚀 Data Normalizer v2.1 Initialized - File Storage Enabled")
 
+    def _setup_logging(self):
+        """تنظیمات لاگ‌گیری - نسخه ساده"""
+        self.logger = logging.getLogger(__name__)
+        
     def _initialize_cache_system(self):
         """راه‌اندازی سیستم ذخیره‌سازی فایل"""
         # مسیر پوشه کش
