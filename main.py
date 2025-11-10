@@ -19,12 +19,28 @@ redis_client = redis.Redis.from_url(
     os.getenv('REDIS_URL'),
     decode_responses=True
 )
+
+
+# 🔽 این بلوک رو جایگزین کن (خط ۲۲)
+print("=" * 60)
+print("🔗 REDIS CONNECTION TEST")
+print("=" * 60)
+
 try:
+    redis_client = redis.Redis.from_url(
+        os.getenv('REDIS_URL'),
+        decode_responses=True,
+        socket_connect_timeout=5,
+        socket_timeout=5
+    )
     redis_client.ping()
-    print("✅ Connected to Redis Cloud!")
-except:
-    print("❌ Redis connection failed")
-    
+    print("✅ Connected to Redis Cloud successfully!")
+    print(f"📊 Redis Info: {redis_client.info()}")
+except Exception as e:
+    print(f"❌ Redis connection failed: {e}")
+    redis_client = None
+
+print("=" * 60)
 
 logger = logging.getLogger(__name__)
 
