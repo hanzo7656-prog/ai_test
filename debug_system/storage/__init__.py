@@ -9,6 +9,11 @@ from .log_manager import LogManager
 from .history_manager import HistoryManager
 from .cache_debugger import CacheDebugger
 from .redis_manager import RedisCacheManager  # 🆕 اضافه کردن
+from .cache_decorators import (
+    cache_response, cache_coins, cache_news, 
+    cache_insights, cache_exchanges, generate_cache_key
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +55,9 @@ def initialize_storage_system():
 # راه‌اندازی خودکار
 storage_system = initialize_storage_system()
 
-__all__ = [
+__all__.extend([
+    "cache_response", "cache_coins", "cache_news",
+    "cache_insights", "cache_exchanges", "generate_cache_key"
     "LogManager", "log_manager",
     "HistoryManager", "history_manager", 
     "CacheDebugger", "cache_debugger",
