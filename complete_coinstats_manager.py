@@ -291,10 +291,10 @@ class CompleteCoinStatsManager:
 
     def get_exchange_price(self, exchange: str = "Binance", from_coin: str = "BTC", 
                           to_coin: str = "ETH", timestamp: str = None) -> Dict:
-        """دریافت قیمت exchange - مطابق مستندات صفحه 39-40"""
+        """دریافت قیمت exchange - ساختار جدید"""
         if not timestamp:
             timestamp = str(int(datetime.now().timestamp()))
-            
+        
         params = {
             "exchange": exchange,
             "from": from_coin,
@@ -302,13 +302,16 @@ class CompleteCoinStatsManager:
             "timestamp": timestamp
         }
         raw_data = self._make_api_request("coins/price/exchange", params)
-        
+    
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش ساختار جدید - قیمت در data.price قرار دارد
+        price_data = raw_data.get("data", {})
+    
         return {
             "status": "success",
-            "data": raw_data,
+            "data": price_data,
             "exchange": exchange,
             "from_coin": from_coin,
             "to_coin": to_coin,
@@ -366,56 +369,96 @@ class CompleteCoinStatsManager:
         }
 
     # ============================= EXCHANGES & MARKETS =========================
-
     def get_exchanges(self) -> Dict:
-        """دریافت لیست صرافی‌ها - مطابق مستندات صفحه 40-41"""
+        """دریافت لیست صرافی‌ها - ساختار جدید"""
         raw_data = self._make_api_request("tickers/exchanges")
-        
+      
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش ساختار جدید - استفاده از data به جای result
+        exchanges_data = raw_data.get("data", raw_data.get("result", []))
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": exchanges_data,
             "timestamp": datetime.now().isoformat()
         }
 
-    def get_markets(self) -> Dict:
-        """دریافت مارکت‌ها - مطابق مستندات صفحه 43"""
-        raw_data = self._make_api_request("tickers/markets")
-        
+    def get_exchanges_processed(self) -> Dict:
+        """دریافت لیست صرافی‌های پردازش شده"""
+        raw_data = self.get_exchanges()
+    
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش داده‌های صرافی‌ها
+        processed_exchanges = []
+        for exchange in raw_data.get('data', []):
+            processed_exchanges.append({
+                'id': exchange.get('id'),
+                'name': exchange.get('name'),
+                'rank': exchange.get('rank'),
+                'percentTotalVolume': exchange.get('percentTotalVolume'),
+                'volumeUsd': exchange.get('volumeUsd'),
+                'tradingPairs': exchange.get('tradingPairs'),
+                'socket': exchange.get('socket'),
+                'exchangeUrl': exchange.get('exchangeUrl'),
+                'last_updated': datetime.now().isoformat()
+            })
+    
+        return {
+            'status': 'success',
+            'data': processed_exchanges,
+            'total': len(processed_exchanges),
+            'timestamp': datetime.now().isoformat()
+        }
+
+    def get_markets(self) -> Dict:
+        """دریافت مارکت‌ها - ساختار جدید"""
+        raw_data = self._make_api_request("tickers/markets")
+    
+        if "error" in raw_data:
+            return raw_data
+    
+        # پردازش ساختار جدید - استفاده از data به جای result
+        markets_data = raw_data.get("data", raw_data.get("result", []))
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": markets_data,
             "timestamp": datetime.now().isoformat()
         }
 
     def get_fiats(self) -> Dict:
-        """دریافت ارزهای فیات - مطابق مستندات صفحه 42"""
+        """دریافت ارزهای فیات - ساختار جدید"""
         raw_data = self._make_api_request("fiats")
-        
+    
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش ساختار جدید - استفاده از data به جای result
+        fiats_data = raw_data.get("data", raw_data.get("result", []))
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": fiats_data,
             "timestamp": datetime.now().isoformat()
         }
 
     def get_currencies(self) -> Dict:
-        """دریافت ارزها - مطابق مستندات صفحه 44"""
+        """دریافت ارزها - ساختار جدید"""
         raw_data = self._make_api_request("currencies")
-        
+       
         if "error" in raw_data:
             return raw_data
-        
+    
+        # پردازش ساختار جدید - استفاده از data به جای result
+        currencies_data = raw_data.get("data", raw_data.get("result", []))
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": currencies_data,
             "timestamp": datetime.now().isoformat()
         }
 
