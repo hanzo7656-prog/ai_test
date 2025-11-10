@@ -49,7 +49,7 @@ async def get_raw_coins_list(
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
         # محاسبه آمار واقعی از داده‌ها
-        coins = raw_data.get('result', [])
+        coins = raw_data.get('data', [])
         stats = _calculate_real_stats(coins)
         
         return {
@@ -116,13 +116,21 @@ async def get_raw_coin_charts(
 ):
     """دریافت داده‌های تاریخی چارت از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_coin_charts(coin_id, period)
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
+        params = {"period": period, "coinIds": coin_id}
+        raw_data = coin_stats_manager._make_api_request("coins/charts", params)
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            chart_data = raw_data
+        else:
+            chart_data = raw_data.get("data", raw_data.get("result", []))
+        
         # تحلیل داده‌های واقعی چارت
-        chart_analysis = _analyze_chart_data(raw_data)
+        chart_analysis = _analyze_chart_data(chart_data)
         
         return {
             'status': 'success',
@@ -147,12 +155,20 @@ async def get_raw_multi_charts(
 ):
     """دریافت داده‌های تاریخی چند نماد از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_coins_charts(coin_ids, period)
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
+        params = {"coinIds": coin_ids, "period": period}
+        raw_data = coin_stats_manager._make_api_request("coins/charts", params)
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
         coin_list = coin_ids.split(',')
+        
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            chart_data = raw_data
+        else:
+            chart_data = raw_data.get("data", raw_data.get("result", []))
         
         return {
             'status': 'success',
@@ -201,7 +217,7 @@ async def get_raw_coin_price_avg(
 async def get_raw_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
-    to_coin: str = Query("ETH"),
+    to_coin: str = Query("USDT"),
     timestamp: str = Query("1636315200")
 ):
     """دریافت قیمت مبادله از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
@@ -232,15 +248,20 @@ async def get_raw_exchange_price(
 async def get_coins_metadata():
     """دریافت متادیتای کامل کوین‌ها از CoinStats API - برای آموزش هوش مصنوعی"""
     try:
-        # دریافت نمونه‌ای از داده‌ها برای استخراج ساختار
-        sample_data = coin_stats_manager.get_coins_list(limit=5)
+        # دریافت مستقیم از API برای داده نمونه
+        raw_data = coin_stats_manager._make_api_request("coins", {"limit": 5})
         
-        if "error" in sample_data:
-            raise HTTPException(status_code=500, detail=sample_data["error"])
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        coins = sample_data.get('result', [])
-        if coins:
-            sample_coin = coins[0]
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            coins_data = raw_data
+        else:
+            coins_data = raw_data.get("result", raw_data.get("data", []))
+        
+        if coins_data and len(coins_data) > 0:
+            sample_coin = coins_data[0]
             data_structure = _extract_data_structure(sample_coin)
         else:
             data_structure = {"error": "No data available"}
@@ -331,23 +352,30 @@ def _calculate_real_stats(coins: List[Dict]) -> Dict[str, Any]:
         }
     }
 
-def _analyze_chart_data(chart_data: Dict) -> Dict[str, Any]:
+def _analyze_chart_data(chart_data: List) -> Dict[str, Any]:
     """تحلیل داده‌های واقعی چارت"""
-    prices = chart_data.get('prices', [])
+    if not chart_data or len(chart_data) < 2:
+        return {'data_points': len(chart_data) if chart_data else 0, 'analysis': 'insufficient_data'}
     
-    if not prices or len(prices) < 2:
-        return {'data_points': 0, 'analysis': 'insufficient_data'}
-    
-    # استخراج مقادیر قیمت
+    # استخراج مقادیر قیمت - فرض می‌کنیم ساختار [timestamp, price] دارد
     price_values = []
-    for point in prices:
+    timestamps = []
+    
+    for point in chart_data:
         if isinstance(point, list) and len(point) > 1:
+            timestamps.append(point[0])
             price_values.append(point[1])
+        elif isinstance(point, dict):
+            # اگر ساختار دیکشنری است
+            if 'price' in point:
+                price_values.append(point['price'])
+            if 'timestamp' in point:
+                timestamps.append(point['timestamp'])
         elif isinstance(point, (int, float)):
             price_values.append(point)
     
     if len(price_values) < 2:
-        return {'data_points': len(prices), 'analysis': 'invalid_price_data'}
+        return {'data_points': len(chart_data), 'analysis': 'invalid_price_data'}
     
     # محاسبات واقعی
     first_price = price_values[0]
@@ -368,7 +396,7 @@ def _analyze_chart_data(chart_data: Dict) -> Dict[str, Any]:
             volatility = (sum((r - avg_return) ** 2 for r in returns) / len(returns)) ** 0.5
     
     return {
-        'data_points': len(prices),
+        'data_points': len(chart_data),
         'price_points': len(price_values),
         'time_period': f"{len(price_values)} points",
         'price_range': {
