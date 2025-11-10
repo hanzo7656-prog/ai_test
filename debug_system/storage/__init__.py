@@ -10,10 +10,13 @@ from .history_manager import HistoryManager
 from .cache_debugger import CacheDebugger
 from .redis_manager import RedisCacheManager  # 🆕 اضافه کردن
 from .cache_decorators import (
-    cache_response, cache_coins, cache_news, 
-    cache_insights, cache_exchanges, generate_cache_key
+    cache_response, 
+    # پردازش شده
+    cache_coins, cache_news, cache_insights, cache_exchanges,
+    # خام  
+    cache_raw_coins, cache_raw_news, cache_raw_insights, cache_raw_exchanges,
+    generate_cache_key
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,10 @@ def initialize_storage_system():
 storage_system = initialize_storage_system()
 
 __all__.extend([
+    "cache_response",
+    "cache_coins", "cache_news", "cache_insights", "cache_exchanges",
+    "cache_raw_coins", "cache_raw_news", "cache_raw_insights", "cache_raw_exchanges", 
+    "generate_cache_key"
     "cache_response", "cache_coins", "cache_news",
     "cache_insights", "cache_exchanges", "generate_cache_key"
     "LogManager", "log_manager",
