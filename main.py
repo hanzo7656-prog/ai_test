@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 # در سیستم مادر از environment variables استفاده کن:
+import redis
 import os
 
 redis_client = redis.Redis.from_url(
