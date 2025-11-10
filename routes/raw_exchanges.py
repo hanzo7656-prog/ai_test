@@ -118,29 +118,26 @@ async def get_raw_currencies():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # پردازش ساختار واقعی API با مدیریت خطا
+        # پردازش ساختار واقعی API
         if isinstance(raw_data, list):
             currencies_list = raw_data
+        elif isinstance(raw_data, dict):
+            # ساختارهای مختلف API
+            if 'data' in raw_data:
+                currencies_list = raw_data['data']
+            elif 'result' in raw_data:
+                currencies_list = raw_data['result']
+            else:
+                # اگر داده مستقیماً در ریشه است
+                currencies_list = [raw_data]
         else:
-            currencies_list = raw_data.get('data', raw_data.get('result', []))
-        
-        # بررسی که currencies_list معتبر است
-        if not isinstance(currencies_list, (list, dict)):
             currencies_list = []
         
-        # اگر currencies_list دیکشنری است (ساختار نرخ ارز)
-        if isinstance(currencies_list, dict):
-            # این endpoint احتمالاً نرخ تبدیل ارزها را برمی‌گرداند
-            currency_stats = {
-                'total_currencies': len(currencies_list),
-                'currency_codes': list(currencies_list.keys()),
-                'sample_rates': dict(list(currencies_list.items())[:5])  # 5 نمونه اول
-            }
-            total_count = len(currencies_list)
-        else:
-            # اگر لیست است
-            currency_stats = _analyze_currencies_data(currencies_list)
-            total_count = len(currencies_list)
+        # اگر currencies_list هنوز None یا خالی است
+        if not currencies_list:
+            currencies_list = []
+        
+        currency_stats = _analyze_currencies_data(currencies_list)
         
         return {
             'status': 'success',
@@ -149,16 +146,14 @@ async def get_raw_currencies():
             'api_version': 'v1',
             'timestamp': datetime.now().isoformat(),
             'statistics': currency_stats,
-            'total_currencies': total_count,
+            'total_currencies': len(currencies_list),
             'data': raw_data
         }
         
     except Exception as e:
-        logger.error(f"Error in raw currencies: {e}")
-        # مدیریت بهتر خطا
-        error_message = str(e) if str(e) else "Unknown error in currencies endpoint"
-        raise HTTPException(status_code=500, detail=error_message)
-        
+        logger.error(f"Error in raw currencies: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail=f"Error processing currencies data: {str(e)}")
 @raw_exchanges_router.get("/metadata", summary="متادیتای صرافی‌ها و مارکت‌ها")
 async def get_exchanges_metadata():
     """دریافت متادیتای کامل صرافی‌ها و مارکت‌ها - برای آموزش هوش مصنوعی"""
@@ -369,35 +364,77 @@ def _analyze_markets_data(markets: List[Dict]) -> Dict[str, Any]:
         }
     }
 
-def _analyze_currencies_data(currencies: Any) -> Dict[str, Any]:
-    """تحلیل داده‌های واقعی ارزها با مدیریت انواع مختلف"""
+def _analyze_currencies_data(currencies: List[Dict]) -> Dict[str, Any]:
+    """تحلیل داده‌های واقعی ارزها"""
     if not currencies:
-        return {'analysis': 'no_data_available'}
+        return {'total_currencies': 0, 'analysis': 'no_data'}
     
-    if isinstance(currencies, dict):
-        # ساختار نرخ تبدیل ارزها
-        rates = list(currencies.values())
+    try:
+        # تحلیل ساختار داده‌ها
+        if isinstance(currencies, dict):
+            # اگر currencies یک دیکشنری است (مانند نرخ تبدیل)
+            currency_codes = list(currencies.keys())
+            rates = list(currencies.values())
+            
+            return {
+                'total_currencies': len(currency_codes),
+                'data_type': 'exchange_rates',
+                'rate_stats': {
+                    'min_rate': min(rates) if rates else 0,
+                    'max_rate': max(rates) if rates else 0,
+                    'average_rate': sum(rates) / len(rates) if rates else 0,
+                    'base_currency': 'USD'  # فرض می‌کنیم پایه USD است
+                },
+                'available_currencies': currency_codes[:10]  # 10 ارز اول
+            }
+        
+        elif isinstance(currencies, list):
+            # اگر currencies یک لیست است
+            if not currencies:
+                return {'total_currencies': 0, 'analysis': 'empty_list'}
+            
+            # بررسی ساختار اولین آیتم
+            first_item = currencies[0] if currencies else {}
+            
+            if isinstance(first_item, dict):
+                # تحلیل فیلدهای موجود
+                available_fields = list(first_item.keys()) if first_item else []
+                
+                # شمارش انواع داده
+                field_types = {}
+                for field in available_fields:
+                    sample_value = first_item.get(field)
+                    field_types[field] = type(sample_value).__name__
+                
+                return {
+                    'total_currencies': len(currencies),
+                    'data_structure': 'list_of_objects',
+                    'available_fields': available_fields,
+                    'field_types': field_types,
+                    'sample_data': first_item
+                }
+            else:
+                # اگر لیست از مقادیر ساده است
+                return {
+                    'total_currencies': len(currencies),
+                    'data_structure': 'simple_list',
+                    'sample_values': currencies[:5]  # 5 مقدار اول
+                }
+        
+        else:
+            return {
+                'total_currencies': 0,
+                'data_structure': 'unknown',
+                'raw_data_type': type(currencies).__name__
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in currencies analysis: {str(e)}")
         return {
-            'data_type': 'exchange_rates',
-            'total_currencies': len(currencies),
-            'rate_stats': {
-                'min': min(rates) if rates else 0,
-                'max': max(rates) if rates else 0,
-                'average': sum(rates) / len(rates) if rates else 0
-            },
-            'base_currency': 'USD',  # فرض می‌کنیم پایه USD است
-            'top_currencies': dict(list(currencies.items())[:10])
+            'total_currencies': len(currencies) if currencies else 0,
+            'analysis_error': str(e),
+            'data_type': 'error_in_analysis'
         }
-    elif isinstance(currencies, list):
-        # ساختار لیست ارزها
-        return {
-            'total_currencies': len(currencies),
-            'data_structure_sample': currencies[0] if currencies else {},
-            'available_fields': list(currencies[0].keys()) if currencies else []
-        }
-    else:
-        return {'analysis': 'unknown_data_structure', 'data_type': type(currencies).__name__}
-
 def _analyze_single_exchange(exchange: Dict) -> Dict[str, Any]:
     """تحلیل داده‌های یک صرافی خاص"""
     analysis = {
