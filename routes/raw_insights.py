@@ -90,7 +90,38 @@ async def get_raw_fear_greed_chart():
     except Exception as e:
         logger.error(f"Error in raw fear-greed chart: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+@raw_insights_router.get("/rainbow-chart/{coin_id}", summary="داده‌های چارت رنگین‌کمان")
+async def get_raw_rainbow_chart(coin_id: str):
+    """دریافت داده‌های خام چارت رنگین‌کمان از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
+    try:
+        raw_data = coin_stats_manager.get_rainbow_chart(coin_id)
+        
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # تحلیل چارت رنگین‌کمان (ساده‌شده)
+        rainbow_analysis = {
+            'coin_id': coin_id,
+            'data_points_count': len(raw_data.get('data', [])),
+            'analysis_timestamp': datetime.now().isoformat(),
+            'note': 'تحلیل پیشرفته در نسخه‌های آینده اضافه خواهد شد'
+        }
+        
+        return {
+            'status': 'success',
+            'data_type': 'raw_rainbow_chart',
+            'source': 'coinstats_api',
+            'api_version': 'v1',
+            'coin_id': coin_id,
+            'timestamp': datetime.now().isoformat(),
+            'analysis': rainbow_analysis,
+            'data': raw_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in raw rainbow chart for {coin_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 def _analyze_rainbow_chart_data(rainbow_data: Dict, coin_id: str) -> Dict[str, Any]:
     """تحلیل داده‌های چارت رنگین‌کمان"""
     data_points = rainbow_data.get('data', [])
