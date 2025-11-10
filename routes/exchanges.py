@@ -12,7 +12,36 @@ exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
-        processed_data = coin_stats_manager.get_exchanges_processed()
+        # اگر متد پردازش شده وجود ندارد، از متد اصلی استفاده کنیم
+        try:
+            processed_data = coin_stats_manager.get_exchanges_processed()
+        except AttributeError:
+            # Fallback: استفاده از متد اصلی و پردازش دستی
+            raw_data = coin_stats_manager.get_exchanges()
+            if "error" in raw_data:
+                raise HTTPException(status_code=500, detail=raw_data["error"])
+            
+            exchanges_data = raw_data.get('data', [])
+            processed_exchanges = []
+            for exchange in exchanges_data:
+                processed_exchanges.append({
+                    'id': exchange.get('id'),
+                    'name': exchange.get('name'),
+                    'rank': exchange.get('rank'),
+                    'percentTotalVolume': exchange.get('percentTotalVolume'),
+                    'volumeUsd': exchange.get('volumeUsd'),
+                    'tradingPairs': exchange.get('tradingPairs'),
+                    'socket': exchange.get('socket'),
+                    'exchangeUrl': exchange.get('exchangeUrl'),
+                    'last_updated': datetime.now().isoformat()
+                })
+            
+            processed_data = {
+                'status': 'success',
+                'data': processed_exchanges,
+                'total': len(processed_exchanges),
+                'timestamp': datetime.now().isoformat()
+            }
         
         if "error" in processed_data:
             raise HTTPException(status_code=500, detail=processed_data["error"])
@@ -32,14 +61,18 @@ async def get_markets():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # استفاده از کلیدهای صحیح از داده خام
+        markets_data = raw_data.get('data', [])
         processed_markets = []
-        for market in raw_data.get('data', []):
+        for market in markets_data:
             processed_markets.append({
-                'exchange_id': market.get('exchangeId'),
-                'base_asset': market.get('baseAsset'),
-                'quote_asset': market.get('quoteAsset'),
+                'exchange': market.get('exchange'),
+                'base_asset': market.get('from'),
+                'quote_asset': market.get('to'),
+                'pair': market.get('pair'),
                 'price': market.get('price'),
-                'volume_24h': market.get('volume24h'),
+                'volume_24h': market.get('volume'),
+                'pair_volume': market.get('pairVolume'),
                 'last_updated': datetime.now().isoformat()
             })
         
@@ -47,7 +80,6 @@ async def get_markets():
             'status': 'success',
             'data': processed_markets,
             'total': len(processed_markets),
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -64,8 +96,14 @@ async def get_fiats():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # اگر داده لیست است، مستقیماً استفاده کنیم
+        if isinstance(raw_data, list):
+            fiats_data = raw_data
+        else:
+            fiats_data = raw_data.get('data', [])
+        
         processed_fiats = []
-        for fiat in raw_data.get('data', []):
+        for fiat in fiats_data:
             processed_fiats.append({
                 'symbol': fiat.get('symbol'),
                 'name': fiat.get('name'),
@@ -73,14 +111,14 @@ async def get_fiats():
                 'decimal_digits': fiat.get('decimal_digits'),
                 'rounding': fiat.get('rounding'),
                 'code': fiat.get('code'),
-                'name_plural': fiat.get('name_plural')
+                'name_plural': fiat.get('name_plural'),
+                'last_updated': datetime.now().isoformat()
             })
         
         return {
             'status': 'success',
             'data': processed_fiats,
             'total': len(processed_fiats),
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -97,11 +135,16 @@ async def get_currencies():
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # اگر داده لیست است، مستقیماً استفاده کنیم
+        if isinstance(raw_data, list):
+            currencies_data = raw_data
+        else:
+            currencies_data = raw_data.get('data', raw_data.get('result', []))
+        
         return {
             'status': 'success',
-            'data': raw_data.get('result', []),
-            'total': len(raw_data.get('result', [])),
-            'raw_data': raw_data,
+            'data': currencies_data,
+            'total': len(currencies_data),
             'timestamp': datetime.now().isoformat()
         }
         
@@ -113,15 +156,21 @@ async def get_currencies():
 async def get_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
-    to_coin: str = Query("ETH"),
-    timestamp: str = Query("1636315200")
+    to_coin: str = Query("USDT"),  # تغییر به USDT برای تست بهتر
+    timestamp: str = Query(None)
 ):
     """دریافت قیمت پردازش شده صرافی"""
     try:
+        if not timestamp:
+            timestamp = str(int(datetime.now().timestamp()))
+            
         raw_data = coin_stats_manager.get_exchange_price(exchange, from_coin, to_coin, timestamp)
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # استفاده از ساختار صحیح - قیمت در data.price قرار دارد
+        price_data = raw_data.get('data', {})
         
         return {
             'status': 'success',
@@ -130,10 +179,9 @@ async def get_exchange_price(
                 'from_coin': from_coin,
                 'to_coin': to_coin,
                 'timestamp': timestamp,
-                'price': raw_data.get('price'),
+                'price': price_data.get('price'),
                 'last_updated': datetime.now().isoformat()
             },
-            'raw_data': raw_data,
             'timestamp': datetime.now().isoformat()
         }
         
