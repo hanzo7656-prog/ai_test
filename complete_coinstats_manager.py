@@ -324,34 +324,108 @@ class CompleteCoinStatsManager:
     def get_news(self, limit: int = 50) -> Dict:
         """دریافت اخبار عمومی - مطابق مستندات صفحه 46"""
         raw_data = self._make_api_request("news")
-        
+    
         if "error" in raw_data:
             return raw_data
-        
-        news_list = raw_data.get("result", [])
+    
+        # 🔥 رفع مشکل: بررسی نوع داده
+        if isinstance(raw_data, list):
+            news_list = raw_data
+        elif isinstance(raw_data, dict):
+            news_list = raw_data.get("result", [])
+        else:
+            news_list = []
+    
         limited_data = news_list[:limit]
-        
+    
         return {
             "status": "success",
             "data": limited_data,
             "total": len(limited_data),
             "timestamp": datetime.now().isoformat()
         }
-
+  
     def get_news_by_type(self, news_type: str = "latest", limit: int = 10) -> Dict:
-        """دریافت اخبار - استفاده از endpoint عمومی"""
-        return self.get_news(limit)
-
+        """دریافت اخبار بر اساس نوع - پشتیبانی از تمام انواع"""
+    
+        # پارامترهای معتبر برای هر نوع
+        type_params = {
+            "latest": {},
+            "trending": {},
+            "handpicked": {},
+            "bullish": {"sentiment": "bullish"},
+            "bearish": {"sentiment": "bearish"},
+            "featured": {},
+            "breaking": {},
+            "analysis": {}
+        }
+    
+        # بررسی نوع معتبر
+        if news_type not in type_params:
+            return {
+                "error": f"Invalid news type: {news_type}",
+                "valid_types": list(type_params.keys()),
+                "status": "error"
+            }
+    
+        # پارامترهای درخواست
+        params = type_params[news_type]
+        if limit:
+            params["limit"] = limit
+    
+        # ساخت endpoint بر اساس نوع
+        if news_type in ["bullish", "bearish"]:
+            # برای اخبار احساساتی از endpoint متفاوت استفاده کن
+            endpoint = f"news/sentiment/{news_type}"
+        else:
+            endpoint = "news"
+            if news_type != "latest":
+                params["type"] = news_type
+    
+        raw_data = self._make_api_request(endpoint, params)
+    
+        if "error" in raw_data:
+            return raw_data
+    
+        # پردازش داده‌ها
+        if isinstance(raw_data, list):
+            news_list = raw_data
+        elif isinstance(raw_data, dict):
+            news_list = raw_data.get("result", raw_data.get("data", []))
+        else:
+            news_list = []
+    
+        # اعمال محدودیت
+        limited_data = news_list[:limit] if limit else news_list
+    
+        return {
+            "status": "success",
+            "data": limited_data,
+            "news_type": news_type,
+            "total": len(limited_data),
+            "limit": limit,
+            "timestamp": datetime.now().isoformat()
+        }
     def get_news_sources(self) -> Dict:
         """دریافت منابع خبری - مطابق مستندات صفحه 45"""
         raw_data = self._make_api_request("news/sources")
-        
+    
         if "error" in raw_data:
             return raw_data
-        
+    
+        # 🔥 رفع مشکل: بررسی نوع داده
+        if isinstance(raw_data, list):
+            # اگر مستقیم لیست است
+            sources_list = raw_data
+        elif isinstance(raw_data, dict):
+            # اگر دیکشنری است
+            sources_list = raw_data.get("result", [])
+        else:
+            sources_list = []
+    
         return {
             "status": "success",
-            "data": raw_data.get("result", []),
+            "data": sources_list,
             "timestamp": datetime.now().isoformat()
         }
 
