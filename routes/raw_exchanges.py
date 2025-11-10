@@ -12,13 +12,19 @@ raw_exchanges_router = APIRouter(prefix="/api/raw/exchanges", tags=["Raw Exchang
 async def get_raw_exchanges_list():
     """دریافت لیست خام صرافی‌ها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_exchanges()
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
+        raw_data = coin_stats_manager._make_api_request("tickers/exchanges")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            exchanges_list = raw_data
+        else:
+            exchanges_list = raw_data.get('data', raw_data.get('result', []))
+        
         # تحلیل داده‌های واقعی صرافی‌ها
-        exchanges_list = raw_data if isinstance(raw_data, list) else raw_data.get('data', [])
         exchange_stats = _analyze_exchanges_data(exchanges_list)
         
         return {
@@ -40,12 +46,18 @@ async def get_raw_exchanges_list():
 async def get_raw_markets():
     """دریافت داده‌های خام مارکت‌ها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_markets()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("tickers/markets")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        markets_list = raw_data if isinstance(raw_data, list) else raw_data.get('data', [])
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            markets_list = raw_data
+        else:
+            markets_list = raw_data.get('data', raw_data.get('result', []))
+        
         market_stats = _analyze_markets_data(markets_list)
         
         return {
@@ -67,12 +79,18 @@ async def get_raw_markets():
 async def get_raw_fiats():
     """دریافت داده‌های خام ارزهای فیات از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_fiats()
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
+        raw_data = coin_stats_manager._make_api_request("fiats")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        fiats_list = raw_data if isinstance(raw_data, list) else raw_data.get('data', [])
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            fiats_list = raw_data
+        else:
+            fiats_list = raw_data.get('data', raw_data.get('result', []))
+        
         fiat_stats = _analyze_fiats_data(fiats_list)
         
         return {
@@ -94,12 +112,18 @@ async def get_raw_fiats():
 async def get_raw_currencies():
     """دریافت داده‌های خام ارزها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
-        raw_data = coin_stats_manager.get_currencies()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("currencies")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        currencies_list = raw_data.get('result', [])
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            currencies_list = raw_data
+        else:
+            currencies_list = raw_data.get('data', raw_data.get('result', []))
+        
         currency_stats = _analyze_currencies_data(currencies_list)
         
         return {
@@ -121,9 +145,9 @@ async def get_raw_currencies():
 async def get_exchanges_metadata():
     """دریافت متادیتای کامل صرافی‌ها و مارکت‌ها - برای آموزش هوش مصنوعی"""
     try:
-        # دریافت نمونه‌ای از داده‌ها برای استخراج ساختار
-        sample_exchanges = coin_stats_manager.get_exchanges()
-        sample_markets = coin_stats_manager.get_markets()
+        # دریافت مستقیم از API برای داده نمونه
+        sample_exchanges = coin_stats_manager._make_api_request("tickers/exchanges")
+        sample_markets = coin_stats_manager._make_api_request("tickers/markets")
         
         exchanges_structure = {}
         markets_structure = {}
