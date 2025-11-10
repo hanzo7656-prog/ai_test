@@ -231,7 +231,6 @@ def get_debug_module(module_name: str):
     return module
 
 # ==================== BASIC HEALTH ENDPOINTS ====================
-
 @health_router.get("/status")
 async def health_status():
     """بررسی سلامت کلی سیستم"""
@@ -249,6 +248,22 @@ async def health_status():
     # دریافت متریک‌های نرمال‌سازی
     normalization_metrics = data_normalizer.get_health_metrics()
     
+    # 🔽 این بخش رو اضافه کن برای بررسی Redis Cache
+    try:
+        from debug_system.storage import redis_manager
+        redis_health = redis_manager.health_check()
+        cache_status = redis_health
+    except ImportError as e:
+        cache_status = {
+            "status": "unavailable",
+            "error": f"Cache system not imported: {e}"
+        }
+    except Exception as e:
+        cache_status = {
+            "status": "error", 
+            "error": str(e)
+        }
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -256,7 +271,7 @@ async def health_status():
         "services": {
             "api": "running",
             "database": "connected",
-            "cache": "connected",
+            "cache": cache_status,  # 🆕 اینجا آپدیت شد - از "connected" به cache_status تغییر کرد
             "external_apis": api_status,
             "debug_system": {
                 "available": debug_status['core_available'],
