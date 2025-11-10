@@ -12,41 +12,38 @@ exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
-        # اگر متد پردازش شده وجود ندارد، از متد اصلی استفاده کنیم
-        try:
-            processed_data = coin_stats_manager.get_exchanges_processed()
-        except AttributeError:
-            # Fallback: استفاده از متد اصلی و پردازش دستی
-            raw_data = coin_stats_manager.get_exchanges()
+        # دریافت داده خام - ممکن است لیست مستقیم باشد
+        raw_data = coin_stats_manager.get_exchanges()
+        
+        # اگر لیست است، مستقیماً پردازش کنیم
+        if isinstance(raw_data, list):
+            exchanges_data = raw_data
+        else:
+            # اگر دیکشنری است، از کلید data استفاده کنیم
             if "error" in raw_data:
                 raise HTTPException(status_code=500, detail=raw_data["error"])
-            
             exchanges_data = raw_data.get('data', [])
-            processed_exchanges = []
-            for exchange in exchanges_data:
-                processed_exchanges.append({
-                    'id': exchange.get('id'),
-                    'name': exchange.get('name'),
-                    'rank': exchange.get('rank'),
-                    'percentTotalVolume': exchange.get('percentTotalVolume'),
-                    'volumeUsd': exchange.get('volumeUsd'),
-                    'tradingPairs': exchange.get('tradingPairs'),
-                    'socket': exchange.get('socket'),
-                    'exchangeUrl': exchange.get('exchangeUrl'),
-                    'last_updated': datetime.now().isoformat()
-                })
-            
-            processed_data = {
-                'status': 'success',
-                'data': processed_exchanges,
-                'total': len(processed_exchanges),
-                'timestamp': datetime.now().isoformat()
-            }
         
-        if "error" in processed_data:
-            raise HTTPException(status_code=500, detail=processed_data["error"])
+        processed_exchanges = []
+        for exchange in exchanges_data:
+            processed_exchanges.append({
+                'id': exchange.get('id'),
+                'name': exchange.get('name'),
+                'rank': exchange.get('rank'),
+                'percentTotalVolume': exchange.get('percentTotalVolume'),
+                'volumeUsd': exchange.get('volumeUsd'),
+                'tradingPairs': exchange.get('tradingPairs'),
+                'socket': exchange.get('socket'),
+                'exchangeUrl': exchange.get('exchangeUrl'),
+                'last_updated': datetime.now().isoformat()
+            })
         
-        return processed_data
+        return {
+            'status': 'success',
+            'data': processed_exchanges,
+            'total': len(processed_exchanges),
+            'timestamp': datetime.now().isoformat()
+        }
         
     except Exception as e:
         logger.error(f"Error in exchanges list: {e}")
@@ -87,19 +84,20 @@ async def get_markets():
         logger.error(f"Error in markets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@exchanges_router.get("/fiats", summary="ارزهای فیات")
+a@exchanges_router.get("/fiats", summary="ارزهای فیات")
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
+        # دریافت داده خام - ممکن است لیست مستقیم باشد
         raw_data = coin_stats_manager.get_fiats()
         
-        if "error" in raw_data:
-            raise HTTPException(status_code=500, detail=raw_data["error"])
-        
-        # اگر داده لیست است، مستقیماً استفاده کنیم
+        # اگر لیست است، مستقیماً پردازش کنیم
         if isinstance(raw_data, list):
             fiats_data = raw_data
         else:
+            # اگر دیکشنری است، از کلید data استفاده کنیم
+            if "error" in raw_data:
+                raise HTTPException(status_code=500, detail=raw_data["error"])
             fiats_data = raw_data.get('data', [])
         
         processed_fiats = []
@@ -156,7 +154,7 @@ async def get_currencies():
 async def get_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
-    to_coin: str = Query("USDT"),  # تغییر به USDT برای تست بهتر
+    to_coin: str = Query("USDT"),
     timestamp: str = Query(None)
 ):
     """دریافت قیمت پردازش شده صرافی"""
@@ -169,8 +167,20 @@ async def get_exchange_price(
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # استفاده از ساختار صحیح - قیمت در data.price قرار دارد
-        price_data = raw_data.get('data', {})
+        # بررسی ساختارهای مختلف برای یافتن قیمت
+        price = None
+        
+        # ساختار 1: قیمت در data.data.price
+        if isinstance(raw_data.get('data'), dict):
+            price = raw_data['data'].get('price')
+        
+        # ساختار 2: قیمت در data.price  
+        elif 'price' in raw_data:
+            price = raw_data.get('price')
+            
+        # ساختار 3: قیمت مستقیماً در ریشه
+        elif 'data' in raw_data and isinstance(raw_data['data'], dict):
+            price = raw_data['data'].get('price')
         
         return {
             'status': 'success',
@@ -179,7 +189,7 @@ async def get_exchange_price(
                 'from_coin': from_coin,
                 'to_coin': to_coin,
                 'timestamp': timestamp,
-                'price': price_data.get('price'),
+                'price': price,
                 'last_updated': datetime.now().isoformat()
             },
             'timestamp': datetime.now().isoformat()
