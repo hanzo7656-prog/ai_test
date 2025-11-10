@@ -932,6 +932,7 @@ async def root():
             "total_routes": len(app.routes),
             "debug_system": "active" if DEBUG_SYSTEM_AVAILABLE else "inactive",
             "coinstats_available": COINSTATS_AVAILABLE,
+            "cache_system": "active" if CACHE_AVAILABLE else "inactive",  # 🆕 این خط رو اضافه کن
             "startup_time": datetime.now().isoformat(),
             "ai_ready": True
         }
