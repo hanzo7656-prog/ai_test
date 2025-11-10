@@ -27,3 +27,6 @@ pyyaml==6.0.1
 # بسته‌های نصب
 setuptools==68.2.2
 wheel==0.41.2
+
+# دیتابیس Redis
+redis==5.0.1
