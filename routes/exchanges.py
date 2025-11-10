@@ -12,53 +12,40 @@ exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
-        # دریافت مستقیم از API
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
         raw_data = coin_stats_manager._make_api_request("tickers/exchanges")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # پردازش داده‌ها - استفاده از ساختار واقعی API
-        exchanges_data = raw_data.get("data", raw_data.get("result", []))
-        
-        # اگر داده لیست مستقیم است
-        if isinstance(exchanges_data, list):
-            processed_exchanges = []
-            for exchange in exchanges_data:
-                # بررسی ساختارهای مختلف داده
-                if isinstance(exchange, dict):
-                    processed_exchanges.append({
-                        'id': exchange.get('id'),
-                        'name': exchange.get('name'),
-                        'rank': exchange.get('rank'),
-                        'percentTotalVolume': exchange.get('percentTotalVolume'),
-                        'volumeUsd': exchange.get('volumeUsd'),
-                        'tradingPairs': exchange.get('tradingPairs'),
-                        'socket': exchange.get('socket'),
-                        'exchangeUrl': exchange.get('exchangeUrl'),
-                        'last_updated': datetime.now().isoformat()
-                    })
-                else:
-                    # اگر داده ساده است
-                    processed_exchanges.append({
-                        'name': str(exchange),
-                        'last_updated': datetime.now().isoformat()
-                    })
-            
-            return {
-                'status': 'success',
-                'data': processed_exchanges,
-                'total': len(processed_exchanges),
-                'timestamp': datetime.now().isoformat()
-            }
+        # پردازش ساختار واقعی API
+        # API ممکن است لیست مستقیم یا دیکشنری با کلید data برگرداند
+        if isinstance(raw_data, list):
+            exchanges_data = raw_data
         else:
-            # اگر داده لیست نیست
-            return {
-                'status': 'success',
-                'data': [],
-                'total': 0,
-                'timestamp': datetime.now().isoformat()
-            }
+            exchanges_data = raw_data.get("data", raw_data.get("result", []))
+        
+        processed_exchanges = []
+        for exchange in exchanges_data:
+            if isinstance(exchange, dict):
+                processed_exchanges.append({
+                    'id': exchange.get('id'),
+                    'name': exchange.get('name'),
+                    'rank': exchange.get('rank'),
+                    'percentTotalVolume': exchange.get('percentTotalVolume'),
+                    'volumeUsd': exchange.get('volumeUsd'),
+                    'tradingPairs': exchange.get('tradingPairs'),
+                    'socket': exchange.get('socket'),
+                    'exchangeUrl': exchange.get('exchangeUrl'),
+                    'last_updated': datetime.now().isoformat()
+                })
+        
+        return {
+            'status': 'success',
+            'data': processed_exchanges,
+            'total': len(processed_exchanges),
+            'timestamp': datetime.now().isoformat()
+        }
         
     except Exception as e:
         logger.error(f"Error in exchanges list: {e}")
@@ -68,15 +55,17 @@ async def get_exchanges_list():
 async def get_markets():
     """دریافت مارکت‌های پردازش شده"""
     try:
-        raw_data = coin_stats_manager.get_markets()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("tickers/markets")
         
-        # اگر داده لیست مستقیم است
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # پردازش ساختار واقعی API
         if isinstance(raw_data, list):
             markets_data = raw_data
         else:
-            if "error" in raw_data:
-                raise HTTPException(status_code=500, detail=raw_data["error"])
-            markets_data = raw_data.get('data', raw_data.get('result', []))
+            markets_data = raw_data.get("data", raw_data.get("result", []))
         
         processed_markets = []
         for market in markets_data:
@@ -107,45 +96,38 @@ async def get_markets():
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
-        # دریافت مستقیم از API
+        # دریافت مستقیم از API - دور زدن متد مشکل‌دار
         raw_data = coin_stats_manager._make_api_request("fiats")
         
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # پردازش داده‌ها - استفاده از ساختار واقعی API
-        fiats_data = raw_data.get("data", raw_data.get("result", []))
-        
-        # اگر داده لیست مستقیم است
-        if isinstance(fiats_data, list):
-            processed_fiats = []
-            for fiat in fiats_data:
-                if isinstance(fiat, dict):
-                    processed_fiats.append({
-                        'symbol': fiat.get('symbol'),
-                        'name': fiat.get('name'),
-                        'symbol_native': fiat.get('symbol_native'),
-                        'decimal_digits': fiat.get('decimal_digits'),
-                        'rounding': fiat.get('rounding'),
-                        'code': fiat.get('code'),
-                        'name_plural': fiat.get('name_plural'),
-                        'last_updated': datetime.now().isoformat()
-                    })
-            
-            return {
-                'status': 'success',
-                'data': processed_fiats,
-                'total': len(processed_fiats),
-                'timestamp': datetime.now().isoformat()
-            }
+        # پردازش ساختار واقعی API
+        if isinstance(raw_data, list):
+            fiats_data = raw_data
         else:
-            # اگر داده لیست نیست
-            return {
-                'status': 'success',
-                'data': [],
-                'total': 0,
-                'timestamp': datetime.now().isoformat()
-            }
+            fiats_data = raw_data.get("data", raw_data.get("result", []))
+        
+        processed_fiats = []
+        for fiat in fiats_data:
+            if isinstance(fiat, dict):
+                processed_fiats.append({
+                    'symbol': fiat.get('symbol'),
+                    'name': fiat.get('name'),
+                    'symbol_native': fiat.get('symbol_native'),
+                    'decimal_digits': fiat.get('decimal_digits'),
+                    'rounding': fiat.get('rounding'),
+                    'code': fiat.get('code'),
+                    'name_plural': fiat.get('name_plural'),
+                    'last_updated': datetime.now().isoformat()
+                })
+        
+        return {
+            'status': 'success',
+            'data': processed_fiats,
+            'total': len(processed_fiats),
+            'timestamp': datetime.now().isoformat()
+        }
         
     except Exception as e:
         logger.error(f"Error in fiats: {e}")
@@ -155,15 +137,17 @@ async def get_fiats():
 async def get_currencies():
     """دریافت ارزهای پردازش شده"""
     try:
-        raw_data = coin_stats_manager.get_currencies()
+        # دریافت مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("currencies")
         
-        # اگر داده لیست مستقیم است
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
+        
+        # پردازش ساختار واقعی API
         if isinstance(raw_data, list):
             currencies_data = raw_data
         else:
-            if "error" in raw_data:
-                raise HTTPException(status_code=500, detail=raw_data["error"])
-            currencies_data = raw_data.get('data', raw_data.get('result', []))
+            currencies_data = raw_data.get("data", raw_data.get("result", []))
         
         return {
             'status': 'success',
