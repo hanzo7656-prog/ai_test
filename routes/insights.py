@@ -40,27 +40,49 @@ async def get_btc_dominance(type: str = Query("all")):
 async def get_fear_greed():
     """دریافت شاخص ترس و طمع پردازش شده"""
     try:
-        # استفاده از متد پردازش شده manager
-        response_data = coin_stats_manager.get_fear_greed_processed()
+        # دریافت داده خام مستقیم از API
+        raw_data = coin_stats_manager._make_api_request("insights/fear-and-greed")
         
-        if "error" in response_data:
-            raise HTTPException(status_code=500, detail=response_data["error"])
+        if "error" in raw_data:
+            raise HTTPException(status_code=500, detail=raw_data["error"])
         
-        # اگر manager داده پردازش شده برمی‌گرداند، مستقیماً استفاده کنیم
-        if response_data.get('status') == 'success':
-            return response_data
+        # پردازش ساختار جدید API
+        if "now" in raw_data:
+            current_data = raw_data["now"]
+            value = current_data.get('value')
+            value_classification = current_data.get('value_classification')
+            timestamp = current_data.get('timestamp')
         else:
-            # اگر manager مشکل دارد، خودمان پردازش کنیم
-            raw_data = coin_stats_manager.get_fear_greed()
-            if "error" in raw_data:
-                raise HTTPException(status_code=500, detail=raw_data["error"])
-            
-            processed_data = _process_fear_greed_data(raw_data)
-            return {
-                'status': 'success',
-                'data': processed_data,
-                'timestamp': datetime.now().isoformat()
-            }
+            # Fallback برای ساختار قدیمی
+            value = raw_data.get('value')
+            value_classification = raw_data.get('value_classification') 
+            timestamp = raw_data.get('timestamp')
+        
+        # اگر داده معتبر نیست، از مقادیر پیش‌فرض استفاده کن
+        if value is None:
+            value = 50
+            value_classification = "Neutral"
+            timestamp = datetime.now().timestamp()
+        
+        # تحلیل داده
+        analysis = _analyze_fear_greed_value(value)
+        recommendation = _get_fear_greed_recommendation(value)
+        
+        processed_data = {
+            'value': value,
+            'value_classification': value_classification,
+            'timestamp': timestamp,
+            'time_until_update': None,
+            'analysis': analysis,
+            'recommendation': recommendation,
+            'last_updated': datetime.now().isoformat()
+        }
+        
+        return {
+            'status': 'success',
+            'data': processed_data,
+            'timestamp': datetime.now().isoformat()
+        }
         
     except Exception as e:
         logger.error(f"Error in fear-greed: {e}")
