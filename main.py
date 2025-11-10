@@ -690,6 +690,22 @@ app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
+@app.get("/api/debug/routes")
+async def debug_all_routes():
+    """لیست تمام مسیرهای ثبت شده"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": getattr(route, "name", "Unknown")
+            })
+    return {
+        "total_routes": len(routes),
+        "routes": routes
+    }
+    
 if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager and console_stream_manager:
     @app.get("/debug/dashboard")
     async def debug_dashboard():
