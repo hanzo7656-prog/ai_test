@@ -11,6 +11,20 @@ import traceback
 from dataclasses import dataclass
 from enum import Enum
 
+# در سیستم مادر از environment variables استفاده کن:
+import os
+
+redis_client = redis.Redis.from_url(
+    os.getenv('REDIS_URL'),
+    decode_responses=True
+)
+try:
+    redis_client.ping()
+    print("✅ Connected to Redis Cloud!")
+except:
+    print("❌ Redis connection failed")
+    
+
 logger = logging.getLogger(__name__)
 
 class DebugLevel(Enum):
