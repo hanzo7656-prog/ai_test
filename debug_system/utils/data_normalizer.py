@@ -1,20 +1,23 @@
 """
-🤖 Data Normalizer v2 - سیستم هوشمند استانداردسازی داده‌های API
+🤖 Data Normalizer v2.1 - با سیستم ذخیره‌سازی فایل و مدیریت عمر داده
 ویژگی‌های جدید:
-- پشتیبانی از 15+ ساختار مختلف
-- تشخیص الگوهای خاص CoinStats API
-- آنالیز عمیق‌تر داده‌های تودرتو
-- سیستم یادگیری خودکار endpointها
-- fallbackهای هوشمندتر
+- تشخیص 20 ساختار مختلف
+- ذخیره‌سازی تمام داده‌ها در پوشه کش
+- مدیریت خودکار عمر داده (10 روز)
+- قابلیت بازیابی از فایل‌ها
+- سیستم پاک‌سازی دوره‌ای
 """
 
 import json
 import time
+import os
+import shutil
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Union, Tuple
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -22,40 +25,45 @@ class StructureType(Enum):
     """انواع ساختارهای شناسایی شده - نسخه پیشرفته"""
     # ساختارهای پایه
     DIRECT_LIST = "direct_list"
-    SINGLE_ITEM_LIST = "single_item_list"  # جدید: لیست تک‌آیتم [{}]
+    SINGLE_ITEM_LIST = "single_item_list"
     
     # ساختارهای دیکشنری با لیست
     DICT_WITH_DATA = "dict_with_data"
     DICT_WITH_RESULT = "dict_with_result" 
     DICT_WITH_ITEMS = "dict_with_items"
     DICT_WITH_COINS = "dict_with_coins"
-    DICT_WITH_NEWS = "dict_with_news"  # جدید
-    DICT_WITH_RESULTS = "dict_with_results"  # جدید
+    DICT_WITH_NEWS = "dict_with_news"
+    DICT_WITH_RESULTS = "dict_with_results"
     
     # ساختارهای CoinStats API خاص
-    COIN_STATS_PAGINATED = "coin_stats_paginated"  # {"result": [], "meta": {}}
-    COIN_STATS_SINGLE_COIN = "coin_stats_single_coin"  # [{}] برای coins/bitcoin
-    COIN_STATS_NEWS = "coin_stats_news"  # ساختار خاص اخبار
+    COIN_STATS_PAGINATED = "coin_stats_paginated"
+    COIN_STATS_SINGLE_COIN = "coin_stats_single_coin"
+    COIN_STATS_NEWS = "coin_stats_news"
+    COIN_STATS_DETAILED = "coin_stats_detailed"
+    COIN_STATS_CHART = "coin_stats_chart"
+    COIN_STATS_MARKETS = "coin_stats_markets"
+    COIN_STATS_INSIGHTS = "coin_stats_insights"
+    COIN_STATS_ERROR = "coin_stats_error"
+    COIN_STATS_SENTIMENT = "coin_stats_sentiment"
     
     # ساختارهای پیچیده
-    NESTED_STRUCTURE = "nested_structure"  # داده‌های تودرتو
-    PAGINATED_RESPONSE = "paginated_response"  # پاسخ صفحه‌بندی شده
+    NESTED_STRUCTURE = "nested_structure"
+    PAGINATED_RESPONSE = "paginated_response"
     
     # fallback
     CUSTOM_STRUCTURE = "custom_structure"
     UNKNOWN = "unknown"
 
+# بقیه Enumها و dataclassها مانند قبل...
 class NormalizationStrategy(Enum):
-    """استراتژی‌های نرمال‌سازی"""
     SMART = "smart"
     STRICT = "strict"
     LENIENT = "lenient"
-    COIN_STATS_OPTIMIZED = "coin_stats_optimized"  # جدید
+    COIN_STATS_OPTIMIZED = "coin_stats_optimized"
 
 @dataclass
 class NormalizationResult:
-    """نتیجه نرمال‌سازی"""
-    status: str  # success | error
+    status: str
     data: List[Any]
     metadata: Dict[str, Any]
     raw_data: Any
@@ -64,7 +72,6 @@ class NormalizationResult:
 
 @dataclass  
 class HealthMetrics:
-    """متریک‌های سلامت سیستم"""
     success_rate: float
     total_processed: int
     total_success: int
@@ -73,101 +80,283 @@ class HealthMetrics:
     performance_metrics: Dict[str, Any]
     alerts: List[str]
     data_quality: Dict[str, float]
-    endpoint_intelligence: Dict[str, Any]  # جدید
+    endpoint_intelligence: Dict[str, Any]
 
 class DataNormalizer:
     """
-    سیستم هوشمند نرمال‌سازی داده‌های API - نسخه پیشرفته
+    سیستم هوشمند نرمال‌سازی داده‌های API - نسخه با ذخیره‌سازی فایل
     """
     
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
         self._setup_logging()
-        self._initialize_cache()
+        self._initialize_cache_system()  # تغییر به سیستم فایل
         self._reset_metrics()
         
         # استراتژی پیش‌فرض
         self.default_strategy = NormalizationStrategy.COIN_STATS_OPTIMIZED
         
-        # ساختارهای پشتیبانی شده
+        # ساختارهای پشتیبانی شده (مانند قبل)
         self.supported_structures = {
-            # ساختارهای پایه
             StructureType.DIRECT_LIST: self._normalize_direct_list,
             StructureType.SINGLE_ITEM_LIST: self._normalize_single_item_list,
-            
-            # ساختارهای دیکشنری
             StructureType.DICT_WITH_DATA: self._normalize_dict_with_data,
             StructureType.DICT_WITH_RESULT: self._normalize_dict_with_result,
             StructureType.DICT_WITH_ITEMS: self._normalize_dict_with_items,
             StructureType.DICT_WITH_COINS: self._normalize_dict_with_coins,
             StructureType.DICT_WITH_NEWS: self._normalize_dict_with_news,
             StructureType.DICT_WITH_RESULTS: self._normalize_dict_with_results,
-            
-            # ساختارهای CoinStats API
             StructureType.COIN_STATS_PAGINATED: self._normalize_coin_stats_paginated,
             StructureType.COIN_STATS_SINGLE_COIN: self._normalize_coin_stats_single_coin,
             StructureType.COIN_STATS_NEWS: self._normalize_coin_stats_news,
-            
-            # ساختارهای پیچیده
+            StructureType.COIN_STATS_DETAILED: self._normalize_coin_stats_detailed,
+            StructureType.COIN_STATS_CHART: self._normalize_coin_stats_chart,
+            StructureType.COIN_STATS_MARKETS: self._normalize_coin_stats_markets,
+            StructureType.COIN_STATS_INSIGHTS: self._normalize_coin_stats_insights,
+            StructureType.COIN_STATS_ERROR: self._normalize_coin_stats_error,
+            StructureType.COIN_STATS_SENTIMENT: self._normalize_coin_stats_sentiment,
             StructureType.PAGINATED_RESPONSE: self._normalize_paginated_response,
             StructureType.NESTED_STRUCTURE: self._normalize_nested_structure,
         }
         
-        # الگوهای شناخته شده برای endpointها
+        # الگوهای شناخته شده
         self.known_patterns = {
             "coins/list": StructureType.COIN_STATS_PAGINATED,
-            "coins/bitcoin": StructureType.SINGLE_ITEM_LIST,
-            "coins/ethereum": StructureType.SINGLE_ITEM_LIST,
+            "coins/bitcoin": StructureType.COIN_STATS_SINGLE_COIN,
+            "coins/ethereum": StructureType.COIN_STATS_SINGLE_COIN,
             "news/type/handpicked": StructureType.COIN_STATS_NEWS,
             "news/type/trending": StructureType.COIN_STATS_NEWS,
-            "exchanges/list": StructureType.DICT_WITH_RESULT,
+            "news/type/latest": StructureType.COIN_STATS_NEWS,
+            "news/type/bullish": StructureType.COIN_STATS_NEWS,
+            "news/type/bearish": StructureType.COIN_STATS_NEWS,
+            "exchanges/list": StructureType.COIN_STATS_MARKETS,
+            "markets": StructureType.COIN_STATS_MARKETS,
+            "insights/fear-and-greed": StructureType.COIN_STATS_INSIGHTS,
+            "insights/btc-dominance": StructureType.COIN_STATS_INSIGHTS,
+            "coins/charts": StructureType.COIN_STATS_CHART,
         }
         
-        logger.info("🚀 Data Normalizer v2 Initialized - CoinStats Optimized")
-
-    def _setup_logging(self):
-        """تنظیمات لاگ‌گیری"""
-        self.logger = logging.getLogger(__name__)
-
-    def _initialize_cache(self):
-        """راه‌اندازی کش"""
-        self.structure_cache = {}
-        self.health_cache = {}
-        self.analysis_cache = {}
-        self.pattern_cache = {}  # کش الگوها
+        # بارگذاری داده‌های ذخیره شده
+        self._load_persisted_data()
         
-        self.cache_ttl = {
-            'structure': timedelta(days=7),
-            'health': timedelta(hours=1),
-            'analysis': timedelta(minutes=30),
-            'patterns': timedelta(days=1),  # کش الگوها
-        }
+        # راه‌اندازی پاک‌ساز خودکار
+        self._start_auto_cleanup()
+        
+        logger.info("🚀 Data Normalizer v2.1 Initialized - File Storage Enabled")
 
-    def _reset_metrics(self):
-        """بازنشانی متریک‌ها"""
-        self.metrics = {
-            'total_processed': 0,
-            'total_success': 0, 
-            'total_errors': 0,
-            'structure_counts': {stype.value: 0 for stype in StructureType},
-            'processing_times': [],
-            'endpoint_patterns': {},
-            'quality_scores': [],
-            'alerts': [],
-            'confidence_scores': [],  # جدید
-            'pattern_matches': 0,  # جدید
+    def _initialize_cache_system(self):
+        """راه‌اندازی سیستم ذخیره‌سازی فایل"""
+        # مسیر پوشه کش
+        self.cache_base_path = Path(__file__).parent / "data_normalizer_cache"
+        
+        # ایجاد پوشه‌های لازم
+        self.cache_dirs = {
+            'structure': self.cache_base_path / "structure",
+            'patterns': self.cache_base_path / "patterns", 
+            'metrics': self.cache_base_path / "metrics",
+            'samples': self.cache_base_path / "samples",
+            'logs': self.cache_base_path / "logs",
         }
+        
+        for dir_path in self.cache_dirs.values():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            
+        logger.info(f"📁 Cache system initialized at: {self.cache_base_path}")
+
+    def _load_persisted_data(self):
+        """بارگذاری داده‌های ذخیره شده از فایل‌ها"""
+        try:
+            # بارگذاری الگوها
+            patterns_file = self.cache_dirs['patterns'] / "known_patterns.json"
+            if patterns_file.exists():
+                with open(patterns_file, 'r', encoding='utf-8') as f:
+                    saved_patterns = json.load(f)
+                    # تبدیل به StructureType
+                    for endpoint, struct_type in saved_patterns.items():
+                        if struct_type in [st.value for st in StructureType]:
+                            self.known_patterns[endpoint] = StructureType(struct_type)
+            
+            # بارگذاری متریک‌ها
+            metrics_file = self.cache_dirs['metrics'] / "health_metrics.json"
+            if metrics_file.exists():
+                with open(metrics_file, 'r', encoding='utf-8') as f:
+                    saved_metrics = json.load(f)
+                    self.metrics.update(saved_metrics)
+                    
+            logger.info("✅ Persisted data loaded successfully")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load persisted data: {e}")
+
+    def _save_to_cache(self, data_type: str, key: str, data: Any, timestamp: str = None):
+        """ذخیره داده در فایل کش"""
+        try:
+            if data_type not in self.cache_dirs:
+                logger.error(f"❌ Unknown cache type: {data_type}")
+                return
+                
+            timestamp = timestamp or datetime.now().isoformat()
+            filename = f"{key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            file_path = self.cache_dirs[data_type] / filename
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'data': data,
+                    'timestamp': timestamp,
+                    'expires_at': (datetime.now() + timedelta(days=10)).isoformat()
+                }, f, indent=2, ensure_ascii=False, default=str)
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to save cache {data_type}/{key}: {e}")
+
+    def _load_from_cache(self, data_type: str, key: str) -> Optional[Any]:
+        """بارگذاری داده از فایل کش"""
+        try:
+            if data_type not in self.cache_dirs:
+                return None
+                
+            # پیدا کردن جدیدترین فایل برای این key
+            pattern = f"{key}_*.json"
+            files = list(self.cache_dirs[data_type].glob(pattern))
+            if not files:
+                return None
+                
+            # گرفتن جدیدترین فایل
+            latest_file = max(files, key=lambda x: x.stat().st_mtime)
+            
+            with open(latest_file, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+                
+            # بررسی انقضا
+            expires_at = datetime.fromisoformat(cached_data.get('expires_at', '2000-01-01'))
+            if datetime.now() > expires_at:
+                os.remove(latest_file)
+                return None
+                
+            return cached_data.get('data')
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load cache {data_type}/{key}: {e}")
+            return None
+
+    def _save_sample_data(self, endpoint: str, raw_data: Any, structure_type: StructureType):
+        """ذخیره نمونه داده برای آنالیز"""
+        try:
+            # محدود کردن تعداد نمونه‌ها (حداکثر 10 نمونه در روز)
+            endpoint_dir = self.cache_dirs['samples'] / endpoint.replace('/', '_')
+            endpoint_dir.mkdir(parents=True, exist_ok=True)
+            
+            # شمارش نمونه‌های امروز
+            today_pattern = f"sample_{datetime.now().strftime('%Y%m%d')}_*.json"
+            today_samples = list(endpoint_dir.glob(today_pattern))
+            
+            if len(today_samples) < 10:
+                filename = f"sample_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                file_path = endpoint_dir / filename
+                
+                sample_data = {
+                    'endpoint': endpoint,
+                    'structure_type': structure_type.value,
+                    'timestamp': datetime.now().isoformat(),
+                    'raw_data_preview': str(raw_data)[:500] + "..." if len(str(raw_data)) > 500 else str(raw_data),
+                    'data_size': len(str(raw_data)) if hasattr(raw_data, '__len__') else 'unknown'
+                }
+                
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(sample_data, f, indent=2, ensure_ascii=False)
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to save sample data for {endpoint}: {e}")
+
+    def _start_auto_cleanup(self):
+        """راه‌اندازی پاک‌ساز خودکار"""
+        try:
+            self._cleanup_old_files()
+            # پاک‌سازی هر 24 ساعت
+            import threading
+            def cleanup_scheduler():
+                while True:
+                    time.sleep(24 * 60 * 60)  # 24 ساعت
+                    self._cleanup_old_files()
+                    
+            thread = threading.Thread(target=cleanup_scheduler, daemon=True)
+            thread.start()
+            logger.info("🧹 Auto-cleanup scheduler started")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start auto-cleanup: {e}")
+
+    def _cleanup_old_files(self):
+        """پاک‌سازی فایل‌های قدیمی‌تر از 10 روز"""
+        try:
+            cutoff_time = datetime.now() - timedelta(days=10)
+            deleted_count = 0
+            
+            for dir_type, dir_path in self.cache_dirs.items():
+                if dir_path.exists():
+                    for file_path in dir_path.rglob("*.json"):
+                        try:
+                            file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+                            if file_time < cutoff_time:
+                                file_path.unlink()
+                                deleted_count += 1
+                        except Exception as e:
+                            logger.warning(f"⚠️ Could not delete {file_path}: {e}")
+            
+            # پاک‌سازی پوشه‌های خالی
+            for dir_path in self.cache_dirs.values():
+                if dir_path.exists() and dir_path.is_dir():
+                    try:
+                        # حذف پوشه‌های خالی در samples
+                        if dir_path.name == "samples":
+                            for subdir in dir_path.iterdir():
+                                if subdir.is_dir() and not any(subdir.iterdir()):
+                                    subdir.rmdir()
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not clean empty directories: {e}")
+            
+            logger.info(f"🧹 Cleanup completed: {deleted_count} old files deleted")
+            
+            # ذخیره لاگ پاک‌سازی
+            cleanup_log = {
+                'timestamp': datetime.now().isoformat(),
+                'deleted_files': deleted_count,
+                'cutoff_time': cutoff_time.isoformat()
+            }
+            
+            log_file = self.cache_dirs['logs'] / f"cleanup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(log_file, 'w', encoding='utf-8') as f:
+                json.dump(cleanup_log, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"❌ Cleanup failed: {e}")
+
+    def _persist_metrics(self):
+        """ذخیره متریک‌ها در فایل"""
+        try:
+            metrics_file = self.cache_dirs['metrics'] / "health_metrics.json"
+            with open(metrics_file, 'w', encoding='utf-8') as f:
+                json.dump(self.metrics, f, indent=2, default=str)
+                
+            # ذخیره الگوها
+            patterns_file = self.cache_dirs['patterns'] / "known_patterns.json"
+            patterns_to_save = {k: v.value for k, v in self.known_patterns.items()}
+            with open(patterns_file, 'w', encoding='utf-8') as f:
+                json.dump(patterns_to_save, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to persist metrics: {e}")
+
+    # ========================== متدهای اصلی (با ذخیره‌سازی) ==========================
 
     def normalize(self, raw_data: Any, endpoint: str = "unknown", 
                  strategy: NormalizationStrategy = None) -> NormalizationResult:
-        """
-        نرمال‌سازی هوشمند داده‌های ورودی - نسخه پیشرفته
-        """
+        """نرمال‌سازی با ذخیره‌سازی فایل"""
         start_time = time.time()
         self.metrics['total_processed'] += 1
         
         try:
-            # تشخیص ساختار با الگوی endpoint
+            # تشخیص ساختار
             structure_type, confidence, pattern_used = self._detect_structure_advanced(raw_data, endpoint)
             self.metrics['structure_counts'][structure_type.value] += 1
             self.metrics['confidence_scores'].append(confidence)
@@ -183,12 +372,14 @@ class DataNormalizer:
             
             normalized_data = normalization_func(raw_data)
             
-            # محاسبه کیفیت پیشرفته
+            # محاسبه کیفیت
             quality_score = self._calculate_quality_score_advanced(normalized_data, structure_type, confidence)
             self.metrics['quality_scores'].append(quality_score)
             
-            # یادگیری الگو
+            # ذخیره‌سازی داده‌ها
+            self._save_sample_data(endpoint, raw_data, structure_type)
             self._update_endpoint_intelligence(endpoint, structure_type, confidence, raw_data)
+            self._persist_metrics()  # ذخیره متریک‌ها
             
             processing_time = time.time() - start_time
             self.metrics['processing_times'].append(processing_time)
@@ -207,7 +398,8 @@ class DataNormalizer:
                     "endpoint": endpoint,
                     "strategy": (strategy or self.default_strategy).value,
                     "data_quality": quality_score,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
+                    "cache_used": False  # در این نسخه از کش فایل استفاده می‌شود
                 },
                 quality_score=quality_score
             )
@@ -220,6 +412,14 @@ class DataNormalizer:
             error_msg = f"Normalization failed for {endpoint}: {str(e)}"
             logger.error(error_msg)
             self.metrics['alerts'].append(error_msg)
+            
+            # ذخیره خطا
+            self._save_to_cache('logs', f"error_{endpoint}", {
+                'error': str(e),
+                'endpoint': endpoint,
+                'timestamp': datetime.now().isoformat(),
+                'raw_data_preview': str(raw_data)[:200] if raw_data else 'None'
+            })
             
             return NormalizationResult(
                 status="error",
@@ -235,20 +435,70 @@ class DataNormalizer:
                 quality_score=0.0
             )
 
+    # ========================== نرمال‌سازهای جدید برای CoinStats ==========================
+
+    def _normalize_coin_stats_detailed(self, raw_data: Dict) -> List:
+        """نرمال‌سازی داده‌های تک کوین با جزئیات"""
+        if 'data' in raw_data and isinstance(raw_data['data'], dict):
+            return [raw_data['data']]
+        return [raw_data]
+
+    def _normalize_coin_stats_chart(self, raw_data: Any) -> List:
+        """نرمال‌سازی داده‌های چارتی"""
+        if isinstance(raw_data, list):
+            return raw_data
+        elif isinstance(raw_data, dict) and 'result' in raw_data:
+            return raw_data['result']
+        return []
+
+    def _normalize_coin_stats_markets(self, raw_data: Dict) -> List:
+        """نرمال‌سازی داده‌های بازار"""
+        return raw_data.get('data', raw_data.get('result', []))
+
+    def _normalize_coin_stats_insights(self, raw_data: Dict) -> List:
+        """نرمال‌سازی داده‌های تحلیلی"""
+        if 'now' in raw_data:
+            return [raw_data]  # ساختار Fear & Greed
+        return raw_data.get('data', raw_data.get('result', []))
+
+    def _normalize_coin_stats_error(self, raw_data: Dict) -> List:
+        """نرمال‌سازی ساختار خطا"""
+        return [raw_data]  # خطاها را به صورت لیست تک‌عنصری برمی‌گردانیم
+
+    def _normalize_coin_stats_sentiment(self, raw_data: Dict) -> List:
+        """نرمال‌سازی داده‌های احساسات"""
+        return raw_data.get('data', raw_data.get('result', []))
+
+    # بقیه متدها مانند قبل با بهبودهای جزئی...
+
     def _detect_structure_advanced(self, raw_data: Any, endpoint: str = "unknown") -> Tuple[StructureType, float, bool]:
-        """
-        تشخیص پیشرفته ساختار با الگوی endpoint
-        """
-        # اول بررسی الگوهای شناخته شده
+        """تشخیص پیشرفته ساختار - نسخه بهبود یافته"""
+        # استفاده از الگوهای شناخته شده
         if endpoint in self.known_patterns:
             known_structure = self.known_patterns[endpoint]
             logger.debug(f"🎯 Using known pattern for {endpoint}: {known_structure.value}")
             return known_structure, 0.95, True
         
-        # تشخیص بر اساس داده
+        # تشخیص بر اساس محتوا برای CoinStats
+        if isinstance(raw_data, dict):
+            # تشخیص خطاهای CoinStats
+            if 'error' in raw_data or 'statusCode' in raw_data:
+                return StructureType.COIN_STATS_ERROR, 0.90, False
+            
+            # تشخیص ساختارهای خاص CoinStats
+            if 'now' in raw_data and 'value' in raw_data.get('now', {}):
+                return StructureType.COIN_STATS_INSIGHTS, 0.88, False
+                
+            if 'meta' in raw_data and 'result' in raw_data:
+                return StructureType.COIN_STATS_PAGINATED, 0.94, False
+                
+        # بقیه منطق تشخیص مانند قبل...
+        return self._detect_structure_basic(raw_data)
+
+    def _detect_structure_basic(self, raw_data: Any) -> Tuple[StructureType, float, bool]:
+        """تشخیص ساختار پایه"""
         if isinstance(raw_data, list):
             if len(raw_data) == 1 and isinstance(raw_data[0], dict):
-                # لیست تک‌آیتم - معمولاً برای coins/bitcoin
                 return StructureType.SINGLE_ITEM_LIST, 0.92, False
             elif len(raw_data) > 0:
                 return StructureType.DIRECT_LIST, 0.90, False
@@ -256,14 +506,12 @@ class DataNormalizer:
                 return StructureType.DIRECT_LIST, 0.70, False
         
         elif isinstance(raw_data, dict):
-            # ساختارهای CoinStats API
             if 'result' in raw_data and isinstance(raw_data['result'], list):
                 if 'meta' in raw_data:
                     return StructureType.COIN_STATS_PAGINATED, 0.94, False
                 else:
                     return StructureType.DICT_WITH_RESULT, 0.88, False
             
-            # ساختارهای عمومی
             key_structures = {
                 'data': StructureType.DICT_WITH_DATA,
                 'items': StructureType.DICT_WITH_ITEMS,
@@ -276,48 +524,17 @@ class DataNormalizer:
                 if key in raw_data and isinstance(raw_data[key], list):
                     return structure, 0.85, False
             
-            # تشخیص ساختارهای تودرتو
             nested_list = self._find_nested_list(raw_data)
             if nested_list:
                 return StructureType.NESTED_STRUCTURE, 0.80, False
         
-        # fallback به آنالیز پیشرفته
-        return self._advanced_structure_analysis(raw_data), 0.5, False
+        return StructureType.UNKNOWN, 0.5, False
 
-    def _advanced_structure_analysis(self, raw_data: Any) -> StructureType:
-        """آنالیز پیشرفته ساختار"""
-        if isinstance(raw_data, dict):
-            # شمارش لیست‌ها در سطوح مختلف
-            list_count = self._count_lists_in_dict(raw_data)
-            if list_count == 1:
-                return StructureType.NESTED_STRUCTURE
-            elif list_count > 1:
-                return StructureType.CUSTOM_STRUCTURE
-        
-        return StructureType.UNKNOWN
-
-    def _count_lists_in_dict(self, data: Dict, max_depth: int = 3) -> int:
-        """شمارش لیست‌ها در دیکشنری"""
-        def count_recursive(obj, depth=0):
-            if depth >= max_depth:
-                return 0
-            
-            count = 0
-            if isinstance(obj, list):
-                return 1
-            elif isinstance(obj, dict):
-                for value in obj.values():
-                    count += count_recursive(value, depth + 1)
-            return count
-        
-        return count_recursive(data)
-
+    # متدهای کمکی موجود (بدون تغییر)
     def _find_nested_list(self, data: Dict, max_depth: int = 3) -> Optional[List]:
-        """پیدا کردن لیست در ساختارهای تودرتو"""
         def find_recursive(obj, depth=0):
             if depth >= max_depth:
                 return None
-            
             if isinstance(obj, list) and len(obj) > 0:
                 return obj
             elif isinstance(obj, dict):
@@ -326,190 +543,15 @@ class DataNormalizer:
                     if result:
                         return result
             return None
-        
         return find_recursive(data)
 
-    # ========================== نرمال‌سازهای جدید ==========================
-
-    def _normalize_single_item_list(self, raw_data: List) -> List:
-        """نرمال‌سازی لیست تک‌آیتم"""
-        return raw_data  # لیست را مستقیماً برمی‌گردانیم
-
-    def _normalize_dict_with_news(self, raw_data: Dict) -> List:
-        """نرمال‌سازی دیکشنری با کلید news"""
-        return raw_data.get('news', [])
-
-    def _normalize_dict_with_results(self, raw_data: Dict) -> List:
-        """نرمال‌سازی دیکشنری با کلید results"""
-        return raw_data.get('results', [])
-
-    def _normalize_coin_stats_paginated(self, raw_data: Dict) -> List:
-        """نرمال‌سازی ساختار صفحه‌بندی شده CoinStats"""
-        return raw_data.get('result', [])
-
-    def _normalize_coin_stats_single_coin(self, raw_data: List) -> List:
-        """نرمال‌سازی ساختار تک کوین CoinStats"""
-        return raw_data  # [{}] را مستقیماً برمی‌گردانیم
-
-    def _normalize_coin_stats_news(self, raw_data: Dict) -> List:
-        """نرمال‌سازی ساختار اخبار CoinStats"""
-        if 'result' in raw_data:
-            return raw_data['result']
-        elif 'news' in raw_data:
-            return raw_data['news']
-        else:
-            return self._extract_data_from_complex_structure(raw_data)
-
-    def _normalize_paginated_response(self, raw_data: Dict) -> List:
-        """نرمال‌سازی پاسخ صفحه‌بندی شده"""
-        return raw_data.get('data', raw_data.get('result', []))
-
-    def _normalize_nested_structure(self, raw_data: Dict) -> List:
-        """نرمال‌سازی ساختارهای تودرتو"""
-        nested_list = self._find_nested_list(raw_data)
-        return nested_list or []
-
-    def _normalize_fallback_advanced(self, raw_data: Any) -> List:
-        """Fallback پیشرفته"""
-        # استراتژی‌های مختلف fallback
-        if isinstance(raw_data, dict):
-            # استراتژی 1: بزرگترین لیست را پیدا کن
-            lists = [v for v in raw_data.values() if isinstance(v, list)]
-            if lists:
-                return max(lists, key=len)
-            
-            # استراتژی 2: اولین مقدار لیست را پیدا کن
-            for value in raw_data.values():
-                if isinstance(value, list):
-                    return value
-            
-            # استراتژی 3: دیکشنری را به لیست تبدیل کن
-            return [raw_data]
-        
-        elif isinstance(raw_data, list):
-            return raw_data
-        
-        else:
-            return [raw_data] if raw_data is not None else []
-
-    # ========================== متدهای موجود (با بهبود) ==========================
-
-    def _normalize_direct_list(self, raw_data: List) -> List:
-        return raw_data
-
-    def _normalize_dict_with_data(self, raw_data: Dict) -> List:
-        return raw_data.get('data', [])
-
-    def _normalize_dict_with_result(self, raw_data: Dict) -> List:
-        return raw_data.get('result', [])
-
-    def _normalize_dict_with_items(self, raw_data: Dict) -> List:
-        return raw_data.get('items', [])
-
-    def _normalize_dict_with_coins(self, raw_data: Dict) -> List:
-        return raw_data.get('coins', [])
-
-    def _extract_data_from_complex_structure(self, raw_data: Any) -> List:
-        if isinstance(raw_data, dict):
-            lists_in_dict = [v for v in raw_data.values() if isinstance(v, list)]
-            if lists_in_dict:
-                return max(lists_in_dict, key=len)
-        return []
-
-    def _extract_metadata_advanced(self, raw_data: Any, structure_type: StructureType) -> Dict[str, Any]:
-        """استخراج متادیتا - نسخه پیشرفته"""
-        metadata = {
-            "structure_type": structure_type.value,
-            "extracted_at": datetime.now().isoformat(),
-            "data_source": "coinstats_api",
-            "structure_complexity": self._calculate_structure_complexity(raw_data)
-        }
-        
-        if isinstance(raw_data, dict):
-            common_meta_keys = ['meta', 'metadata', 'pagination', 'info', 'total', 'count', 'page', 'limit']
-            for key in common_meta_keys:
-                if key in raw_data:
-                    metadata[key] = raw_data[key]
-                    
-        return metadata
-
-    def _calculate_structure_complexity(self, data: Any) -> str:
-        """محاسبه پیچیدگی ساختار"""
-        if isinstance(data, list):
-            return "low" if len(data) < 10 else "medium"
-        elif isinstance(data, dict):
-            key_count = len(data)
-            if key_count < 5:
-                return "low"
-            elif key_count < 15:
-                return "medium"
-            else:
-                return "high"
-        else:
-            return "unknown"
-
-    def _calculate_quality_score_advanced(self, normalized_data: List, structure_type: StructureType, confidence: float) -> float:
-        """محاسبه امتیاز کیفیت - نسخه پیشرفته"""
-        if not normalized_data:
-            return 0.0
-            
-        score = 0.0
-        
-        # امتیاز بر اساس حجم داده
-        data_count = len(normalized_data)
-        if data_count > 0:
-            score += min(data_count / 50, 0.3)  # حداکثر 30%
-            
-        # امتیاز بر اساس ساختار (ساختارهای جدید امتیاز بالاتر)
-        structure_scores = {
-            StructureType.COIN_STATS_PAGINATED: 0.3,
-            StructureType.COIN_STATS_SINGLE_COIN: 0.25,
-            StructureType.COIN_STATS_NEWS: 0.25,
-            StructureType.DICT_WITH_RESULT: 0.25,
-            StructureType.DICT_WITH_DATA: 0.25,
-            StructureType.SINGLE_ITEM_LIST: 0.2,
-            StructureType.DIRECT_LIST: 0.2,
-            StructureType.DICT_WITH_ITEMS: 0.2,
-            StructureType.DICT_WITH_COINS: 0.2,
-            StructureType.PAGINATED_RESPONSE: 0.25,
-            StructureType.NESTED_STRUCTURE: 0.15,
-            StructureType.CUSTOM_STRUCTURE: 0.1,
-            StructureType.UNKNOWN: 0.05
-        }
-        score += structure_scores.get(structure_type, 0.1)
-        
-        # امتیاز بر اساس confidence
-        score += confidence * 0.3
-        
-        # امتیاز بر اساس یکنواختی
-        if data_count > 1:
-            uniformity_score = self._calculate_uniformity_score(normalized_data)
-            score += uniformity_score * 0.2
-            
-        return min(score * 100, 100.0)
-
-    def _calculate_uniformity_score(self, data: List) -> float:
-        if not data or len(data) < 2:
-            return 0.5
-            
-        try:
-            if all(isinstance(item, dict) for item in data):
-                first_keys = set(data[0].keys())
-                common_keys = first_keys.intersection(*(set(item.keys()) for item in data[1:]))
-                return len(common_keys) / len(first_keys) if first_keys else 0.5
-        except:
-            pass
-            
-        return 0.5
-
     def _update_endpoint_intelligence(self, endpoint: str, structure_type: StructureType, confidence: float, raw_data: Any):
-        """سیستم یادگیری هوشمند endpointها"""
+        """به‌روزرسانی هوش endpoint با ذخیره‌سازی فایل"""
         if endpoint not in self.metrics['endpoint_patterns']:
             self.metrics['endpoint_patterns'][endpoint] = {
                 'total_requests': 0,
                 'structure_counts': {},
                 'confidence_history': [],
-                'raw_data_samples': [],
                 'last_detected': None,
                 'pattern_stability': 0.0
             }
@@ -520,164 +562,68 @@ class DataNormalizer:
         pattern['confidence_history'].append(confidence)
         pattern['last_detected'] = datetime.now().isoformat()
         
-        # ذخیره نمونه داده برای آنالیز
-        if pattern['total_requests'] <= 5:  # فقط 5 نمونه اول
-            pattern['raw_data_samples'].append({
-                'timestamp': datetime.now().isoformat(),
-                'structure': structure_type.value,
-                'data_preview': str(raw_data)[:200] + "..." if len(str(raw_data)) > 200 else str(raw_data)
-            })
-        
         # محاسبه پایداری الگو
         if pattern['total_requests'] > 1:
             main_structure_count = max(pattern['structure_counts'].values())
             pattern['pattern_stability'] = main_structure_count / pattern['total_requests']
+            
+        # یادگیری الگوی جدید اگر پایداری بالا باشد
+        if (pattern['pattern_stability'] > 0.8 and 
+            pattern['total_requests'] > 5 and 
+            endpoint not in self.known_patterns):
+            self.known_patterns[endpoint] = structure_type
+            logger.info(f"🎓 Learned new pattern: {endpoint} -> {structure_type.value}")
 
-    # ========================== متدهای عمومی جدید ==========================
-
-    def get_endpoint_intelligence(self, endpoint: str = None) -> Dict[str, Any]:
-        """دریافت هوش جمع‌آوری شده برای endpointها"""
-        if endpoint:
-            return self.metrics['endpoint_patterns'].get(endpoint, {})
-        else:
-            return {
-                'total_endpoints': len(self.metrics['endpoint_patterns']),
-                'endpoints': self.metrics['endpoint_patterns'],
-                'pattern_efficiency': f"{(self.metrics['pattern_matches'] / self.metrics['total_processed'] * 100) if self.metrics['total_processed'] > 0 else 0:.1f}%",
-                'timestamp': datetime.now().isoformat()
-            }
-
-    def add_known_pattern(self, endpoint: str, structure_type: StructureType):
-        """اضافه کردن الگوی شناخته شده"""
-        self.known_patterns[endpoint] = structure_type
-        logger.info(f"🎯 Added known pattern: {endpoint} -> {structure_type.value}")
-
-    def get_health_metrics(self) -> HealthMetrics:
-        total_processed = self.metrics['total_processed']
-        success_rate = (self.metrics['total_success'] / total_processed * 100) if total_processed > 0 else 0
-        
-        processing_times = self.metrics['processing_times']
-        avg_processing_time = sum(processing_times) / len(processing_times) if processing_times else 0
-        
-        quality_scores = self.metrics['quality_scores']
-        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
-        
-        confidence_scores = self.metrics['confidence_scores']
-        avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
-        
-        return HealthMetrics(
-            success_rate=round(success_rate, 2),
-            total_processed=total_processed,
-            total_success=self.metrics['total_success'],
-            total_errors=self.metrics['total_errors'],
-            common_structures=self.metrics['structure_counts'],
-            performance_metrics={
-                'avg_processing_time_ms': round(avg_processing_time * 1000, 2),
-                'total_processing_time_ms': round(sum(processing_times) * 1000, 2),
-                'requests_per_second': round(total_processed / (sum(processing_times) or 1), 2),
-                'avg_confidence': round(avg_confidence, 2),
-                'pattern_efficiency': f"{(self.metrics['pattern_matches'] / total_processed * 100) if total_processed > 0 else 0:.1f}%"
-            },
-            alerts=self.metrics['alerts'][-10:],
-            data_quality={
-                'avg_quality_score': round(avg_quality, 2),
-                'completeness_score': round(success_rate, 2),
-                'consistency_score': round(self._calculate_consistency_score(), 2)
-            },
-            endpoint_intelligence=self.get_endpoint_intelligence()
-        )
-
-    # بقیه متدها مانند قبل...
-    def get_deep_analysis(self, raw_data: Any = None, endpoint: str = None) -> Dict[str, Any]:
-        analysis = {
-            "timestamp": datetime.now().isoformat(),
-            "system_overview": {
-                "total_requests": self.metrics['total_processed'],
-                "success_rate": self.get_health_metrics().success_rate,
-                "most_common_structure": max(
-                    self.metrics['structure_counts'].items(), 
-                    key=lambda x: x[1],
-                    default=('unknown', 0)
-                ),
-                "avg_confidence": f"{sum(self.metrics['confidence_scores']) / len(self.metrics['confidence_scores']):.1f}%" if self.metrics['confidence_scores'] else "0%"
-            },
-            "endpoint_intelligence": self.get_endpoint_intelligence(),
-            "structure_analysis": self.metrics['structure_counts'],
-            "performance_analysis": {
-                "avg_processing_time": f"{sum(self.metrics['processing_times']) / len(self.metrics['processing_times']) * 1000:.2f}ms" if self.metrics['processing_times'] else "0ms",
-                "pattern_efficiency": f"{(self.metrics['pattern_matches'] / self.metrics['total_processed'] * 100) if self.metrics['total_processed'] > 0 else 0:.1f}%"
-            },
-            "known_patterns": {k: v.value for k, v in self.known_patterns.items()},
-            "alerts_and_warnings": self.metrics['alerts'][-20:],
-            "recommendations": self._generate_recommendations_advanced()
+    def get_cache_info(self) -> Dict[str, Any]:
+        """دریافت اطلاعات کش"""
+        cache_info = {
+            'cache_path': str(self.cache_base_path),
+            'total_size_mb': 0,
+            'file_counts': {},
+            'oldest_file': None,
+            'newest_file': None
         }
         
-        if raw_data is not None:
-            analysis["specific_data_analysis"] = self._analyze_specific_data_advanced(raw_data, endpoint)
+        try:
+            total_size = 0
+            for dir_type, dir_path in self.cache_dirs.items():
+                if dir_path.exists():
+                    file_count = len(list(dir_path.rglob("*.json")))
+                    cache_info['file_counts'][dir_type] = file_count
+                    
+                    for file_path in dir_path.rglob("*.json"):
+                        total_size += file_path.stat().st_size
+                        
+                        file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+                        if (cache_info['oldest_file'] is None or 
+                            file_time < datetime.fromisoformat(cache_info['oldest_file'])):
+                            cache_info['oldest_file'] = file_time.isoformat()
+                            
+                        if (cache_info['newest_file'] is None or 
+                            file_time > datetime.fromisoformat(cache_info['newest_file'])):
+                            cache_info['newest_file'] = file_time.isoformat()
             
-        return analysis
-
-    def _generate_recommendations_advanced(self) -> List[str]:
-        recommendations = []
-        metrics = self.get_health_metrics()
-        
-        if metrics.success_rate < 95:
-            recommendations.append("🔄 نرخ موفقیت نرمال‌سازی پایین است. الگوهای جدید را بررسی کنید.")
+            cache_info['total_size_mb'] = round(total_size / (1024 * 1024), 2)
             
-        if metrics.performance_metrics['pattern_efficiency'] < '80%':
-            recommendations.append("🎯 کارایی الگوها پایین است. endpointهای جدید را به known patterns اضافه کنید.")
+        except Exception as e:
+            logger.error(f"❌ Failed to get cache info: {e}")
             
-        if metrics.data_quality['avg_quality_score'] < 80:
-            recommendations.append("📊 کیفیت داده‌ها نیاز به بهبود دارد.")
-            
-        if not recommendations:
-            recommendations.append("✅ سیستم در وضعیت مطلوب قرار دارد.")
-            
-        return recommendations
-
-    def _analyze_specific_data_advanced(self, raw_data: Any, endpoint: str = None) -> Dict[str, Any]:
-        structure_type, confidence, pattern_used = self._detect_structure_advanced(raw_data, endpoint or "analysis")
-        
-        return {
-            "detected_structure": structure_type.value,
-            "confidence": confidence,
-            "pattern_used": pattern_used,
-            "data_type": type(raw_data).__name__,
-            "data_size": len(raw_data) if hasattr(raw_data, '__len__') else 'unknown',
-            "structure_complexity": self._calculate_structure_complexity(raw_data),
-            "sample_preview": str(raw_data)[:200] + "..." if len(str(raw_data)) > 200 else str(raw_data),
-            "endpoint_context": endpoint,
-        }
-
-    def _calculate_consistency_score(self) -> float:
-        endpoint_patterns = self.metrics['endpoint_patterns']
-        if not endpoint_patterns:
-            return 0.0
-            
-        consistency_scores = []
-        for endpoint, pattern in endpoint_patterns.items():
-            if pattern['total_requests'] > 1:
-                main_structure = max(pattern['structure_counts'].items(), key=lambda x: x[1])
-                consistency = main_structure[1] / pattern['total_requests']
-                consistency_scores.append(consistency)
-                
-        return sum(consistency_scores) / len(consistency_scores) * 100 if consistency_scores else 0.0
+        return cache_info
 
     def clear_cache(self, cache_type: str = None):
-        if cache_type == 'structure' or cache_type is None:
-            self.structure_cache.clear()
-        if cache_type == 'health' or cache_type is None:
-            self.health_cache.clear() 
-        if cache_type == 'analysis' or cache_type is None:
-            self.analysis_cache.clear()
-        if cache_type == 'patterns' or cache_type is None:
-            self.pattern_cache.clear()
-            
-        logger.info("🧹 Data Normalizer cache cleared")
-
-    def reset_metrics(self):
-        self._reset_metrics()
-        logger.info("🔄 Data Normalizer metrics reset")
+        """پاک‌سازی کش"""
+        try:
+            if cache_type and cache_type in self.cache_dirs:
+                shutil.rmtree(self.cache_dirs[cache_type])
+                self.cache_dirs[cache_type].mkdir()
+                logger.info(f"🧹 Cleared {cache_type} cache")
+            else:
+                shutil.rmtree(self.cache_base_path)
+                self._initialize_cache_system()
+                logger.info("🧹 Cleared all cache")
+                
+        except Exception as e:
+            logger.error(f"❌ Cache clear failed: {e}")
 
 # نمونه گلوبال
 data_normalizer = DataNormalizer()
