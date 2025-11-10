@@ -9,14 +9,6 @@ from .log_manager import LogManager
 from .history_manager import HistoryManager
 from .cache_debugger import CacheDebugger
 from .redis_manager import RedisCacheManager  # 🆕 اضافه کردن
-from .cache_decorators import (
-    cache_response, 
-    # پردازش شده
-    cache_coins, cache_news, cache_insights, cache_exchanges,
-    # خام  
-    cache_raw_coins, cache_raw_news, cache_raw_insights, cache_raw_exchanges,
-    generate_cache_key
-)
 
 logger = logging.getLogger(__name__)
 
@@ -58,16 +50,33 @@ def initialize_storage_system():
 # راه‌اندازی خودکار
 storage_system = initialize_storage_system()
 
-__all__.extend([
-    "cache_response",
-    "cache_coins", "cache_news", "cache_insights", "cache_exchanges",
-    "cache_raw_coins", "cache_raw_news", "cache_raw_insights", "cache_raw_exchanges", 
-    "generate_cache_key"
-    "cache_response", "cache_coins", "cache_news",
-    "cache_insights", "cache_exchanges", "generate_cache_key"
+# 🔽 importهای دکوراتورها (اگر نیاز داری)
+try:
+    from .cache_decorators import (
+        cache_response, 
+        cache_coins, cache_news, cache_insights, cache_exchanges,
+        cache_raw_coins, cache_raw_news, cache_raw_insights, cache_raw_exchanges,
+        generate_cache_key
+    )
+except ImportError:
+    # اگر فایل cache_decorators وجود ندارد
+    pass
+
+__all__ = [
     "LogManager", "log_manager",
     "HistoryManager", "history_manager", 
     "CacheDebugger", "cache_debugger",
-    "RedisCacheManager", "redis_manager",  # 🆕 اضافه کردن
+    "RedisCacheManager", "redis_manager",
     "initialize_storage_system", "storage_system"
-]
+]  # ✅ این خط باید حتماً پرانتز بسته داشته باشه
+
+# 🔽 اگر دکوراتورها رو import کردی، این رو اضافه کن
+try:
+    __all__.extend([
+        "cache_response", 
+        "cache_coins", "cache_news", "cache_insights", "cache_exchanges",
+        "cache_raw_coins", "cache_raw_news", "cache_raw_insights", "cache_raw_exchanges",
+        "generate_cache_key"
+    ])
+except NameError:
+    pass
