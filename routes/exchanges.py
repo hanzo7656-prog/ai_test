@@ -84,7 +84,7 @@ async def get_markets():
         logger.error(f"Error in markets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-a@exchanges_router.get("/fiats", summary="ارزهای فیات")
+@exchanges_router.get("/fiats", summary="ارزهای فیات")
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
