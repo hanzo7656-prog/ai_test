@@ -455,6 +455,14 @@ class DataNormalizer:
                 quality_score=0.0
             )
 
+    def normalize_data(self, raw_data: Any, endpoint: str = "unknown", 
+                     strategy: NormalizationStrategy = None) -> NormalizationResult:
+        """
+        متد normalize_data برای سازگاری با سیستم سلامت
+        این متد فقط یک wrapper برای متد normalize اصلی هست
+        """
+        return self.normalize(raw_data, endpoint, strategy)
+                         
     def _detect_structure_advanced(self, raw_data: Any, endpoint: str = "unknown") -> Tuple[StructureType, float, bool]:
         """تشخیص پیشرفته ساختار با الگوی endpoint"""
         # استفاده از الگوهای شناخته شده
