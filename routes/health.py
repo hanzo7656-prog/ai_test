@@ -22,7 +22,7 @@ except ImportError:
     from debug_system.utils.data_normalizer import data_normalizer
 
 try:
-    from smart_cache_system import smart_cache, cache_router
+    from debug_system.storage.smart_cache_system import smart_cache, cache_router
 except ImportError:
     # Fallback
     smart_cache = None
