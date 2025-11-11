@@ -242,6 +242,135 @@ def get_debug_module(module_name: str):
         )
     
     return module
+# ==================== HELPER FUNCTIONS ====================
+
+def _check_cache_availability() -> bool:
+    """بررسی واقعی وضعیت سیستم کش"""
+    try:
+        # بررسی اول: Smart Cache
+        if smart_cache and hasattr(smart_cache, 'get_health_status'):
+            cache_health = smart_cache.get_health_status()
+            smart_cache_ok = cache_health.get("status") == "healthy"
+        else:
+            smart_cache_ok = False
+        
+        # بررسی دوم: Redis
+        from debug_system.storage import redis_manager
+        redis_health = redis_manager.health_check()
+        redis_ok = redis_health.get("status") == "connected"
+        
+        # بررسی سوم: Cache Debugger
+        cache_debugger_ok = False
+        try:
+            from debug_system.storage.cache_debugger import cache_debugger
+            cache_debugger_ok = hasattr(cache_debugger, 'get_cache_stats')
+        except ImportError:
+            cache_debugger_ok = False
+        
+        # اگر حداقل یکی از سیستم‌ها کار کند، کش در دسترس است
+        return smart_cache_ok or redis_ok or cache_debugger_ok
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Cache availability check failed: {e}")
+        return False
+
+def _check_normalization_availability() -> bool:
+    """بررسی واقعی وضعیت نرمالایزر"""
+    try:
+        # تست عملکرد نرمالایزر
+        test_data = {"test": "data"}
+        result = data_normalizer.normalize_data(test_data, "health_check")
+        
+        # بررسی متریک‌های نرمالایزر
+        metrics = data_normalizer.get_health_metrics()
+        return metrics.success_rate > 0 or metrics.total_processed > 0
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Normalization availability check failed: {e}")
+        return False
+
+def _check_external_apis_availability() -> bool:
+    """بررسی واقعی وضعیت APIهای خارجی"""
+    try:
+        if not coin_stats_manager:
+            logger.warning("⚠️ coin_stats_manager is None")
+            return False
+        
+        if not hasattr(coin_stats_manager, 'get_api_status'):
+            logger.warning("⚠️ coin_stats_manager has no get_api_status method")
+            return False
+        
+        # تست واقعی اتصال به API
+        api_status = coin_stats_manager.get_api_status()
+        logger.info(f"🔍 API Status Check: {api_status}")
+        
+        # بررسی چندین حالت برای اطمینان
+        status = api_status.get('status')
+        if status == 'healthy':
+            return True
+        elif status == 'connected':
+            return True
+        elif 'error' in api_status:
+            logger.warning(f"⚠️ API has error: {api_status.get('error')}")
+            return False
+        else:
+            # اگر وضعیت مشخص نیست، تست سریع انجام بده
+            return _test_api_connection_quick()
+            
+    except Exception as e:
+        logger.warning(f"⚠️ External APIs availability check failed: {e}")
+        return False
+
+def _test_api_connection_quick() -> bool:
+    """تست سریع اتصال به API"""
+    try:
+        # یک درخواست تست سریع به API
+        if hasattr(coin_stats_manager, '_make_api_request'):
+            # استفاده از متد داخلی برای تست
+            result = coin_stats_manager._make_api_request('coins', {'limit': 1})
+            return result is not None
+        return False
+    except Exception as e:
+        logger.warning(f"⚠️ API quick test failed: {e}")
+        return False
+
+def _get_cache_details() -> Dict[str, Any]:
+    """دریافت جزئیات وضعیت کش"""
+    details = {
+        "smart_cache_available": False,
+        "redis_available": False,
+        "cache_debugger_available": False,
+        "overall_status": "unavailable"
+    }
+    
+    try:
+        # بررسی Smart Cache
+        if smart_cache and hasattr(smart_cache, 'get_health_status'):
+            details["smart_cache_available"] = True
+            details["smart_cache_health"] = smart_cache.get_health_status()
+        
+        # بررسی Redis
+        from debug_system.storage import redis_manager
+        redis_health = redis_manager.health_check()
+        details["redis_available"] = redis_health.get("status") == "connected"
+        details["redis_health"] = redis_health
+        
+        # بررسی Cache Debugger
+        try:
+            from debug_system.storage.cache_debugger import cache_debugger
+            details["cache_debugger_available"] = hasattr(cache_debugger, 'get_cache_stats')
+        except ImportError:
+            details["cache_debugger_available"] = False
+        
+        # وضعیت کلی
+        if details["smart_cache_available"] or details["redis_available"]:
+            details["overall_status"] = "available"
+        
+        return details
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting cache details: {e}")
+        return details
 
 # ==================== BASIC HEALTH ENDPOINTS ====================
 @health_router.get("/status")
@@ -257,36 +386,73 @@ async def health_status():
         disk = psutil.disk_usage('/')
         cpu_usage = psutil.cpu_percent(interval=0.1)
         
-        # 2. وضعیت سیستم کش
+        # 2. وضعیت سیستم کش - نسخه پیشرفته
+        cache_details = _get_cache_details()
         cache_health = {}
-        if smart_cache:
-            try:
-                cache_health = smart_cache.get_health_status()
-            except Exception as e:
+        cache_available = cache_details["overall_status"] == "available"
+
+        try:
+            if cache_details["smart_cache_available"]:
+                cache_health = cache_details["smart_cache_health"]
+            elif cache_details["redis_available"]:
+                # استفاده از وضعیت Redis
+                redis_info = cache_details["redis_health"]
                 cache_health = {
-                    "status": "error", 
-                    "error": str(e),
-                    "health_score": 0
+                    "status": "healthy" if redis_info.get("status") == "connected" else "degraded",
+                    "health_score": 85,  # فرضی
+                    "hit_rate": 0,  # از Redis نمی‌توانیم hit rate بگیریم
+                    "summary": {
+                        "hit_rate": 0,
+                        "total_requests": 0,
+                        "avg_response_time": redis_info.get("ping_time_ms", 0),
+                        "compression_savings": 0,
+                        "strategies_active": 0
+                    },
+                    "timestamp": datetime.now().isoformat(),
+                    "cache_size": "unknown",
+                    "compression": False,
+                    "detailed_stats": {
+                        "hits": 0, "misses": 0, "compressions": 0, "errors": 0,
+                        "strategy_breakdown": {}
+                    }
                 }
-        else:
+            else:
+                cache_health =  {
+                    "status": "unavailable",
+                    "health_score": 0,
+                    "error": "No cache system available"
+                }
+        
+        except Exception as e:
             cache_health = {
-                "status": "not_available",
-                "health_score": 0,
-                "message": "Smart cache system not initialized"
+                "status": "error", 
+                "error": str(e),
+                "health_score": 0
             }
         
-        # 3. وضعیت API خارجی
+        # 3. وضعیت API خارجی - نسخه واقعی
         api_status = "unknown"
         api_details = {}
+        api_available = _check_external_apis_availability()
+
         if coin_stats_manager:
             try:
                 api_check = coin_stats_manager.get_api_status()
                 api_status = api_check.get('status', 'unknown')
                 api_details = api_check
+        
+                # اضافه کردن متریک‌های عملکرد
+                if hasattr(coin_stats_manager, 'get_performance_metrics'):
+                    perf_metrics = coin_stats_manager.get_performance_metrics()
+                    api_details['performance_metrics'] = perf_metrics
+            
             except Exception as e:
                 api_status = f"error: {str(e)}"
                 api_details = {"error": str(e)}
-        
+        else:
+            api_status = "manager_not_available"
+            api_details = {"error": "coin_stats_manager not initialized"}
+            
         # 4. وضعیت نرمال‌سازی داده - نسخه واقعی
         normalization_metrics = {}
         normalization_available = False
@@ -466,11 +632,12 @@ async def health_status():
                 "cpu_usage_percent": resources_status["cpu"]["usage_percent"]
             },
             
-            "components": {
-                "cache_available": smart_cache is not None,
-                "debug_system_available": DebugSystemManager.is_available(),  # ✅ اصلاح شد  # می‌تونی از DebugSystemManager چک کنی
-                "normalization_available": self._check_normalization_availability(),
-                "external_apis_available": coin_stats_manager is not None 
+            # 11. وضعیت کامپوننت‌ها - نسخه واقعی
+            "components_status": {
+                "cache_available": _check_cache_availability(),
+                "debug_system_available": DebugSystemManager.is_available(),
+                "normalization_available": _check_normalization_availability(),
+                "external_apis_available": _check_external_apis_availability()
             }
         }
         
@@ -491,21 +658,6 @@ async def health_status():
                 "debug_info": "Check server logs for detailed error"
             }
         )
-
-def _check_normalization_availability(self) -> bool:
-    """بررسی واقعی وضعیت نرمالایزر"""
-    try:
-        # تست عملکرد نرمالایزر
-        test_data = {"test": "data"}
-        result = data_normalizer.normalize_data(test_data, "health_check")
-        
-        # بررسی متریک‌های نرمالایزر
-        metrics = data_normalizer.get_health_metrics()
-        return metrics.success_rate > 0 or metrics.total_processed > 0
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Normalization availability check failed: {e}")
-        return False
         
 @health_router.get("/status/simple")
 async def health_status_simple():
