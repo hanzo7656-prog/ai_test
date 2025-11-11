@@ -76,7 +76,7 @@ jobs:
           resources=$(curl -s "$SERVICE_URL/api/health/resources")
           memory_usage=$(echo "$resources" | grep -o '"memory_percent":[0-9.]*' | cut -d':' -f2)
           cache_stats=$(curl -s "$SERVICE_URL/api/health/cache/stats")
-          cache_size=$(echo "$cache_stats" | grep -o '"total_size_mb":[0-9.]*' | cut -d':' -f2)
+          cache_size=$(echo "$cache_stats" | grep -o '"total_size_mb":[0-9.]*' | cut -d':' -f2) || cache_size="0"
           
           echo "💾 Memory Usage: ${memory_usage}%"
           echo "📦 Cache Size: ${cache_size}MB"
@@ -86,10 +86,10 @@ jobs:
             echo "⚠️ High memory usage detected - performing cleanup..."
             
             # پاک‌سازی کش
-            curl -X POST "$SERVICE_URL/api/health/cache/clear"
+            curl -X POST "$SERVICE_URL/api/health/cache/clear" || true
             
             # پاک‌سازی کش نرمال‌سازی
-            curl -X POST "$SERVICE_URL/api/health/normalization/clear-cache"
+            curl -X POST "$SERVICE_URL/api/health/normalization/clear-cache" || true
             
             # گزارش اقدام
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
@@ -128,24 +128,8 @@ jobs:
             echo "✅ No security issues detected"
           fi
 
-      - name: 🎉 Send Success Notification
-        if: success()
-        run: |
-          echo "✅ All health checks passed"
-          
-          # فقط اولین اجرای صبح گزارش موفقیت بفرست
-          if [ $(date +%H) -eq 09 ] && [ $(date +%M) -lt 10 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="✅ VORTEX AI - ALL SYSTEMS GO! 
-💻 Service Status: Healthy & Responsive
-📊 Monitoring: Active
-🕒 Last Check: $(date +'%H:%M')
-🎉 Automated systems operational!"
-          fi
-
       - name: 🛡️ Advanced Auto Recovery
-        if: failure() && steps.health_check.outcome == 'failure'
+        if: failure()  # ساده‌تر کردم
         run: |
           echo "🚨 Starting auto-recovery sequence..."
           max_retries=3
@@ -203,6 +187,22 @@ jobs:
 📞 Immediate manual intervention required!"
             
             exit 1
+          fi
+
+      - name: 🎉 Send Success Notification
+        if: success()
+        run: |
+          echo "✅ All health checks passed"
+          
+          # فقط اولین اجرای صبح گزارش موفقیت بفرست
+          if [ $(date +%H) -eq 09 ] && [ $(date +%M) -lt 10 ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ VORTEX AI - ALL SYSTEMS GO! 
+💻 Service Status: Healthy & Responsive
+📊 Monitoring: Active
+🕒 Last Check: $(date +'%H:%M')
+🎉 Automated systems operational!"
           fi
 
       - name: 📊 Generate Weekly PDF Report
