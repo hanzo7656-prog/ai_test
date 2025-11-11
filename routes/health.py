@@ -287,20 +287,24 @@ async def health_status():
                 api_status = f"error: {str(e)}"
                 api_details = {"error": str(e)}
         
-        # 4. وضعیت نرمال‌سازی داده - 🔽 این بخش رو اصلاح کن
+        # 4. وضعیت نرمال‌سازی داده - نسخه واقعی
         normalization_metrics = {}
+        normalization_available = False
+
         try:
             metrics = data_normalizer.get_health_metrics()
-            # تبدیل object به dictionary
+            normalization_available = metrics.success_rate > 0 or metrics.total_processed > 0
+    
             normalization_metrics = {
-                "success_rate": getattr(metrics, 'success_rate', 0),
-                "total_processed": getattr(metrics, 'total_processed', 0),
-                "total_errors": getattr(metrics, 'total_errors', 0),
-                "performance_metrics": getattr(metrics, 'performance_metrics', {}),
-                "data_quality": getattr(metrics, 'data_quality', {}),
-                "common_structures": getattr(metrics, 'common_structures', {}),
-                "alerts": getattr(metrics, 'alerts', [])
+                "success_rate": metrics.success_rate,
+                "total_processed": metrics.total_processed,
+                "total_errors": metrics.total_errors,
+                "performance_metrics": metrics.performance_metrics,
+                "data_quality": metrics.data_quality,
+                "common_structures": metrics.common_structures,
+                "alerts": metrics.alerts
             }
+    
         except Exception as e:
             normalization_metrics = {
                 "success_rate": 0,
@@ -465,7 +469,7 @@ async def health_status():
             "components": {
                 "cache_available": smart_cache is not None,
                 "debug_system_available": DebugSystemManager.is_available(),  # ✅ اصلاح شد  # می‌تونی از DebugSystemManager چک کنی
-                "normalization_available": True,
+                "normalization_available": self._check_normalization_availability(),
                 "external_apis_available": coin_stats_manager is not None 
             }
         }
@@ -488,6 +492,21 @@ async def health_status():
             }
         )
 
+def _check_normalization_availability(self) -> bool:
+    """بررسی واقعی وضعیت نرمالایزر"""
+    try:
+        # تست عملکرد نرمالایزر
+        test_data = {"test": "data"}
+        result = data_normalizer.normalize_data(test_data, "health_check")
+        
+        # بررسی متریک‌های نرمالایزر
+        metrics = data_normalizer.get_health_metrics()
+        return metrics.success_rate > 0 or metrics.total_processed > 0
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Normalization availability check failed: {e}")
+        return False
+        
 @health_router.get("/status/simple")
 async def health_status_simple():
     """وضعیت سلامت ساده - برای تست سریع"""
