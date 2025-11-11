@@ -6,9 +6,17 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+
 news_router = APIRouter(prefix="/api/news", tags=["News"])
 
 @news_router.get("/all", summary="اخبار عمومی")
+@news_cache
 async def get_news(
     limit: int = Query(50, ge=1, le=100, description="تعداد اخبار (۱ تا ۱۰۰)"),
     page: int = Query(1, ge=1, description="شماره صفحه")
@@ -62,6 +70,7 @@ async def get_news(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/type/{news_type}", summary="اخبار بر اساس نوع")
+@news_cache
 async def get_news_by_type(
     news_type: str,
     limit: int = Query(10, ge=1, le=50, description="تعداد اخبار (۱ تا ۵۰)")
@@ -120,6 +129,7 @@ async def get_news_by_type(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/sources", summary="منابع خبری")
+@news_cache
 async def get_news_sources():
     """دریافت لیست منابع خبری"""
     try:
@@ -168,6 +178,7 @@ async def get_news_sources():
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/detail/{news_id}", summary="جزئیات خبر")
+@news_cache
 async def get_news_detail(news_id: str):
     """دریافت جزئیات کامل یک خبر"""
     try:
@@ -212,6 +223,7 @@ async def get_news_detail(news_id: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/categories", summary="دسته‌بندی‌های خبر")
+@news_cache
 async def get_news_categories():
     """دریافت دسته‌بندی‌های خبری موجود"""
     try:
@@ -265,6 +277,7 @@ async def get_news_categories():
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/search", summary="جستجو در اخبار")
+@news_cache
 async def search_news(
     query: str = Query(..., description="عبارت جستجو"),
     limit: int = Query(20, ge=1, le=50, description="تعداد نتایج")
@@ -327,6 +340,7 @@ async def search_news(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/stats", summary="آمار اخبار")
+@news_cache
 async def get_news_stats():
     """دریافت آمار و تحلیل کلی اخبار"""
     try:
@@ -367,6 +381,7 @@ async def get_news_stats():
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @news_router.get("/debug/{news_type}", summary="دیباگ اخبار")
+@news_cache
 async def debug_news_data(news_type: str = "handpicked"):
     """ابزار دیباگ برای بررسی ساختار داده اخبار"""
     try:
