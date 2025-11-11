@@ -6,9 +6,17 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+
 insights_router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
 @insights_router.get("/btc-dominance", summary="دامیننس بیت‌کوین")
+@insights_cache
 async def get_btc_dominance(type: str = Query("all")):
     """دریافت دامیننس بیت‌کوین پردازش شده"""
     try:
@@ -37,6 +45,7 @@ async def get_btc_dominance(type: str = Query("all")):
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/fear-greed", summary="شاخص ترس و طمع")
+@insights_cache
 async def get_fear_greed():
     """دریافت شاخص ترس و طمع پردازش شده"""
     try:
@@ -89,6 +98,7 @@ async def get_fear_greed():
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/fear-greed/chart", summary="چارت ترس و طمع")
+@insights_cache
 async def get_fear_greed_chart():
     """دریافت چارت ترس و طمع پردازش شده"""
     try:
@@ -121,6 +131,7 @@ async def get_fear_greed_chart():
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/rainbow-chart/{coin_id}", summary="چارت رنگین‌کمان")
+@insights_cache
 async def get_rainbow_chart(coin_id: str):
     """دریافت چارت رنگین‌کمان پردازش شده"""
     try:
