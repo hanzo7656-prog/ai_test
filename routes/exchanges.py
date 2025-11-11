@@ -6,9 +6,17 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+
 exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 
 @exchanges_router.get("/list", summary="لیست صرافی‌ها")
+@exchanges_cache
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
@@ -52,6 +60,7 @@ async def get_exchanges_list():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/markets", summary="مارکت‌ها")
+@exchanges_cache
 async def get_markets():
     """دریافت مارکت‌های پردازش شده"""
     try:
@@ -93,6 +102,7 @@ async def get_markets():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/fiats", summary="ارزهای فیات")
+@exchanges_cache
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
@@ -134,6 +144,7 @@ async def get_fiats():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/currencies", summary="ارزها")
+@exchanges_cache
 async def get_currencies():
     """دریافت ارزهای پردازش شده"""
     try:
@@ -161,6 +172,7 @@ async def get_currencies():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/price", summary="قیمت صرافی")
+@exchanges_cache
 async def get_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
