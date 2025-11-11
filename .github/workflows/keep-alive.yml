@@ -1,130 +1,29 @@
-name: 🚀 Keep Render Service Alive
-
-on:
-  schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
-
-env:
-  SERVICE_URL: ${{ secrets.SERVICE_URL }}
-  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-jobs:
-  health-check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 🏓 Check Basic Health
-        run: |
-          echo "🕐 Starting health check at $(date)"
-          
-          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
-          http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
-          
-          if [ "$http_status" -eq 200 ]; then
-            echo "✅ Basic health check passed"
-          else
-            echo "❌ Basic health check failed: HTTP $http_status"
-            exit 1
-          fi
-
-      - name: 📊 Check Full Health Status
-        run: |
-          echo "🔍 Checking full health status..."
-          
-          response=$(curl -s "$SERVICE_URL/api/health/status")
-          
-          # استخراج دقیق مقادیر
-          health_score=$(echo "$response" | grep -o '"health_score":[0-9]*' | head -1 | cut -d':' -f2)
-          status=$(echo "$response" | grep -o '"status":"[^"]*' | head -1 | cut -d'"' -f4)
-          cpu_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | head -1 | cut -d':' -f2)
-          memory_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | tail -1 | cut -d':' -f2)
-          
-          echo "✅ Full health check passed"
-          echo "📈 Health Score: $health_score"
-          echo "🔄 Status: $status"
-          echo "💻 CPU Usage: ${cpu_usage}%"
-          echo "🧠 Memory Usage: ${memory_usage}%"
-          
-          # ارسال گزارش سلامت به تلگرام
-          if [ "$health_score" -lt 70 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="⚠️ SERVICE DEGRADED%0A💻 Vortex AI Service%0A📊 Health Score: $health_score%%0A🔶 Status: $status%0A💻 CPU: ${cpu_usage}%%20|%20🧠 Memory: ${memory_usage}%%0A⏰ Time: $(date +'%H:%M')%0A🔧 Check required!"
-          elif [ "$health_score" -lt 85 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🔸 Service Warning%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A💻 CPU: ${cpu_usage}%%20|%20🧠 Memory: ${memory_usage}%%0A⏰ $(date +'%H:%M')"
-          fi
-
-      - name: 💾 Smart Memory Management
-        run: |
-          echo "🧠 Checking memory usage..."
-          
-          resources=$(curl -s "$SERVICE_URL/api/health/resources")
-          echo "Raw resources response: $resources"
-          
-          # استخراج memory usage
-          memory_usage=$(echo "$resources" | grep -o '"memory_percent":[0-9.]*' | head -1 | cut -d':' -f2)
-          
-          if [ -z "$memory_usage" ]; then
-            memory_usage=$(echo "$resources" | grep -o '"percent":[0-9.]*' | head -1 | cut -d':' -f2)
-          fi
-          
-          echo "💾 Memory Usage: ${memory_usage}%"
-          
-          # مدیریت حافظه
-          if [ -n "$memory_usage" ] && [ "$memory_usage" -eq "$memory_usage" ] 2>/dev/null; then
-            if [ "$memory_usage" -gt 75 ]; then
-              echo "⚠️ High memory usage detected - performing cleanup..."
-              
-              curl -X POST "$SERVICE_URL/api/health/cache/clear" || true
-              
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d text="🧹 MEMORY CLEANUP PERFORMED!%0A💻 Vortex AI Service%0A📊 Memory Usage: ${memory_usage}%%0A🕒 Time: $(date +'%H:%M')%0A✅ System optimized"
-            fi
-          fi
-
-      - name: 🛡️ Advanced Auto Recovery
-        if: failure()
-        run: |
-          echo "🚨 Starting auto-recovery sequence..."
-          max_retries=3
-          recovery_successful=false
-          
-          for attempt in $(seq 1 $max_retries); do
-            echo "🔄 Recovery attempt $attempt of $max_retries..."
-            
-            curl -s -X POST "$SERVICE_URL/api/health/cache/clear" || true
-            sleep 2
-            
-            curl -s -X POST "$SERVICE_URL/api/health/normalization/reset-metrics" || true
-            sleep 3
-            
-            response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
-            http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
-            
-            if [ "$http_status" -eq 200 ]; then
-              echo "✅ Auto-recovery successful on attempt $attempt!"
-              recovery_successful=true
-              
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d text="🔄 AUTO-RECOVERY SUCCESSFUL!%0A💻 Vortex AI Service%0A✅ Recovered on attempt $attempt%0A🛠️ Actions: Cache cleared, Systems reset%0A🕒 Time: $(date +'%H:%M:%S')%0A🎉 Service is back online!"
-              break
-            else
-              echo "❌ Recovery attempt $attempt failed (HTTP $http_status)"
-              sleep 5
-            fi
-          done
-          
-          if [ "$recovery_successful" = false ]; then
-            echo "💥 All recovery attempts failed!"
-            
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🔴 CRITICAL: AUTO-RECOVERY FAILED!%0A💻 Vortex AI Service%0A❌ All $max_retries recovery attempts failed%0A🚨 Service remains unavailable%0A⏰ Failure Time: $(date +'%Y-%m-%d %H:%M:%S')%0A📞 Immediate manual intervention required!"
-            
-            exit 1
-          fi
+- name: 💾 Smart Memory Management
+  run: |
+    echo "🧠 Checking system resources..."
+    
+    resources=$(curl -s "$SERVICE_URL/api/health/resources")
+    
+    # استخراج درست memory از بخش memory
+    memory_usage=$(echo "$resources" | grep -o '"memory":{"percent":[0-9.]*' | cut -d':' -f3)
+    disk_usage=$(echo "$resources" | grep -o '"disk":{"percent":[0-9.]*' | cut -d':' -f3)
+    
+    echo "💾 Memory Usage: ${memory_usage}%"
+    echo "💽 Disk Usage: ${disk_usage}%"
+    
+    # مدیریت حافظه
+    if [ -n "$memory_usage" ] && [ "$memory_usage" -gt 75 ]; then
+      echo "⚠️ High memory usage detected - performing cleanup..."
+      curl -X POST "$SERVICE_URL/api/health/cache/clear" || true
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+        -d chat_id="$TELEGRAM_CHAT_ID" \
+        -d text="🧹 MEMORY CLEANUP!%0A📊 Memory: ${memory_usage}%%0A🕒 $(date +'%H:%M')"
+    fi
+    
+    # هشدار دیسک پر
+    if [ -n "$disk_usage" ] && [ "$disk_usage" -gt 80 ]; then
+      echo "🚨 High disk usage detected: ${disk_usage}%"
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+        -d chat_id="$TELEGRAM_CHAT_ID" \
+        -d text="🚨 HIGH DISK USAGE!%0A💽 Disk: ${disk_usage}%%0A🔴 Cleanup needed%0A🕒 $(date +'%H:%M')"
+    fi
