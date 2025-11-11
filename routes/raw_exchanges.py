@@ -7,12 +7,20 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from smart_cache_system import coins_cache, raw_coins_cache
-    SMART_CACHE_AVAILABLE = True
-except ImportError:
-    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
-    SMART_CACHE_AVAILABLE = False
-    
+    from debug_system.storage.smart_cache_system import coins_cache
+    logger.info("✅ Using Smart Cache for coins")
+except ImportError as e:
+    logger.warning(f"⚠️ Smart Cache not available: {e}")
+    try:
+        # fallback به سیستم قدیم
+        from debug_system.storage.cache_decorators import cache_coins as coins_cache
+        logger.info("✅ Using Legacy Cache for coins")
+    except ImportError as e2:
+        logger.error(f"❌ No cache system available: {e2}")
+        # تعریف دکوراتور خالی به عنوان fallback نهایی
+        def coins_cache(func):
+            return func
+
 raw_exchanges_router = APIRouter(prefix="/api/raw/exchanges", tags=["Raw Exchanges"])
 
 @raw_exchanges_router.get("/list", summary="لیست خام صرافی‌ها")
