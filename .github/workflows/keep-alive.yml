@@ -1,52 +1,83 @@
-name: 🐛 Debug Telegram
+name: 🚀 Keep Render Service Alive
 
 on:
+  schedule:
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 env:
+  SERVICE_URL: ${{ secrets.SERVICE_URL }}
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
-  debug:
+  health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: 1️⃣ Check Secrets Exist
+      - name: 🏓 Check Basic Health
         run: |
-          echo "🔍 Checking secrets..."
-          echo "TELEGRAM_BOT_TOKEN: $TELEGRAM_BOT_TOKEN"
-          echo "TELEGRAM_CHAT_ID: $TELEGRAM_CHAT_ID"
+          echo "🕐 Starting health check at $(date)"
           
-          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
-            echo "❌ TELEGRAM_BOT_TOKEN is empty!"
-          else
-            echo "✅ TELEGRAM_BOT_TOKEN exists (length: ${#TELEGRAM_BOT_TOKEN})"
-          fi
-          
-          if [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "❌ TELEGRAM_CHAT_ID is empty!"
-          else
-            echo "✅ TELEGRAM_CHAT_ID exists: $TELEGRAM_CHAT_ID"
-          fi
-
-      - name: 2️⃣ Test Telegram API
-        run: |
-          echo "🧪 Testing Telegram API..."
-          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-            -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="2️⃣ DEBUG: Test from GitHub Actions - $(date +'%H:%M:%S')")
-          
-          echo "📡 Full response:"
-          echo "$response"
-          
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
           http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
-          echo "🔢 HTTP Status: $http_status"
+          
+          if [ "$http_status" -eq 200 ]; then
+            echo "✅ Basic health check passed"
+            # ارسال پیام تست
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ SERVICE HEALTHY - Ping successful 🕒 $(date +'%H:%M')"
+          else
+            echo "❌ Basic health check failed: HTTP $http_status"
+            exit 1
+          fi
 
-      - name: 3️⃣ Test Simple Message
+      - name: 📊 Check Full Health Status
         run: |
-          echo "📱 Sending simple message..."
-          curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+          echo "🔍 Checking full health status..."
+          
+          response=$(curl -s "$SERVICE_URL/api/health/status")
+          
+          # درست کردن استخراج health_score - فقط اولین عدد رو بگیر
+          health_score=$(echo "$response" | grep -o '"health_score":[0-9]*' | head -1 | cut -d':' -f2)
+          status=$(echo "$response" | grep -o '"status":"[^"]*' | head -1 | cut -d'"' -f4)
+          
+          echo "✅ Full health check passed"
+          echo "📈 Health Score: $health_score"
+          echo "🔄 Status: $status"
+          
+          # ارسال گزارش سلامت به تلگرام
+          if [ "$health_score" -lt 70 ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="⚠️ SERVICE DEGRADED%0A💻 Vortex AI Service%0A📊 Health Score: $health_score%%0A🔶 Status: $status%0A⏰ Time: $(date +'%H:%M')%0A🔧 Check required!"
+          elif [ "$health_score" -lt 85 ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="🔸 Service Warning%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A⏰ $(date +'%H:%M')"
+          else
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ Service Healthy%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A⏰ $(date +'%H:%M')"
+          fi
+
+      - name: 💾 Simple Memory Check
+        run: |
+          echo "🧠 Simple memory check..."
+          resources=$(curl -s "$SERVICE_URL/api/health/resources")
+          memory_usage=$(echo "$resources" | grep -o '"memory_percent":[0-9.]*' | head -1 | cut -d':' -f2)
+          echo "💾 Memory Usage: ${memory_usage}%"
+          
+          if (( $(echo "$memory_usage > 75" | bc -l) )); then
+            echo "⚠️ High memory usage detected"
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="🧹 High Memory: ${memory_usage}%%0A🕒 $(date +'%H:%M')"
+          fi
+
+      - name: 🎉 Final Success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             -d chat_id="$TELEGRAM_CHAT_ID" \
-            -d text="3️⃣ SIMPLE: This should work! $(date +'%H:%M:%S')"
-          echo "✅ Simple message sent"
+            -d text="🎉 WORKFLOW COMPLETED%0A🕒 $(date +'%H:%M')%0A✅ All systems operational!"
