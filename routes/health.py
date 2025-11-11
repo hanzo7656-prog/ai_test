@@ -844,14 +844,14 @@ async def system_metrics():
     }
 
 # ==================== URGENT DISK CLEANUP (1GB SPACE) ====================
+# اضافه کردن importهای لازم در بالای فایل
+import glob
+import shutil
 
 @health_router.get("/cleanup/urgent")
 async def urgent_disk_cleanup():
     """پاکسازی فوری دیسک - مخصوص فضای ۱ گیگابایتی"""
     try:
-        import glob
-        import shutil
-        
         cleanup_results = {
             "status": "started",
             "timestamp": datetime.now().isoformat(),
@@ -1044,12 +1044,10 @@ async def disk_status_detailed():
             "timestamp": datetime.now().isoformat()
         }
 
-@health_router.post("/cleanup/clear-logs")
+@health_router.get("/cleanup/clear-logs")  # ❌ تغییر از POST به GET
 async def clear_logs_only():
     """پاکسازی فقط فایل‌های لاگ"""
     try:
-        import glob
-        
         cleanup_results = {
             "status": "started",
             "timestamp": datetime.now().isoformat(),
@@ -1071,6 +1069,7 @@ async def clear_logs_only():
                         "size_mb": round(size_mb, 2)
                     })
                     cleanup_results["freed_space_mb"] += size_mb
+                    logger.info(f"✅ Deleted log: {log_file} ({size_mb:.2f} MB)")
                     
             except Exception as e:
                 logger.error(f"❌ Error deleting log file {log_file}: {e}")
@@ -1088,6 +1087,7 @@ async def clear_logs_only():
             "message": f"پاکسازی لاگ‌ها با خطا مواجه شد: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
+
 # ==================== DATA NORMALIZATION ENDPOINTS ====================
 
 @health_router.get("/normalization/metrics")
