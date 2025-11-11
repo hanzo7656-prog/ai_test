@@ -6,9 +6,17 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+    
 raw_exchanges_router = APIRouter(prefix="/api/raw/exchanges", tags=["Raw Exchanges"])
 
 @raw_exchanges_router.get("/list", summary="لیست خام صرافی‌ها")
+@raw_exchanges_cache
 async def get_raw_exchanges_list():
     """دریافت لیست خام صرافی‌ها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -43,6 +51,7 @@ async def get_raw_exchanges_list():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_exchanges_router.get("/markets", summary="داده‌های مارکت‌ها")
+@raw_exchanges_cache
 async def get_raw_markets():
     """دریافت داده‌های خام مارکت‌ها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -76,6 +85,7 @@ async def get_raw_markets():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_exchanges_router.get("/fiats", summary="داده‌های ارزهای فیات")
+@raw_exchanges_cache
 async def get_raw_fiats():
     """دریافت داده‌های خام ارزهای فیات از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -109,6 +119,7 @@ async def get_raw_fiats():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_exchanges_router.get("/currencies", summary="داده‌های ارزها")
+@raw_exchanges_cache
 async def get_raw_currencies():
     """دریافت داده‌های خام ارزها از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -155,6 +166,7 @@ async def get_raw_currencies():
         logger.error(f"Error type: {type(e).__name__}")
         raise HTTPException(status_code=500, detail=f"Error processing currencies data: {str(e)}")
 @raw_exchanges_router.get("/metadata", summary="متادیتای صرافی‌ها و مارکت‌ها")
+@raw_exchanges_cache
 async def get_exchanges_metadata():
     """دریافت متادیتای کامل صرافی‌ها و مارکت‌ها - برای آموزش هوش مصنوعی"""
     try:
@@ -215,6 +227,7 @@ async def get_exchanges_metadata():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_exchanges_router.get("/exchange/{exchange_id}", summary="داده‌های اختصاصی صرافی")
+@raw_exchanges_cache
 async def get_exchange_details(exchange_id: str):
     """دریافت داده‌های اختصاصی یک صرافی - برای تحلیل‌های پیشرفته هوش مصنوعی"""
     try:
