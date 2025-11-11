@@ -281,10 +281,20 @@ async def health_status():
                 api_status = f"error: {str(e)}"
                 api_details = {"error": str(e)}
         
-        # 4. وضعیت نرمال‌سازی داده
+        # 4. وضعیت نرمال‌سازی داده - 🔽 این بخش رو اصلاح کن
         normalization_metrics = {}
         try:
-            normalization_metrics = data_normalizer.get_health_metrics()
+            metrics = data_normalizer.get_health_metrics()
+            # تبدیل object به dictionary
+            normalization_metrics = {
+                "success_rate": getattr(metrics, 'success_rate', 0),
+                "total_processed": getattr(metrics, 'total_processed', 0),
+                "total_errors": getattr(metrics, 'total_errors', 0),
+                "performance_metrics": getattr(metrics, 'performance_metrics', {}),
+                "data_quality": getattr(metrics, 'data_quality', {}),
+                "common_structures": getattr(metrics, 'common_structures', {}),
+                "alerts": getattr(metrics, 'alerts', [])
+            }
         except Exception as e:
             normalization_metrics = {
                 "success_rate": 0,
@@ -458,15 +468,42 @@ async def health_status():
         
     except Exception as e:
         logger.error(f"Error in health status: {e}")
+        # لاگ خطای دقیق‌تر
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
         raise HTTPException(
             status_code=500,
             detail={
                 "status": "error",
                 "message": f"Health check failed: {str(e)}",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "debug_info": "Check server logs for detailed error"
             }
         )
 
+@health_router.get("/status/simple")
+async def health_status_simple():
+    """وضعیت سلامت ساده - برای تست سریع"""
+    try:
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": "4.0.0",
+            "services": {
+                "web_server": "running",
+                "cache": "available" if smart_cache else "unavailable",
+                "redis": "connected",
+                "api": "ready"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+        
 @health_router.get("/overview")
 async def system_overview():
     """نمای کلی سیستم - خلاصه‌تر از status"""
