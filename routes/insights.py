@@ -7,13 +7,13 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from debug_system.storage.smart_cache_system import coins_cache
+    from debug_system.storage.smart_cache_system import insights_cache
     logger.info("✅ Using Smart Cache for coins")
 except ImportError as e:
     logger.warning(f"⚠️ Smart Cache not available: {e}")
     try:
         # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_coins as coins_cache
+        from debug_system.storage.cache_decorators import cache_insights as insights_cache
         logger.info("✅ Using Legacy Cache for coins")
     except ImportError as e2:
         logger.error(f"❌ No cache system available: {e2}")
