@@ -9,7 +9,7 @@ on:
   workflow_dispatch:  # امکان اجرای دستی
 
 env:
-  SERVICE_URL: 'https://YOUR_APP_NAME.onrender.com'
+  SERVICE_URL: 'https://ai-test-cg8m.onrender.com'
 
 jobs:
   health-check:
