@@ -1,0 +1,63 @@
+name: 🚀 Keep Render Service Alive
+
+on:
+  schedule:
+    # هر ۱۰ دقیقه اجرا شود
+    - cron: '*/10 * * * *'
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # امکان اجرای دستی
+
+env:
+  SERVICE_URL: 'https://YOUR_APP_NAME.onrender.com'
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏓 Check Basic Health
+        run: |
+          echo "🕐 Starting health check at $(date)"
+          
+          # تست endpoint ساده
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
+          http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+          
+          if [ "$http_status" -eq 200 ]; then
+            echo "✅ Basic health check passed"
+          else
+            echo "❌ Basic health check failed: HTTP $http_status"
+            exit 1
+          fi
+
+      - name: 📊 Check Full Health Status
+        run: |
+          echo "🔍 Checking full health status..."
+          
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/status")
+          http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+          json_response=$(echo "$response" | grep -v "HTTP_STATUS")
+          
+          if [ "$http_status" -eq 200 ]; then
+            echo "✅ Full health check passed"
+            echo "📈 Health Score: $(echo "$json_response" | grep -o '"health_score":[0-9]*' | cut -d':' -f2)"
+            echo "🔄 Status: $(echo "$json_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)"
+          else
+            echo "❌ Full health check failed: HTTP $http_status"
+            echo "Response: $json_response"
+            exit 1
+          fi
+
+      - name: 📝 Log Success
+        if: success()
+        run: |
+          echo "🎉 All health checks passed at $(date)"
+          echo "✅ Service is running smoothly"
+          echo "🌐 Service URL: $SERVICE_URL"
+
+      - name: 🚨 Log Failure  
+        if: failure()
+        run: |
+          echo "💥 Health checks failed at $(date)"
+          echo "🔧 Check the service logs for details"
+          echo "🌐 Service URL: $SERVICE_URL"
