@@ -6,6 +6,13 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+    
 raw_coins_router = APIRouter(prefix="/api/raw/coins", tags=["Raw Coins"])
 
 @raw_coins_router.get("/list", summary="لیست خام نمادها")
