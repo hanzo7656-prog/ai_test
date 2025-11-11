@@ -213,6 +213,16 @@ class SmartCache:
 # نمونه گلوبال
 smart_cache = SmartCache()
 
-# فقط ۲ دکوراتور اصلی - ساده و کارآمد
-processed_cache = smart_cache.cache_strategy("processed")
-raw_cache = smart_cache.cache_strategy("raw")
+
+coins_cache = smart_cache.cache_strategy("coins")
+exchanges_cache = smart_cache.cache_strategy("exchanges")
+news_cache = smart_cache.cache_strategy("news") 
+insights_cache = smart_cache.cache_strategy("insights")
+
+# برای routes داده خام
+raw_coins_cache = smart_cache.cache_strategy("raw_coins")
+raw_exchanges_cache = smart_cache.cache_strategy("raw_exchanges")
+raw_news_cache = smart_cache.cache_strategy("raw_news")
+raw_insights_cache = smart_cache.cache_strategy("raw_insights")
+
+print("✅ Smart Cache System initialized with all decorators")
