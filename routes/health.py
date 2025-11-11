@@ -21,10 +21,12 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from debug_system.utils.data_normalizer import data_normalizer
 
+# 🔽 این import رو چک کن
 try:
-    from debug_system.storage.smart_cache_system import smart_cache, cache_router
-except ImportError:
-    # Fallback
+    from debug_system.storage.smart_cache_system import smart_cache
+    logger.info("✅ Smart Cache imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Smart Cache import failed: {e}")
     smart_cache = None
     
 # ایمپورت complete_coinstats_manager برای وضعیت API
