@@ -6,9 +6,17 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from smart_cache_system import coins_cache, raw_coins_cache
+    SMART_CACHE_AVAILABLE = True
+except ImportError:
+    from debug_system.storage.cache_decorators import cache_coins, cache_raw_coins
+    SMART_CACHE_AVAILABLE = False
+
 raw_news_router = APIRouter(prefix="/api/raw/news", tags=["Raw News"])
 
 @raw_news_router.get("/all", summary="داده‌های خام اخبار عمومی")
+@raw_news_cache
 async def get_raw_news(limit: int = Query(50, ge=1, le=100)):
     """دریافت داده‌های خام اخبار عمومی از CoinStats API"""
     try:
@@ -40,6 +48,7 @@ async def get_raw_news(limit: int = Query(50, ge=1, le=100)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/type/{news_type}", summary="داده‌های خام اخبار دسته‌بندی شده")
+@raw_news_cache
 async def get_raw_news_by_type(
     news_type: str,
     limit: int = Query(10, ge=1, le=50)
@@ -80,6 +89,7 @@ async def get_raw_news_by_type(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/sources", summary="داده‌های خام منابع خبری")
+@raw_news_cache
 async def get_raw_news_sources():
     """دریافت داده‌های خام منابع خبری از CoinStats API"""
     try:
@@ -108,6 +118,7 @@ async def get_raw_news_sources():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/detail/{news_id}", summary="داده‌های خام جزئیات خبر")
+@raw_news_cache
 async def get_raw_news_detail(news_id: str):
     """دریافت داده‌های خام جزئیات کامل یک خبر"""
     try:
@@ -131,6 +142,7 @@ async def get_raw_news_detail(news_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/sentiment-analysis", summary="تحلیل احساسات اخبار")
+@raw_news_cache
 async def get_news_sentiment_analysis(
     limit: int = Query(20, ge=1, le=50),
     news_type: str = Query(None, description="نوع خبر: handpicked, trending, latest, bullish, bearish")
@@ -169,6 +181,7 @@ async def get_news_sentiment_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/metadata", summary="متادیتای اخبار و منابع")
+@raw_news_cache
 async def get_news_metadata():
     """دریافت متادیتای کامل اخبار و منابع"""
     try:
@@ -242,6 +255,7 @@ async def get_news_metadata():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_news_router.get("/debug/simple", summary="دیباگ ساده مدیر")
+@raw_news_cache
 async def debug_simple():
     """دیباگ ساده برای بررسی manager"""
     try:
