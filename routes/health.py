@@ -197,8 +197,12 @@ class DebugSystemManager:
         """بررسی آیا سیستم دیباگ در دسترس است"""
         if not cls._initialized:
             cls.initialize()
-        return bool(cls._modules.get('debug_manager'))
     
+        debug_manager = cls._modules.get('debug_manager')
+        if debug_manager and hasattr(debug_manager, 'is_active'):
+            return debug_manager.is_active()
+        return bool(debug_manager)
+        
     @classmethod
     def get_status_report(cls):
         """دریافت گزارش وضعیت سیستم دیباگ"""
@@ -460,9 +464,10 @@ async def health_status():
             
             "components": {
                 "cache_available": smart_cache is not None,
-                "debug_system_available": False,  # می‌تونی از DebugSystemManager چک کنی
+                "debug_system_available": DebugSystemManager.is_available(),  # ✅ اصلاح شد  # می‌تونی از DebugSystemManager چک کنی
                 "normalization_available": True,
-                "external_apis_available": coin_stats_manager is not None
+                "external_apis_available": coin_stats_manager is not None,
+                "debug_system_details": debug_status 
             }
         }
         
