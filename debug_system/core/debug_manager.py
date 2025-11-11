@@ -99,7 +99,10 @@ class DebugManager:
         
         self._start_background_monitoring()
         logger.info("🚀 Debug Manager Initialized - Advanced Monitoring Active")
-    
+    def is_active(self) -> bool:
+        """بررسی آیا دیباگ منیجر فعال است"""
+        return self._monitoring_active and hasattr(self, 'endpoint_calls')
+        
     def set_alert_manager(self, alert_manager: AlertManager):
         """تنظیم alert manager با نوع‌دهی صحیح"""
         self.alert_manager = alert_manager
