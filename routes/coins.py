@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 coins_router = APIRouter(prefix="/api/coins", tags=["Coins"])
 
 @coins_router.get("/list", summary="لیست نمادها")
+@cache_coins(expire=300)
 async def get_coins_list(
     limit: int = Query(20, ge=1, le=100),
     page: int = Query(1, ge=1),
@@ -51,6 +52,7 @@ async def get_coins_list(
         raise HTTPException(status_code=500, detail=str(e))
 
 @coins_router.get("/details/{coin_id}", summary="جزئیات نماد")
+@cache_coins(expire=600)
 async def get_coin_details(coin_id: str, currency: str = Query("USD")):
     """دریافت جزئیات پردازش شده یک نماد"""
     try:
@@ -97,6 +99,7 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
         raise HTTPException(status_code=500, detail=str(e))
         
 @coins_router.get("/charts/{coin_id}", summary="چارت نماد")
+@cache_coins(expire=1800)
 async def get_coin_charts(coin_id: str, period: str = Query("1w")):
     """دریافت چارت پردازش شده نماد"""
     try:
@@ -118,6 +121,7 @@ async def get_coin_charts(coin_id: str, period: str = Query("1w")):
         raise HTTPException(status_code=500, detail=str(e))
 
 @coins_router.get("/price/avg", summary="قیمت متوسط")
+@cache_coins(expire=600)
 async def get_coin_price_avg(
     coin_id: str = Query("bitcoin"),
     timestamp: str = Query("1636315200")
