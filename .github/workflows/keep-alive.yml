@@ -32,103 +32,117 @@ jobs:
         run: |
           echo "🔍 Checking full health status..."
           
-          response=$(curl -s "$SERVICE_URL/api/health/status")
+          status_response=$(curl -s "$SERVICE_URL/api/health/status")
           
-          # استخراج دقیق مقادیر
-          health_score=$(echo "$response" | grep -o '"health_score":[0-9]*' | head -1 | cut -d':' -f2)
-          status=$(echo "$response" | grep -o '"status":"[^"]*' | head -1 | cut -d'"' -f4)
-          cpu_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | head -1 | cut -d':' -f2)
-          memory_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | tail -1 | cut -d':' -f2)
+          # استخراج داده‌های اصلی از JSON
+          health_score=$(echo "$status_response" | grep -o '"health_score":[0-9]*' | head -1 | cut -d':' -f2)
+          overall_status=$(echo "$status_response" | grep -o '"status":"[^"]*' | head -1 | cut -d'"' -f4)
+          
+          # استخراج منابع از بخش resources
+          cpu_usage=$(echo "$status_response" | grep -o '"cpu":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+          memory_usage=$(echo "$status_response" | grep -o '"memory":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+          disk_usage=$(echo "$status_response" | grep -o '"disk":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+          
+          # استخراج وضعیت سرویس‌ها
+          cache_status=$(echo "$status_response" | grep -o '"cache_system":{"status":"[^"]*' | cut -d'"' -f4)
+          cache_hit_rate=$(echo "$status_response" | grep -o '"hit_rate":[0-9]*' | cut -d':' -f2)
+          redis_status=$(echo "$status_response" | grep -o '"redis":{"status":"[^"]*' | cut -d'"' -f4)
+          api_status=$(echo "$status_response" | grep -o '"external_apis":{"status":"[^"]*' | cut -d'"' -f4)
           
           echo "✅ Full health check passed"
           echo "📈 Health Score: $health_score"
-          echo "🔄 Status: $status"
-          echo "💻 CPU Usage: ${cpu_usage}%"
-          echo "🧠 Memory Usage: ${memory_usage}%"
+          echo "🔄 Overall Status: $overall_status"
+          echo "⚡ CPU: ${cpu_usage}%"
+          echo "🧠 Memory: ${memory_usage}%"
+          echo "💽 Disk: ${disk_usage}%"
+          echo "📦 Cache: $cache_status (Hit Rate: ${cache_hit_rate}%)"
+          echo "🔴 Redis: $redis_status"
+          echo "🌐 API: $api_status"
           
-          # ارسال گزارش سلامت به تلگرام
+          # ارسال گزارش کامل به تلگرام
           if [ "$health_score" -lt 70 ]; then
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🔴 SYSTEM CRITICAL%0A💻 Vortex AI Service%0A📊 Health Score: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 Memory: ${memory_usage}%%0A🔶 Status: $status%0A⏰ $(date +'%H:%M')%0A🚨 Immediate action required!"
+              -d text="🔴 SYSTEM CRITICAL%0A💻 Vortex AI Service%0A%0A📊 HEALTH: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 MEMORY: ${memory_usage}%%0A💽 DISK: ${disk_usage}%%0A%0A🔧 COMPONENTS%0A📦 Cache: $cache_status%0A🔴 Redis: $redis_status%0A🌐 API: $api_status%0A%0A⏰ $(date +'%H:%M')%0A🚨 Immediate action required!"
           elif [ "$health_score" -lt 85 ]; then
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🟡 SYSTEM WARNING%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 Memory: ${memory_usage}%%0A⏰ $(date +'%H:%M')%0A⚠️ Monitor closely"
+              -d text="🟡 SYSTEM WARNING%0A💻 Vortex AI Service%0A%0A📊 HEALTH: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 MEMORY: ${memory_usage}%%0A💽 DISK: ${disk_usage}%%0A%0A⏰ $(date +'%H:%M')%0A⚠️ Monitor closely"
           else
-            # فقط مواقعی که سلامت بالاست و ساعت ۹ صبح باشه
+            # فقط ساعت ۹ صبح گزارش سلامت بفرست
             if [ $(date +%H) -eq 09 ] && [ $(date +%M) -lt 10 ]; then
               curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
                 -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d text="🟢 SYSTEM OPTIMAL%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 Memory: ${memory_usage}%%0A⏰ $(date +'%H:%M')%0A✅ All systems normal"
+                -d text="🟢 SYSTEM OPTIMAL%0A💻 Vortex AI Service%0A%0A📊 HEALTH: $health_score%%0A⚡ CPU: ${cpu_usage}%%0A🧠 MEMORY: ${memory_usage}%%0A💽 DISK: ${disk_usage}%%0A%0A⏰ $(date +'%H:%M')%0A✅ All systems normal"
             fi
           fi
 
-      - name: 💾 Comprehensive Resource Monitoring
+      - name: 💾 Smart Resource Management
         run: |
-          echo "📈 Comprehensive resource monitoring..."
+          echo "🧠 Smart resource management..."
           
-          resources=$(curl -s "$SERVICE_URL/api/health/resources")
+          status_response=$(curl -s "$SERVICE_URL/api/health/status")
+          memory_usage=$(echo "$status_response" | grep -o '"memory":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+          disk_usage=$(echo "$status_response" | grep -o '"disk":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+          cache_hit_rate=$(echo "$status_response" | grep -o '"hit_rate":[0-9]*' | cut -d':' -f2)
           
-          # استخراج تمام متریک‌ها
-          cpu_percent=$(echo "$resources" | grep -o '"cpu":{"percent":[0-9.]*' | cut -d':' -f3)
-          memory_percent=$(echo "$resources" | grep -o '"memory":{"percent":[0-9.]*' | cut -d':' -f3)
-          disk_percent=$(echo "$resources" | grep -o '"disk":{"percent":[0-9.]*' | cut -d':' -f3)
-          memory_used_gb=$(echo "$resources" | grep -o '"used_gb":[0-9.]*' | head -1 | cut -d':' -f2)
-          memory_total_gb=$(echo "$resources" | grep -o '"total_gb":[0-9.]*' | head -1 | cut -d':' -f2)
-          disk_used_gb=$(echo "$resources" | grep -o '"used_gb":[0-9.]*' | tail -1 | cut -d':' -f2)
-          disk_total_gb=$(echo "$resources" | grep -o '"total_gb":[0-9.]*' | tail -1 | cut -d':' -f2)
+          echo "🧠 Memory: ${memory_usage}%"
+          echo "💽 Disk: ${disk_usage}%"
+          echo "📦 Cache Hit Rate: ${cache_hit_rate}%"
           
-          echo "⚡ CPU: ${cpu_percent}%"
-          echo "🧠 Memory: ${memory_percent}% (${memory_used_gb}GB/${memory_total_gb}GB)"
-          echo "💽 Disk: ${disk_percent}% (${disk_used_gb}GB/${disk_total_gb}GB)"
+          # تبدیل به عدد صحیح
+          memory_int=$(echo "$memory_usage" | cut -d'.' -f1)
+          disk_int=$(echo "$disk_usage" | cut -d'.' -f1)
           
-          # تبدیل به عدد صحیح برای مقایسه
-          cpu_int=$(echo "$cpu_percent" | cut -d'.' -f1)
-          memory_int=$(echo "$memory_percent" | cut -d'.' -f1)
-          disk_int=$(echo "$disk_percent" | cut -d'.' -f1)
-          
-          # مدیریت منابع و ارسال هشدار
-          alert_sent=false
-          alert_message=""
-          
-          # هشدار CPU
-          if [ -n "$cpu_int" ] && [ "$cpu_int" -gt 80 ]; then
-            alert_message="🚨 HIGH CPU USAGE%0A⚡ CPU: ${cpu_percent}%%0A"
-            alert_sent=true
-          elif [ -n "$cpu_int" ] && [ "$cpu_int" -gt 60 ]; then
-            alert_message="⚠️ ELEVATED CPU%0A⚡ CPU: ${cpu_percent}%%0A"
-            alert_sent=true
-          fi
-          
-          # هشدار Memory
-          if [ -n "$memory_int" ] && [ "$memory_int" -gt 85 ]; then
-            alert_message="${alert_message}🚨 HIGH MEMORY%0A🧠 Memory: ${memory_percent}%%0A"
-            alert_sent=true
-            echo "⚠️ High memory usage detected - performing cleanup..."
+          # مدیریت حافظه - اگر بالای ۷۵٪ بود
+          if [ -n "$memory_int" ] && [ "$memory_int" -gt 75 ]; then
+            echo "⚠️ High memory usage detected - clearing cache..."
             curl -X POST "$SERVICE_URL/api/health/cache/clear" || true
-          elif [ -n "$memory_int" ] && [ "$memory_int" -gt 70 ]; then
-            alert_message="${alert_message}⚠️ ELEVATED MEMORY%0A🧠 Memory: ${memory_percent}%%0A"
-            alert_sent=true
-          fi
-          
-          # هشدار Disk
-          if [ -n "$disk_int" ] && [ "$disk_int" -gt 90 ]; then
-            alert_message="${alert_message}🔴 CRITICAL DISK%0A💽 Disk: ${disk_percent}%%0A"
-            alert_sent=true
-          elif [ -n "$disk_int" ] && [ "$disk_int" -gt 80 ]; then
-            alert_message="${alert_message}🚨 HIGH DISK%0A💽 Disk: ${disk_percent}%%0A"
-            alert_sent=true
-          fi
-          
-          # ارسال هشدار ترکیبی
-          if [ "$alert_sent" = true ]; then
-            alert_message="${alert_message}💻 Vortex AI Service%0A⏰ $(date +'%H:%M')%0A📊 Resource alert!"
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="$alert_message"
-          else
-            echo "✅ All resources within normal limits"
+              -d text="🧹 MEMORY CLEANUP%0A💻 Vortex AI Service%0A🧠 Memory: ${memory_usage}%%0A📦 Cache cleared%0A⏰ $(date +'%H:%M')%0A✅ System optimized"
+          fi
+          
+          # هشدار دیسک - اگر بالای ۸۰٪ بود
+          if [ -n "$disk_int" ] && [ "$disk_int" -gt 80 ]; then
+            echo "🚨 High disk usage detected: ${disk_usage}%"
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="🚨 HIGH DISK USAGE%0A💻 Vortex AI Service%0A💽 Disk: ${disk_usage}%%0A🔴 Cleanup needed%0A⏰ $(date +'%H:%M')%0A⚠️ Check logs & files"
+          fi
+          
+          # اگر cache hit rate پایین بود
+          if [ -n "$cache_hit_rate" ] && [ "$cache_hit_rate" -lt 20 ]; then
+            echo "⚠️ Low cache hit rate: ${cache_hit_rate}%"
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="📊 CACHE PERFORMANCE%0A💻 Vortex AI Service%0A📦 Hit Rate: ${cache_hit_rate}%%0A🔧 Optimization needed%0A⏰ $(date +'%H:%M')"
+          fi
+
+      - name: 🔍 Performance Analysis
+        run: |
+          echo "📈 Performance analysis..."
+          
+          status_response=$(curl -s "$SERVICE_URL/api/health/status")
+          response_time=$(echo "$status_response" | grep -o '"response_time_ms":[0-9.]*' | cut -d':' -f2)
+          uptime_seconds=$(echo "$status_response" | grep -o '"uptime_seconds":[0-9]*' | cut -d':' -f2)
+          total_requests=$(echo "$status_response" | grep -o '"total_requests_processed":[0-9]*' | cut -d':' -f2)
+          
+          # تبدیل uptime به روز و ساعت
+          uptime_days=$((uptime_seconds / 86400))
+          uptime_hours=$(( (uptime_seconds % 86400) / 3600 ))
+          
+          echo "⏱️ Response Time: ${response_time}ms"
+          echo "📅 Uptime: ${uptime_days}d ${uptime_hours}h"
+          echo "📊 Total Requests: ${total_requests}"
+          
+          # اگر response time بالاست
+          response_int=$(echo "$response_time" | cut -d'.' -f1)
+          if [ -n "$response_int" ] && [ "$response_int" -gt 2000 ]; then
+            echo "🐌 High response time detected: ${response_time}ms"
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="🐌 PERFORMANCE ISSUE%0A💻 Vortex AI Service%0A⏱️ Response Time: ${response_time}ms%0A🔧 Optimization needed%0A⏰ $(date +'%H:%M')"
           fi
 
       - name: 🛡️ Advanced Auto Recovery
@@ -141,12 +155,15 @@ jobs:
           for attempt in $(seq 1 $max_retries); do
             echo "🔄 Recovery attempt $attempt of $max_retries..."
             
+            # پاک‌سازی کش
             curl -s -X POST "$SERVICE_URL/api/health/cache/clear" || true
             sleep 2
             
+            # ریست متریک‌ها
             curl -s -X POST "$SERVICE_URL/api/health/normalization/reset-metrics" || true
             sleep 3
             
+            # تست سلامت
             response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
             http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
             
@@ -156,7 +173,7 @@ jobs:
               
               curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
                 -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d text="🔄 AUTO-RECOVERY SUCCESSFUL!%0A💻 Vortex AI Service%0A✅ Recovered on attempt $attempt%0A🛠️ Cache cleared & systems reset%0A⏰ $(date +'%H:%M:%S')%0A🎉 Service restored!"
+                -d text="🔄 AUTO-RECOVERY SUCCESSFUL%0A💻 Vortex AI Service%0A✅ Recovered on attempt $attempt%0A🛠️ Cache cleared & systems reset%0A⏰ $(date +'%H:%M:%S')%0A🎉 Service restored!"
               break
             else
               echo "❌ Recovery attempt $attempt failed (HTTP $http_status)"
@@ -180,15 +197,31 @@ jobs:
           if [ $(date +%u) -eq 1 ] && [ $(date +%H) -eq 10 ]; then
             echo "📊 Generating weekly performance report..."
             
-            resources=$(curl -s "$SERVICE_URL/api/health/resources")
-            memory_percent=$(echo "$resources" | grep -o '"memory":{"percent":[0-9.]*' | cut -d':' -f3)
-            disk_percent=$(echo "$resources" | grep -o '"disk":{"percent":[0-9.]*' | cut -d':' -f3)
+            status_response=$(curl -s "$SERVICE_URL/api/health/status")
+            health_score=$(echo "$status_response" | grep -o '"health_score":[0-9]*' | head -1 | cut -d':' -f2)
+            memory_usage=$(echo "$status_response" | grep -o '"memory":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+            disk_usage=$(echo "$status_response" | grep -o '"disk":{"usage_percent":[0-9.]*' | cut -d':' -f3)
+            uptime_seconds=$(echo "$status_response" | grep -o '"uptime_seconds":[0-9]*' | cut -d':' -f2)
+            total_requests=$(echo "$status_response" | grep -o '"total_requests_processed":[0-9]*' | cut -d':' -f2)
             
-            report_text="📈 WEEKLY SYSTEM REPORT%0A💻 Vortex AI Service%0A%0A🏥 SYSTEM HEALTH%0A- Memory Usage: ${memory_percent}%%0A- Disk Usage: ${disk_percent}%%0A- Status: Optimal%0A%0A📊 PERFORMANCE%0A- Uptime: 99.9%%0A- Monitoring: Active%0A- Auto-Recovery: Enabled%0A%0A🎯 RECOMMENDATIONS%0A- Continue current maintenance%0A- Monitor disk space%0A%0A⏰ Generated: $(date +'%Y-%m-%d %H:%M')"
+            uptime_days=$((uptime_seconds / 86400))
+            
+            report_text="📈 WEEKLY SYSTEM REPORT%0A💻 Vortex AI Service%0A%0A🏥 SYSTEM HEALTH%0A📊 Health Score: ${health_score}%%0A🧠 Memory Usage: ${memory_usage}%%0A💽 Disk Usage: ${disk_usage}%%0A%0A📊 PERFORMANCE METRICS%0A📅 Uptime: ${uptime_days} days%0A📈 Total Requests: ${total_requests}%0A🛡️ Auto-Recovery: Enabled%0A📱 Monitoring: Active%0A%0A🎯 STATUS%0A✅ All systems operational%0A🔒 Automated monitoring active%0A%0A⏰ Generated: $(date +'%Y-%m-%d %H:%M')"
             
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
               -d text="$report_text"
             
             echo "✅ Weekly report sent"
+          fi
+
+      - name: ✅ Final Success Notification
+        if: success()
+        run: |
+          echo "🎉 All health checks completed successfully"
+          # پیام نهایی فقط برای اجراهای دستی
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ MANUAL CHECK COMPLETE%0A💻 Vortex AI Service%0A🎉 All systems verified%0A⏰ $(date +'%H:%M')%0A🟢 Ready for operation!"
           fi
