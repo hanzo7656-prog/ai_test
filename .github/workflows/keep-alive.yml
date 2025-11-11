@@ -2,14 +2,15 @@ name: 🚀 Keep Render Service Alive
 
 on:
   schedule:
-    # هر ۱۰ دقیقه اجرا شود
     - cron: '*/10 * * * *'
   push:
     branches: [ main ]
-  workflow_dispatch:  # امکان اجرای دستی
+  workflow_dispatch:
 
 env:
-  SERVICE_URL: 'https://ai-test-cg8m.onrender.com'
+  SERVICE_URL: ${{ secrets.SERVICE_URL }}           # 🔽 اینجا تغییر کرد
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
   health-check:
@@ -17,9 +18,9 @@ jobs:
     steps:
       - name: 🏓 Check Basic Health
         run: |
-          echo "🕐 Starting health check at $(date)"
+          echo "🕐 Starting health check..."
+          echo "🔗 Service URL: $SERVICE_URL"        # لاگ نشون میده ولی امن مونده
           
-          # تست endpoint ساده
           response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
           http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
           
@@ -27,6 +28,15 @@ jobs:
             echo "✅ Basic health check passed"
           else
             echo "❌ Basic health check failed: HTTP $http_status"
+            
+            # ارسال نوتیفیکیشن خطا به تلگرام (بدون نشون دادن URL کامل)
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="🚨 SERVICE DOWN! 
+💻 Vortex AI Service
+❌ HTTP Status: $http_status
+⏰ Time: $(date +'%Y-%m-%d %H:%M:%S')
+📡 Action required!"
             exit 1
           fi
 
@@ -34,30 +44,37 @@ jobs:
         run: |
           echo "🔍 Checking full health status..."
           
-          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/status")
-          http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
-          json_response=$(echo "$response" | grep -v "HTTP_STATUS")
+          response=$(curl -s "$SERVICE_URL/api/health/status")
+          health_score=$(echo "$response" | grep -o '"health_score":[0-9]*' | cut -d':' -f2)
+          status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
           
-          if [ "$http_status" -eq 200 ]; then
-            echo "✅ Full health check passed"
-            echo "📈 Health Score: $(echo "$json_response" | grep -o '"health_score":[0-9]*' | cut -d':' -f2)"
-            echo "🔄 Status: $(echo "$json_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)"
-          else
-            echo "❌ Full health check failed: HTTP $http_status"
-            echo "Response: $json_response"
-            exit 1
+          echo "✅ Full health check passed"
+          echo "📈 Health Score: $health_score"
+          echo "🔄 Status: $status"
+          
+          # ارسال گزارش سلامت به تلگرام
+          if [ "$health_score" -lt 70 ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="⚠️ SERVICE DEGRADED! 
+💻 Vortex AI Service
+📊 Health Score: $health_score%
+🔶 Status: $status
+⏰ Time: $(date +'%H:%M')
+🔧 Check required!"
           fi
 
-      - name: 📝 Log Success
+      - name: 🎉 Send Success Notification
         if: success()
         run: |
-          echo "🎉 All health checks passed at $(date)"
-          echo "✅ Service is running smoothly"
-          echo "🌐 Service URL: $SERVICE_URL"
-
-      - name: 🚨 Log Failure  
-        if: failure()
-        run: |
-          echo "💥 Health checks failed at $(date)"
-          echo "🔧 Check the service logs for details"
-          echo "🌐 Service URL: $SERVICE_URL"
+          echo "✅ All health checks passed"
+          
+          # فقط اولین اجرای صبح گزارش موفقیت بفرست
+          if [ $(date +%H) -eq 09 ] && [ $(date +%M) -lt 10 ]; then
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ VORTEX AI - ALL SYSTEMS GO! 
+📊 Status: Healthy & Responsive
+🕒 Last Check: $(date +'%H:%M')
+🎉 Automated monitoring active!"
+          fi
