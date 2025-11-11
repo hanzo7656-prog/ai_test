@@ -1331,3 +1331,80 @@ async def debug_routers_health():
             "message": str(e),
             "timestamp": datetime.now().isoformat()
         }
+
+@health_router.post("/normalization/test")
+async def test_normalization():
+    """تست سیستم نرمال‌سازی داده"""
+    try:
+        # داده تست برای نرمال‌سازی
+        test_data = {
+            "test": "data",
+            "numbers": [1, 2, 3, 4, 5],
+            "nested": {
+                "key1": "value1", 
+                "key2": 123,
+                "key3": [True, False, True]
+            },
+            "timestamp": datetime.now().isoformat(),
+            "mixed_data": {
+                "string": "hello",
+                "number": 42,
+                "boolean": True,
+                "array": [1, "two", False],
+                "null_value": None
+            }
+        }
+        
+        # گرفتن متریک‌های قبل از تست
+        metrics_before = data_normalizer.get_health_metrics()
+        
+        # اجرای نرمال‌سازی
+        normalized_result = data_normalizer.normalize_data(test_data, "health_test_endpoint")
+        
+        # گرفتن متریک‌های بعد از تست
+        metrics_after = data_normalizer.get_health_metrics()
+        
+        # تحلیل عمیق
+        deep_analysis = data_normalizer.get_deep_analysis()
+        
+        return {
+            "status": "success",
+            "message": "Normalization test completed successfully",
+            "timestamp": datetime.now().isoformat(),
+            "test_data": {
+                "original": test_data,
+                "normalized": normalized_result,
+                "data_size_original": len(str(test_data)),
+                "data_size_normalized": len(str(normalized_result)) if normalized_result else 0
+            },
+            "metrics_comparison": {
+                "before": {
+                    "success_rate": metrics_before.success_rate,
+                    "total_processed": metrics_before.total_processed,
+                    "total_errors": metrics_before.total_errors
+                },
+                "after": {
+                    "success_rate": metrics_after.success_rate,
+                    "total_processed": metrics_after.total_processed, 
+                    "total_errors": metrics_after.total_errors
+                },
+                "improvement": {
+                    "requests_increased": metrics_after.total_processed - metrics_before.total_processed,
+                    "success_rate_change": metrics_after.success_rate - metrics_before.success_rate
+                }
+            },
+            "analysis_overview": {
+                "system_health": deep_analysis.get("system_overview", {}),
+                "common_patterns": deep_analysis.get("common_patterns", {}),
+                "recommendations": deep_analysis.get("recommendations", [])
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Normalization test failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Normalization test failed: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
+            "error_details": str(e)
+        }
