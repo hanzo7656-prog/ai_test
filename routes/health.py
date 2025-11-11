@@ -843,6 +843,251 @@ async def system_metrics():
         "timestamp": datetime.now().isoformat()
     }
 
+# ==================== URGENT DISK CLEANUP (1GB SPACE) ====================
+
+@health_router.get("/cleanup/urgent")
+async def urgent_disk_cleanup():
+    """پاکسازی فوری دیسک - مخصوص فضای ۱ گیگابایتی"""
+    try:
+        import glob
+        import shutil
+        
+        cleanup_results = {
+            "status": "started",
+            "timestamp": datetime.now().isoformat(),
+            "disk_total_gb": 1.0,  # مشخص کردن محدودیت
+            "deleted_files": [],
+            "freed_space_mb": 0,
+            "errors": []
+        }
+        
+        # 1. پاکسازی __pycache__ (بیشترین حجم)
+        logger.info("🧹 Cleaning __pycache__ folders...")
+        pycache_folders = glob.glob("**/__pycache__", recursive=True)
+        for folder in pycache_folders:
+            try:
+                if os.path.exists(folder):
+                    # محاسبه حجم
+                    total_size = 0
+                    for dirpath, dirnames, filenames in os.walk(folder):
+                        for filename in filenames:
+                            filepath = os.path.join(dirpath, filename)
+                            if os.path.isfile(filepath):
+                                total_size += os.path.getsize(filepath)
+                    
+                    # پاکسازی
+                    shutil.rmtree(folder)
+                    size_mb = total_size / (1024 * 1024)
+                    cleanup_results["deleted_files"].append({
+                        "type": "pycache",
+                        "path": folder,
+                        "size_mb": round(size_mb, 2)
+                    })
+                    cleanup_results["freed_space_mb"] += size_mb
+                    logger.info(f"✅ Deleted {folder} ({size_mb:.2f} MB)")
+                    
+            except Exception as e:
+                error_msg = f"Error deleting {folder}: {str(e)}"
+                cleanup_results["errors"].append(error_msg)
+                logger.error(f"❌ {error_msg}")
+        
+        # 2. پاکسازی فایل‌های لاگ بزرگ
+        logger.info("🗑️ Cleaning log files...")
+        log_patterns = ["*.log", "*.log.*", "**/*.log"]
+        for pattern in log_patterns:
+            for log_file in glob.glob(pattern, recursive=True):
+                try:
+                    if os.path.isfile(log_file) and os.path.getsize(log_file) > 0.1 * 1024 * 1024:  # بیشتر از 100KB
+                        file_size = os.path.getsize(log_file)
+                        os.remove(log_file)
+                        size_mb = file_size / (1024 * 1024)
+                        cleanup_results["deleted_files"].append({
+                            "type": "log",
+                            "path": log_file,
+                            "size_mb": round(size_mb, 2)
+                        })
+                        cleanup_results["freed_space_mb"] += size_mb
+                        logger.info(f"✅ Deleted {log_file} ({size_mb:.2f} MB)")
+                        
+                except Exception as e:
+                    error_msg = f"Error deleting {log_file}: {str(e)}"
+                    cleanup_results["errors"].append(error_msg)
+                    logger.error(f"❌ {error_msg}")
+        
+        # 3. پاکسازی فایل‌های موقت و کش
+        logger.info("🔥 Cleaning temporary files...")
+        temp_patterns = ["*.pyc", "*.tmp", "*.temp", "**/*.pyc"]
+        for pattern in temp_patterns:
+            for temp_file in glob.glob(pattern, recursive=True):
+                try:
+                    if os.path.isfile(temp_file):
+                        file_size = os.path.getsize(temp_file)
+                        os.remove(temp_file)
+                        size_mb = file_size / (1024 * 1024)
+                        cleanup_results["deleted_files"].append({
+                            "type": "temp",
+                            "path": temp_file,
+                            "size_mb": round(size_mb, 2)
+                        })
+                        cleanup_results["freed_space_mb"] += size_mb
+                        
+                except Exception as e:
+                    error_msg = f"Error deleting {temp_file}: {str(e)}"
+                    cleanup_results["errors"].append(error_msg)
+        
+        # 4. بررسی نهایی فضای دیسک
+        disk = psutil.disk_usage('/')
+        cleanup_results["disk_after"] = {
+            "used_gb": round(disk.used / (1024**3), 2),
+            "free_gb": round(disk.free / (1024**3), 2),
+            "percent_used": disk.percent
+        }
+        
+        cleanup_results["status"] = "completed"
+        cleanup_results["freed_space_mb"] = round(cleanup_results["freed_space_mb"], 2)
+        cleanup_results["total_deleted"] = len(cleanup_results["deleted_files"])
+        
+        # لاگ نتایج
+        logger.info(f"🎉 Cleanup completed! Freed {cleanup_results['freed_space_mb']} MB")
+        
+        return cleanup_results
+        
+    except Exception as e:
+        logger.error(f"❌ Urgent cleanup failed: {e}")
+        return {
+            "status": "error",
+            "message": f"پاکسازی فوری با خطا مواجه شد: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@health_router.get("/cleanup/disk-status")
+async def disk_status_detailed():
+    """وضعیت دقیق دیسک با جزئیات فایل‌های حجیم"""
+    try:
+        disk = psutil.disk_usage('/')
+        
+        # یافتن فایل‌های حجیم
+        large_files = []
+        total_large_files_size = 0
+        
+        # اسکن فایل‌های بزرگتر از 1MB
+        for root, dirs, files in os.walk('.'):
+            for file in files:
+                filepath = os.path.join(root, file)
+                try:
+                    if os.path.isfile(filepath):
+                        file_size = os.path.getsize(filepath)
+                        if file_size > 1 * 1024 * 1024:  # بیشتر از 1MB
+                            size_mb = file_size / (1024 * 1024)
+                            large_files.append({
+                                "path": filepath,
+                                "size_mb": round(size_mb, 2),
+                                "type": "large_file"
+                            })
+                            total_large_files_size += file_size
+                except (OSError, Exception):
+                    continue
+        
+        # محاسبه حجم پوشه‌های خاص
+        folder_sizes = {}
+        special_folders = ['__pycache__', 'node_modules', '.git', 'logs', '.cache']
+        
+        for folder in special_folders:
+            folder_size = 0
+            folder_count = 0
+            for found_folder in glob.glob(f"**/{folder}", recursive=True):
+                if os.path.isdir(found_folder):
+                    for dirpath, dirnames, filenames in os.walk(found_folder):
+                        for filename in filenames:
+                            filepath = os.path.join(dirpath, filename)
+                            try:
+                                if os.path.isfile(filepath):
+                                    folder_size += os.path.getsize(filepath)
+                                    folder_count += 1
+                            except (OSError, Exception):
+                                continue
+            
+            if folder_size > 0:
+                folder_sizes[folder] = {
+                    "size_mb": round(folder_size / (1024 * 1024), 2),
+                    "file_count": folder_count
+                }
+        
+        return {
+            "disk_usage": {
+                "total_gb": 1.0,
+                "used_gb": round(disk.used / (1024**3), 2),
+                "free_gb": round(disk.free / (1024**3), 2),
+                "percent_used": disk.percent,
+                "critical_warning": disk.percent > 85
+            },
+            "large_files": {
+                "count": len(large_files),
+                "total_size_mb": round(total_large_files_size / (1024 * 1024), 2),
+                "files": large_files[:10]  # فقط 10 فایل اول
+            },
+            "special_folders": folder_sizes,
+            "cleanup_recommendations": [
+                "Run /api/health/cleanup/urgent to free space immediately",
+                "Delete __pycache__ folders (usually 50-200MB)",
+                "Clear log files if they are too large",
+                "Remove temporary .pyc files"
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Disk status check failed: {e}")
+        return {
+            "status": "error",
+            "message": f"بررسی وضعیت دیسک با خطا مواجه شد: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+@health_router.post("/cleanup/clear-logs")
+async def clear_logs_only():
+    """پاکسازی فقط فایل‌های لاگ"""
+    try:
+        import glob
+        
+        cleanup_results = {
+            "status": "started",
+            "timestamp": datetime.now().isoformat(),
+            "deleted_files": [],
+            "freed_space_mb": 0
+        }
+        
+        # پاکسازی فایل‌های لاگ
+        log_files = glob.glob("*.log") + glob.glob("logs/*.log") + glob.glob("debug_system/storage/*.log")
+        
+        for log_file in log_files:
+            try:
+                if os.path.isfile(log_file):
+                    file_size = os.path.getsize(log_file)
+                    os.remove(log_file)
+                    size_mb = file_size / (1024 * 1024)
+                    cleanup_results["deleted_files"].append({
+                        "path": log_file,
+                        "size_mb": round(size_mb, 2)
+                    })
+                    cleanup_results["freed_space_mb"] += size_mb
+                    
+            except Exception as e:
+                logger.error(f"❌ Error deleting log file {log_file}: {e}")
+        
+        cleanup_results["status"] = "completed"
+        cleanup_results["freed_space_mb"] = round(cleanup_results["freed_space_mb"], 2)
+        cleanup_results["total_deleted"] = len(cleanup_results["deleted_files"])
+        
+        return cleanup_results
+        
+    except Exception as e:
+        logger.error(f"❌ Log cleanup failed: {e}")
+        return {
+            "status": "error",
+            "message": f"پاکسازی لاگ‌ها با خطا مواجه شد: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
 # ==================== DATA NORMALIZATION ENDPOINTS ====================
 
 @health_router.get("/normalization/metrics")
