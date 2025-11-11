@@ -13,15 +13,15 @@ from .redis_manager import RedisCacheManager
 
 logger = logging.getLogger(__name__)
 
-# 🔽 ایمپورت سیستم کش هوشمند جدید
+# 🔽 ایمپورت سیستم کش هوشمند جدید - مسیر اصلاح شده
 try:
-    from smart_cache_system import smart_cache, SmartCache
+    from .smart_cache_system import smart_cache, SmartCache  # 🔽 اضافه کردن نقطه
     SMART_CACHE_AVAILABLE = True
     logger.info("✅ Smart Cache System detected - integrating...")
-except ImportError:
+except ImportError as e:
     SMART_CACHE_AVAILABLE = False
     smart_cache = None
-    logger.warning("⚠️ Smart Cache System not available - using legacy cache")
+    logger.warning(f"⚠️ Smart Cache System not available: {e}")
 
 # ایجاد نمونه‌های storage
 log_manager = LogManager()
@@ -232,10 +232,10 @@ except ImportError:
     CACHE_DECORATORS_AVAILABLE = False
     logger.warning("⚠️ Cache decorators not available")
 
-# 🔽 دکوراتورهای هوشمند جدید
+# 🔽 دکوراتورهای هوشمند جدید - مسیر اصلاح شده
 try:
     if SMART_CACHE_AVAILABLE:
-        from smart_cache_system import (
+        from .smart_cache_system import (  # 🔽 اضافه کردن نقطه
             coins_cache, exchanges_cache, news_cache, insights_cache,
             raw_coins_cache, raw_exchanges_cache, raw_news_cache, raw_insights_cache
         )
@@ -243,8 +243,9 @@ try:
         logger.info("✅ Smart Cache decorators imported")
     else:
         SMART_DECORATORS_AVAILABLE = False
-except ImportError:
+except ImportError as e:
     SMART_DECORATORS_AVAILABLE = False
+    logger.warning(f"⚠️ Smart Cache decorators not available: {e}")
 
 __all__ = [
     # ماژول‌های اصلی
