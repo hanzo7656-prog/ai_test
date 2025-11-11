@@ -16,187 +16,51 @@ jobs:
   health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: 🏓 Check Basic Health
-        id: health_check
+      - name: 🧪 Test Telegram Connection
         run: |
-          echo "🕐 Starting health check at $(date)"
-          echo "🔗 Service URL: $SERVICE_URL"
-          
+          echo "🧪 Testing Telegram connection..."
+          curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="🧪 TEST: GitHub Actions connected! Time: $(date +'%H:%M:%S')"
+          echo "✅ Telegram test completed"
+
+      - name: 🏓 Check Basic Health
+        run: |
+          echo "🕐 Starting health check..."
           response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
           http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
           
           if [ "$http_status" -eq 200 ]; then
             echo "✅ Basic health check passed"
+            curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="✅ SERVICE HEALTHY - Ping successful 🕒 $(date +'%H:%M')"
           else
             echo "❌ Basic health check failed: HTTP $http_status"
+            curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              -d chat_id="$TELEGRAM_CHAT_ID" \
+              -d text="❌ SERVICE DOWN - HTTP $http_status 🕒 $(date +'%H:%M')"
             exit 1
           fi
 
       - name: 📊 Check Full Health Status
         run: |
           echo "🔍 Checking full health status..."
-          
           response=$(curl -s "$SERVICE_URL/api/health/status")
           health_score=$(echo "$response" | grep -o '"health_score":[0-9]*' | cut -d':' -f2)
           status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-          cpu_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | head -1 | cut -d':' -f2)
-          memory_usage=$(echo "$response" | grep -o '"usage_percent":[0-9.]*' | tail -1 | cut -d':' -f2)
           
-          echo "✅ Full health check passed"
           echo "📈 Health Score: $health_score"
           echo "🔄 Status: $status"
-          echo "💻 CPU Usage: ${cpu_usage}%"
-          echo "🧠 Memory Usage: ${memory_usage}%"
           
-          # ارسال گزارش سلامت به تلگرام
-          if [ "$health_score" -lt 70 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="⚠️ SERVICE DEGRADED!%0A💻 Vortex AI Service%0A📊 Health Score: $health_score%%0A🔶 Status: $status%0A💻 CPU: ${cpu_usage}%%20|%20🧠 Memory: ${memory_usage}%%0A⏰ Time: $(date +'%H:%M')%0A🔧 Check required!"
-          elif [ "$health_score" -lt 85 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🔸 Service Warning%0A💻 Vortex AI Service%0A📊 Health: $health_score%%0A💻 CPU: ${cpu_usage}%%20|%20🧠 Memory: ${memory_usage}%%0A⏰ $(date +'%H:%M')"
-          fi
+          # ارسال گزارش سلامت
+          curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="📊 Health Report: $health_score% - Status: $status 🕒 $(date +'%H:%M')"
 
-      - name: 💾 Smart Memory Management
-        run: |
-          echo "🧠 Checking memory usage..."
-          
-          resources=$(curl -s "$SERVICE_URL/api/health/resources")
-          memory_usage=$(echo "$resources" | grep -o '"memory_percent":[0-9.]*' | cut -d':' -f2)
-          cache_stats=$(curl -s "$SERVICE_URL/api/health/cache/stats")
-          cache_size=$(echo "$cache_stats" | grep -o '"total_size_mb":[0-9.]*' | cut -d':' -f2) || cache_size="0"
-          
-          echo "💾 Memory Usage: ${memory_usage}%"
-          echo "📦 Cache Size: ${cache_size}MB"
-          
-          # اگر حافظه بالا بود، اقدام کن
-          if (( $(echo "$memory_usage > 75" | bc -l) )); then
-            echo "⚠️ High memory usage detected - performing cleanup..."
-            
-            # پاک‌سازی کش
-            curl -X POST "$SERVICE_URL/api/health/cache/clear" || true
-            
-            # پاک‌سازی کش نرمال‌سازی
-            curl -X POST "$SERVICE_URL/api/health/normalization/clear-cache" || true
-            
-            # گزارش اقدام
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🧹 MEMORY CLEANUP PERFORMED!%0A💻 Vortex AI Service%0A📊 Memory Usage: ${memory_usage}%%0A📦 Cache Cleared: ${cache_size}MB%0A🕒 Time: $(date +'%H:%M')%0A✅ System optimized"
-          fi
-
-      - name: 🌐 IP & Security Checkup
-        run: |
-          echo "🛡️ Performing security checkup..."
-          
-          # دریافت اطلاعات امنیتی
-          security_report=$(curl -s "$SERVICE_URL/api/health/debug/security/overview") || security_report="{}"
-          recent_ips=$(curl -s "$SERVICE_URL/api/health/debug/security/recent-ips") || recent_ips="{}"
-          
-          # بررسی IPهای مشکوک
-          suspicious_ips=$(echo "$recent_ips" | grep -o '"suspicious":[0-9]*' | cut -d':' -f2) || suspicious_ips=0
-          
-          if [ "$suspicious_ips" -gt 0 ]; then
-            echo "🚨 Suspicious activity detected: $suspicious_ips IPs"
-            
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🚨 SECURITY ALERT!%0A💻 Vortex AI Service%0A🔍 Suspicious IPs: $suspicious_ips%0A🌐 Recent activity detected%0A🕒 Time: $(date +'%H:%M')%0A🔒 Review security logs"
-          else
-            echo "✅ No security issues detected"
-          fi
-
-      - name: 🛡️ Advanced Auto Recovery
-        if: failure()
-        run: |
-          echo "🚨 Starting auto-recovery sequence..."
-          max_retries=3
-          recovery_successful=false
-          
-          for attempt in $(seq 1 $max_retries); do
-            echo "🔄 Recovery attempt $attempt of $max_retries..."
-            
-            # ۱. پاک‌سازی کش
-            echo "🧹 Clearing cache..."
-            curl -s -X POST "$SERVICE_URL/api/health/cache/clear" || true
-            sleep 2
-            
-            # ۲. ریست سیستم نرمال‌سازی
-            echo "🔄 Resetting normalization..."
-            curl -s -X POST "$SERVICE_URL/api/health/normalization/reset-metrics" || true
-            sleep 3
-            
-            # ۳. تست سلامت
-            echo "🏥 Testing health..."
-            response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "$SERVICE_URL/api/health/ping")
-            http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
-            
-            if [ "$http_status" -eq 200 ]; then
-              echo "✅ Auto-recovery successful on attempt $attempt!"
-              recovery_successful=true
-              
-              # ارسال نوتیفیکیشن موفقیت
-              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-                -d chat_id="$TELEGRAM_CHAT_ID" \
-                -d text="🔄 AUTO-RECOVERY SUCCESSFUL!%0A💻 Vortex AI Service%0A✅ Recovered on attempt $attempt%0A🛠️ Actions: Cache cleared, Systems reset%0A🕒 Time: $(date +'%H:%M:%S')%0A🎉 Service is back online!"
-              break
-            else
-              echo "❌ Recovery attempt $attempt failed (HTTP $http_status)"
-              sleep 5  # صبر کن قبل از تلاش بعدی
-            fi
-          done
-          
-          if [ "$recovery_successful" = false ]; then
-            echo "💥 All recovery attempts failed!"
-            
-            # ارسال گزارش خطای مفصل
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="🔴 CRITICAL: AUTO-RECOVERY FAILED!%0A💻 Vortex AI Service%0A❌ All $max_retries recovery attempts failed%0A🚨 Service remains unavailable%0A⏰ Failure Time: $(date +'%Y-%m-%d %H:%M:%S')%0A📞 Immediate manual intervention required!"
-            
-            exit 1
-          fi
-
-      - name: 🎉 Send Success Notification
+      - name: 🎉 Final Success Message
         if: success()
         run: |
-          echo "✅ All health checks passed"
-          
-          # فقط اولین اجرای صبح گزارش موفقیت بفرست
-          if [ $(date +%H) -eq 09 ] && [ $(date +%M) -lt 10 ]; then
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="✅ VORTEX AI - ALL SYSTEMS GO!%0A💻 Service Status: Healthy & Responsive%0A📊 Monitoring: Active%0A🕒 Last Check: $(date +'%H:%M')%0A🎉 Automated systems operational!"
-          fi
-
-      - name: 📊 Generate Weekly PDF Report
-        if: success() && github.event_name == 'schedule'
-        run: |
-          # فقط روزهای دوشنبه ساعت ۱۰ صبح
-          if [ $(date +%u) -eq 1 ] && [ $(date +%H) -eq 10 ]; then
-            echo "📈 Generating weekly PDF report..."
-            
-            # دریافت داده‌های گزارش
-            weekly_data=$(curl -s "$SERVICE_URL/api/health/debug/reports/performance?days=7") || weekly_data="{}"
-            
-            # ایجاد گزارش متنی
-            report_text="📊 VORTEX AI - WEEKLY REPORT%0AGenerated: $(date +'%Y-%m-%d %H:%M')%0AService: $SERVICE_URL%0A%0A📈 PERFORMANCE METRICS:%0A- Average Health Score: $(echo "$weekly_data" | grep -o '"avg_health_score":[0-9.]*' | cut -d':' -f2 || echo "N/A")%%0A- Total Requests: $(echo "$weekly_data" | grep -o '"total_requests":[0-9]*' | cut -d':' -f2 || echo "N/A")%0A- Success Rate: $(echo "$weekly_data" | grep -o '"success_rate":[0-9.]*' | cut -d':' -f2 || echo "N/A")%%0A- Avg Response Time: $(echo "$weekly_data" | grep -o '"avg_response_time":[0-9.]*' | cut -d':' -f2 || echo "N/A")ms%0A%0A💾 RESOURCE USAGE:%0A- Peak CPU: $(echo "$weekly_data" | grep -o '"peak_cpu":[0-9.]*' | cut -d':' -f2 || echo "N/A")%%0A- Avg Memory: $(echo "$weekly_data" | grep -o '"avg_memory":[0-9.]*' | cut -d':' -f2 || echo "N/A")%%0A- Cache Hit Rate: $(echo "$weekly_data" | grep -o '"cache_hit_rate":[0-9.]*' | cut -d':' -f2 || echo "N/A")%%0A%0A🚨 ALERTS SUMMARY:%0A- Critical Alerts: $(echo "$weekly_data" | grep -o '"critical_alerts":[0-9]*' | cut -d':' -f2 || echo "0")%0A- Warnings: $(echo "$weekly_data" | grep -o '"warnings":[0-9]*' | cut -d':' -f2 || echo "0")%0A%0A🎯 RECOMMENDATIONS:%0A1. Optimize cache TTL settings%0A2. Monitor memory usage trends%0A3. Review error patterns%0A4. Check security logs regularly"
-
-            # ارسال به تلگرام
-            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-              -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="$report_text"
-            
-            echo "✅ Weekly report sent to Telegram"
-          fi
-
-      - name: 📝 Final Status Log
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 Workflow completed successfully at $(date)"
-          else
-            echo "💥 Workflow failed at $(date)"
-          fi
+          curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="🎉 WORKFLOW COMPLETED - All systems operational! 🕒 $(date +'%H:%M')"
