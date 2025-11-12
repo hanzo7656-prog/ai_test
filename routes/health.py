@@ -843,7 +843,7 @@ async def health_status():
                 ),
                 "recommended_actions": self._get_component_recommendations(cache_details, normalization_metrics, api_status)
             }
-        }
+        },
             
             "cache_architecture_details": {
                 "databases": {
