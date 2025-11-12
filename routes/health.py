@@ -262,12 +262,19 @@ def get_debug_module(module_name: str):
 def _check_cache_availability() -> bool:
     """بررسی واقعی وضعیت سیستم کش"""
     try:
-        # بررسی اول: Smart Cache
+        # Smart Cache:اول #
+        smart_cache_ok = False
         if smart_cache and hasattr(smart_cache, 'get_health_status'):
-            cache_health = smart_cache.get_health_status()
-            smart_cache_ok = cache_health.get("status") == "healthy"
+            try:
+                cache_health = smart_cache.get_health_status()  # ✅ الان این متد وجود داره
+                smart_cache_ok = cache_health.get("status") == "healthy"
+                logger.info(f"✅ Smart cache health: {cache_health.get('status')}")
+            except Exception as e:
+                logger.warning(f"❌ Smart cache health check failed: {e}")
+                smart_cache_ok = False
         else:
             smart_cache_ok = False
+            logger.warning("❌ Smart cache not available or missing get_health_status method")
         
         # بررسی دوم: Redis
         from debug_system.storage import redis_manager
@@ -351,7 +358,12 @@ def _get_cache_details() -> Dict[str, Any]:
         if cache_optimizer and hasattr(cache_optimizer, 'analyze_access_patterns'):
             details["cache_optimizer_available"] = True
             details["cache_optimizer_health"] = "available"
-        
+            try:
+                analysis = cache_optimizer.analyze_access_patterns(hours=1)
+                details["optimization_analysis"] = analysis
+            except Exception as e:
+                details["optimization_analysis_error"] = str(e)
+
         # بررسی سیستم کش جدید
         details["new_cache_system_available"] = NEW_CACHE_SYSTEM_AVAILABLE
         if NEW_CACHE_SYSTEM_AVAILABLE:
