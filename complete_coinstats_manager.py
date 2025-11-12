@@ -119,7 +119,7 @@ class CompleteCoinStatsManager:
         except Exception:
             return False
                 logger.error(f"🔌 Connection error for {endpoint}")
-                return {"error": "Connection error", "status": "error"}
+            return {"error": "Connection error", "status": "error"}
             
             
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True, 
