@@ -7,24 +7,18 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from debug_system.storage.smart_cache_system import insights_cache
-    logger.info("✅ Using Smart Cache for coins")
+    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
-    logger.warning(f"⚠️ Smart Cache not available: {e}")
-    try:
-        # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_insights as insights_cache
-        logger.info("✅ Using Legacy Cache for coins")
-    except ImportError as e2:
-        logger.error(f"❌ No cache system available: {e2}")
-        # تعریف دکوراتور خالی به عنوان fallback نهایی
-        def coins_cache(func):
-            return func
+    logger.error(f"❌ Cache system unavailable: {e}")
+    # Fallback نهایی
+    def coins_cache(func):
+        return func
 
 insights_router = APIRouter(prefix="/api/insights", tags=["Insights"])
 
 @insights_router.get("/btc-dominance", summary="دامیننس بیت‌کوین")
-@insights_cache
+@cache_insights_with_archive()
 async def get_btc_dominance(type: str = Query("all")):
     """دریافت دامیننس بیت‌کوین پردازش شده"""
     try:
@@ -53,7 +47,7 @@ async def get_btc_dominance(type: str = Query("all")):
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/fear-greed", summary="شاخص ترس و طمع")
-@insights_cache
+@cache_insights_with_archive()
 async def get_fear_greed():
     """دریافت شاخص ترس و طمع پردازش شده"""
     try:
@@ -106,7 +100,7 @@ async def get_fear_greed():
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/fear-greed/chart", summary="چارت ترس و طمع")
-@insights_cache
+@cache_insights_with_archive()
 async def get_fear_greed_chart():
     """دریافت چارت ترس و طمع پردازش شده"""
     try:
@@ -139,7 +133,7 @@ async def get_fear_greed_chart():
         raise HTTPException(status_code=500, detail=str(e))
 
 @insights_router.get("/rainbow-chart/{coin_id}", summary="چارت رنگین‌کمان")
-@insights_cache
+@cache_insights_with_archive()
 async def get_rainbow_chart(coin_id: str):
     """دریافت چارت رنگین‌کمان پردازش شده"""
     try:
