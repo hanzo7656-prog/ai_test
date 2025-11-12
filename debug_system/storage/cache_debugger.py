@@ -9,155 +9,6 @@ from collections import defaultdict, deque
 
 logger = logging.getLogger(__name__)
 
-class RedisCacheManager:
-    def __init__(self):
-        self.redis_url = os.getenv("REDIS_URL")
-        self.client = None
-        self._connect()
-        
-    def _connect(self):
-        """اتصال به Redis"""
-        try:
-            self.client = redis.Redis.from_url(
-                self.redis_url,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                retry_on_timeout=True,
-                max_connections=10
-            )
-            self.client.ping()
-            logger.info("✅ Redis Cache connected to Debug System!")
-        except Exception as e:
-            logger.error(f"❌ Redis connection failed: {e}")
-            self.client = None
-    
-    def set(self, key: str, value: Any, expire: int = 300) -> Tuple[bool, float]:
-        """ذخیره داده در کش - بازگشت (موفقیت, زمان پاسخ)"""
-        if not self.client:
-            return False, 0
-        
-        try:
-            start_time = time.time()
-            serialized_value = json.dumps(value, ensure_ascii=False)
-            success = bool(self.client.setex(key, expire, serialized_value))
-            response_time = time.time() - start_time
-            return success, response_time
-        except Exception as e:
-            logger.error(f"Redis set error for key {key}: {e}")
-            return False, 0
-    
-    def get(self, key: str) -> Tuple[Optional[Any], float]:
-        """دریافت داده از کش - بازگشت (داده, زمان پاسخ)"""
-        if not self.client:
-            return None, 0
-        
-        try:
-            start_time = time.time()
-            value = self.client.get(key)
-            response_time = time.time() - start_time
-            
-            if value:
-                data = json.loads(value)
-                return data, response_time
-            else:
-                return None, response_time
-        except Exception as e:
-            logger.error(f"Redis get error for key {key}: {e}")
-            return None, 0
-    
-    def delete(self, key: str) -> Tuple[bool, float]:
-        """حذف داده از کش - بازگشت (موفقیت, زمان پاسخ)"""
-        if not self.client:
-            return False, 0
-        
-        try:
-            start_time = time.time()
-            success = bool(self.client.delete(key))
-            response_time = time.time() - start_time
-            return success, response_time
-        except Exception as e:
-            logger.error(f"Redis delete error for key {key}: {e}")
-            return False, 0
-    
-    def exists(self, key: str) -> Tuple[bool, float]:
-        """بررسی وجود کلید - بازگشت (وجود دارد, زمان پاسخ)"""
-        if not self.client:
-            return False, 0
-        
-        try:
-            start_time = time.time()
-            exists = bool(self.client.exists(key))
-            response_time = time.time() - start_time
-            return exists, response_time
-        except Exception as e:
-            logger.error(f"Redis exists error for key {key}: {e}")
-            return False, 0
-    
-    def get_keys(self, pattern: str = "*") -> Tuple[List[str], float]:
-        """دریافت کلیدها - بازگشت (لیست کلیدها, زمان پاسخ)"""
-        if not self.client:
-            return [], 0
-        
-        try:
-            start_time = time.time()
-            keys = self.client.keys(pattern)
-            response_time = time.time() - start_time
-            return keys, response_time
-        except Exception as e:
-            logger.error(f"Redis keys error for pattern {pattern}: {e}")
-            return [], 0
-    
-    def get_memory_usage(self, key: str) -> Tuple[Optional[int], float]:
-        """دریافت مصرف حافظه یک کلید - بازگشت (بایت, زمان پاسخ)"""
-        if not self.client:
-            return None, 0
-        
-        try:
-            start_time = time.time()
-            # استفاده از Redis MEMORY USAGE (اگر موجود باشد)
-            memory = self.client.memory_usage(key) if hasattr(self.client, 'memory_usage') else None
-            response_time = time.time() - start_time
-            return memory, response_time
-        except Exception as e:
-            logger.error(f"Redis memory usage error for key {key}: {e}")
-            return None, 0
-    
-    def health_check(self) -> Dict[str, Any]:
-        """بررسی سلامت کامل Redis"""
-        if not self.client:
-            return {
-                "status": "disconnected", 
-                "error": "No Redis client available",
-                "timestamp": datetime.now().isoformat()
-            }
-        
-        try:
-            start_time = time.time()
-            self.client.ping()
-            ping_time = time.time() - start_time
-            
-            info = self.client.info()
-            return {
-                "status": "connected",
-                "type": "redis_cloud",
-                "ping_time_ms": round(ping_time * 1000, 2),
-                "used_memory": info.get('used_memory_human', 'N/A'),
-                "used_memory_bytes": info.get('used_memory', 0),
-                "connected_clients": info.get('connected_clients', 0),
-                "total_commands_processed": info.get('total_commands_processed', 0),
-                "keyspace_hits": info.get('keyspace_hits', 0),
-                "keyspace_misses": info.get('keyspace_misses', 0),
-                "uptime_in_seconds": info.get('uptime_in_seconds', 0),
-                "timestamp": datetime.now().isoformat()
-            }
-        except Exception as e:
-            return {
-                "status": "error", 
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            }
-
 class CacheDebugger:
     def __init__(self):
         self.cache_operations = deque(maxlen=10000)
@@ -169,18 +20,22 @@ class CacheDebugger:
             'errors': 0,
             'total_size': 0,
             'total_response_time': 0,
-            'last_operation': None
+            'last_operation': None,
+            'database': None  # اضافه شدن فیلد دیتابیس
         })
         
-        # مدیر Redis
-        self.redis_manager = RedisCacheManager()
+        # ایمپورت مدیر Redis اصلی از فایل redis_manager
+        from redis_manager import redis_manager
+        self.redis_manager = redis_manager
         
     def log_cache_operation(self, operation: str, key: str, success: bool, 
-                          response_time: float, size: int = 0, error: str = None):
+                          response_time: float, size: int = 0, error: str = None, 
+                          database: str = None):
         """ثبت عملیات کش با جزئیات کامل"""
         operation_data = {
             'operation': operation,
             'key': key,
+            'database': database,
             'success': success,
             'response_time': response_time,
             'size': size,
@@ -191,9 +46,11 @@ class CacheDebugger:
         self.cache_operations.append(operation_data)
         
         # آپدیت آمار
-        stats = self.cache_stats[key]
+        stats_key = f"{database}:{key}" if database else key
+        stats = self.cache_stats[stats_key]
         stats['last_operation'] = datetime.now().isoformat()
         stats['total_response_time'] += response_time
+        stats['database'] = database
         
         if operation == 'GET':
             if success:
@@ -218,48 +75,51 @@ class CacheDebugger:
     
     # ==================== API های کاربردی برای routes ====================
     
-    def set_data(self, key: str, value: Any, expire: int = 300) -> bool:
+    def set_data(self, database: str, key: str, value: Any, expire: int = 300) -> bool:
         """ذخیره داده در کش (برای استفاده در routes)"""
-        success, response_time = self.redis_manager.set(key, value, expire)
+        success, response_time = self.redis_manager.set(database, key, value, expire)
         size = len(json.dumps(value, ensure_ascii=False)) if success else 0
-        self.log_cache_operation('SET', key, success, response_time, size)
+        self.log_cache_operation('SET', key, success, response_time, size, database=database)
         return success
     
-    def get_data(self, key: str) -> Optional[Any]:
+    def get_data(self, database: str, key: str) -> Optional[Any]:
         """دریافت داده از کش (برای استفاده در routes)"""
-        data, response_time = self.redis_manager.get(key)
+        data, response_time = self.redis_manager.get(database, key)
         success = data is not None
         size = len(json.dumps(data, ensure_ascii=False)) if success else 0
-        self.log_cache_operation('GET', key, success, response_time, size)
+        self.log_cache_operation('GET', key, success, response_time, size, database=database)
         return data
     
-    def delete_data(self, key: str) -> bool:
+    def delete_data(self, database: str, key: str) -> bool:
         """حذف داده از کش (برای استفاده در routes)"""
-        success, response_time = self.redis_manager.delete(key)
-        # تخمین اندازه برای حذف - استفاده از میانگین اگر موجود نباشد
-        estimated_size = self.cache_stats[key].get('total_size', 0) / max(self.cache_stats[key].get('sets', 1), 1)
-        self.log_cache_operation('DELETE', key, success, response_time, int(estimated_size))
+        success, response_time = self.redis_manager.delete(database, key)
+        # تخمین اندازه برای حذف
+        stats_key = f"{database}:{key}"
+        estimated_size = self.cache_stats[stats_key].get('total_size', 0) / max(self.cache_stats[stats_key].get('sets', 1), 1)
+        self.log_cache_operation('DELETE', key, success, response_time, int(estimated_size), database=database)
         return success
     
-    def exists_data(self, key: str) -> bool:
+    def exists_data(self, database: str, key: str) -> bool:
         """بررسی وجود داده در کش"""
-        exists, response_time = self.redis_manager.exists(key)
-        self.log_cache_operation('EXISTS', key, exists, response_time)
+        exists, response_time = self.redis_manager.exists(database, key)
+        self.log_cache_operation('EXISTS', key, exists, response_time, database=database)
         return exists
     
     # ==================== متدهای مانیتورینگ و آنالیز ====================
     
-    def get_cache_stats(self, key: str = None) -> Dict[str, Any]:
+    def get_cache_stats(self, database: str = None, key: str = None) -> Dict[str, Any]:
         """دریافت آمار کش"""
-        if key:
-            if key not in self.cache_stats:
-                return {'error': 'Key not found'}
+        if key and database:
+            stats_key = f"{database}:{key}"
+            if stats_key not in self.cache_stats:
+                return {'error': 'Key not found in specified database'}
             
-            stats = self.cache_stats[key]
+            stats = self.cache_stats[stats_key]
             total_operations = stats['hits'] + stats['misses'] + stats['sets'] + stats['deletes']
             avg_response_time = (stats['total_response_time'] / total_operations) if total_operations > 0 else 0
             
             return {
+                'database': database,
                 'key': key,
                 'hits': stats['hits'],
                 'misses': stats['misses'],
@@ -272,8 +132,48 @@ class CacheDebugger:
                 'last_operation': stats['last_operation']
             }
         
-        # آمار کلی
+        # آمار بر اساس دیتابیس
+        if database:
+            db_stats = {
+                'database': database,
+                'total_keys': 0,
+                'total_hits': 0,
+                'total_misses': 0,
+                'total_sets': 0,
+                'total_deletes': 0,
+                'total_errors': 0,
+                'total_size_bytes': 0,
+                'total_response_time': 0,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            for stats_key, stats in self.cache_stats.items():
+                if stats['database'] == database:
+                    db_stats['total_keys'] += 1
+                    db_stats['total_hits'] += stats['hits']
+                    db_stats['total_misses'] += stats['misses']
+                    db_stats['total_sets'] += stats['sets']
+                    db_stats['total_deletes'] += stats['deletes']
+                    db_stats['total_errors'] += stats['errors']
+                    db_stats['total_size_bytes'] += stats['total_size']
+                    db_stats['total_response_time'] += stats['total_response_time']
+            
+            total_operations = db_stats['total_hits'] + db_stats['total_misses'] + db_stats['total_sets'] + db_stats['total_deletes']
+            db_stats['total_operations'] = total_operations
+            
+            if total_operations > 0:
+                db_stats['average_response_time'] = round(db_stats['total_response_time'] / total_operations, 4)
+            
+            read_operations = db_stats['total_hits'] + db_stats['total_misses']
+            if read_operations > 0:
+                db_stats['hit_rate'] = round((db_stats['total_hits'] / read_operations) * 100, 2)
+            
+            db_stats['redis_health'] = self.redis_manager.health_check(database)
+            return db_stats
+        
+        # آمار کلی تمام دیتابیس‌ها
         total_stats = {
+            'total_databases': 5,
             'total_keys': len(self.cache_stats),
             'total_hits': sum(stats['hits'] for stats in self.cache_stats.values()),
             'total_misses': sum(stats['misses'] for stats in self.cache_stats.values()),
@@ -284,9 +184,15 @@ class CacheDebugger:
             'total_operations': 0,
             'hit_rate': 0,
             'average_response_time': 0,
+            'database_breakdown': {},
             'redis_health': self.redis_manager.health_check(),
             'timestamp': datetime.now().isoformat()
         }
+        
+        # آمار تفکیک شده بر اساس دیتابیس
+        for db_name in ['uta', 'utb', 'utc', 'mother_a', 'mother_b']:
+            db_stats = self.get_cache_stats(database=db_name)
+            total_stats['database_breakdown'][db_name] = db_stats
         
         total_operations = total_stats['total_hits'] + total_stats['total_misses'] + total_stats['total_sets'] + total_stats['total_deletes']
         total_stats['total_operations'] = total_operations
@@ -301,7 +207,7 @@ class CacheDebugger:
         
         return total_stats
     
-    def get_cache_performance(self, hours: int = 24) -> Dict[str, Any]:
+    def get_cache_performance(self, database: str = None, hours: int = 24) -> Dict[str, Any]:
         """دریافت عملکرد کش در بازه زمانی"""
         cutoff_time = datetime.now() - timedelta(hours=hours)
         
@@ -310,10 +216,15 @@ class CacheDebugger:
             if datetime.fromisoformat(op['timestamp']) >= cutoff_time
         ]
         
+        if database:
+            recent_operations = [op for op in recent_operations if op['database'] == database]
+        
         performance_data = {
+            'database': database or 'all',
             'period_hours': hours,
             'total_operations': len(recent_operations),
             'operations_by_type': defaultdict(int),
+            'operations_by_database': defaultdict(int),
             'successful_operations': 0,
             'failed_operations': 0,
             'total_response_time': 0,
@@ -325,6 +236,7 @@ class CacheDebugger:
         
         for op in recent_operations:
             performance_data['operations_by_type'][op['operation']] += 1
+            performance_data['operations_by_database'][op['database']] += 1
             performance_data['total_response_time'] += op['response_time']
             performance_data['total_data_size'] += op['size']
             
@@ -343,15 +255,22 @@ class CacheDebugger:
         
         return performance_data
     
-    def get_most_accessed_keys(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_most_accessed_keys(self, database: str = None, limit: int = 10) -> List[Dict[str, Any]]:
         """دریافت کلیدهای پر دسترس"""
         keys_with_access = []
         
-        for key, stats in self.cache_stats.items():
+        for stats_key, stats in self.cache_stats.items():
+            if database and stats['database'] != database:
+                continue
+                
             total_access = stats['hits'] + stats['misses']
             if total_access > 0:
+                # استخراج نام کلید از stats_key
+                key_name = stats_key.split(':', 1)[1] if ':' in stats_key else stats_key
+                
                 keys_with_access.append({
-                    'key': key,
+                    'database': stats['database'],
+                    'key': key_name,
                     'total_access': total_access,
                     'hits': stats['hits'],
                     'misses': stats['misses'],
@@ -363,15 +282,38 @@ class CacheDebugger:
         
         return sorted(keys_with_access, key=lambda x: x['total_access'], reverse=True)[:limit]
     
-    def get_cache_efficiency_report(self) -> Dict[str, Any]:
+    def get_database_usage_report(self) -> Dict[str, Any]:
+        """گزارش استفاده از دیتابیس‌ها"""
+        usage_report = {}
+        
+        for db_name in ['uta', 'utb', 'utc', 'mother_a', 'mother_b']:
+            db_stats = self.get_cache_stats(database=db_name)
+            db_performance = self.get_cache_performance(database=db_name, hours=24)
+            db_health = self.redis_manager.health_check(db_name)
+            
+            usage_report[db_name] = {
+                'stats': db_stats,
+                'performance': db_performance,
+                'health': db_health,
+                'efficiency': self._calculate_efficiency_score(db_stats, db_performance)
+            }
+        
+        return {
+            'database_usage': usage_report,
+            'overall_efficiency': self._calculate_overall_efficiency(usage_report),
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    def get_cache_efficiency_report(self, database: str = None) -> Dict[str, Any]:
         """گزارش کامل کارایی کش"""
-        stats = self.get_cache_stats()
-        performance = self.get_cache_performance(24)
-        top_keys = self.get_most_accessed_keys(5)
+        stats = self.get_cache_stats(database)
+        performance = self.get_cache_performance(database, 24)
+        top_keys = self.get_most_accessed_keys(database, 5)
         
         efficiency_score = self._calculate_efficiency_score(stats, performance)
         
         return {
+            'database': database or 'all',
             'efficiency_score': efficiency_score,
             'efficiency_grade': self._get_efficiency_grade(efficiency_score),
             'overview': {
@@ -425,6 +367,18 @@ class CacheDebugger:
             efficiency_score += 2
         
         return round(efficiency_score, 2)
+    
+    def _calculate_overall_efficiency(self, usage_report: Dict) -> float:
+        """محاسبه کارایی کلی"""
+        total_score = 0
+        count = 0
+        
+        for db_name, report in usage_report.items():
+            if 'efficiency' in report:
+                total_score += report['efficiency']
+                count += 1
+        
+        return round(total_score / count, 2) if count > 0 else 0
     
     def _get_efficiency_grade(self, score: float) -> str:
         """دریافت گرید کارایی"""
