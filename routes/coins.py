@@ -6,26 +6,19 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
-
 try:
-    from debug_system.storage.smart_cache_system import coins_cache
-    logger.info("✅ Using Smart Cache for coins")
+    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
-    logger.warning(f"⚠️ Smart Cache not available: {e}")
-    try:
-        # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_coins as coins_cache
-        logger.info("✅ Using Legacy Cache for coins")
-    except ImportError as e2:
-        logger.error(f"❌ No cache system available: {e2}")
-        # تعریف دکوراتور خالی به عنوان fallback نهایی
-        def coins_cache(func):
-            return func
+    logger.error(f"❌ Cache system unavailable: {e}")
+    # Fallback نهایی
+    def coins_cache(func):
+        return func
 
 coins_router = APIRouter(prefix="/api/coins", tags=["Coins"])
 
 @coins_router.get("/list", summary="لیست نمادها")
-@coins_cache
+@cache_coins_with_archive()
 async def get_coins_list(
     limit: int = Query(20, ge=1, le=100),
     page: int = Query(1, ge=1),
@@ -68,7 +61,7 @@ async def get_coins_list(
         raise HTTPException(status_code=500, detail=str(e))
 
 @coins_router.get("/details/{coin_id}", summary="جزئیات نماد")
-@coins_cache
+@cache_coins_with_archive()
 async def get_coin_details(coin_id: str, currency: str = Query("USD")):
     """دریافت جزئیات پردازش شده یک نماد"""
     try:
@@ -115,7 +108,7 @@ async def get_coin_details(coin_id: str, currency: str = Query("USD")):
         raise HTTPException(status_code=500, detail=str(e))
         
 @coins_router.get("/charts/{coin_id}", summary="چارت نماد")
-@coins_cache
+@cache_coins_with_archive()
 async def get_coin_charts(coin_id: str, period: str = Query("1w")):
     """دریافت چارت پردازش شده نماد"""
     try:
@@ -137,7 +130,7 @@ async def get_coin_charts(coin_id: str, period: str = Query("1w")):
         raise HTTPException(status_code=500, detail=str(e))
 
 @coins_router.get("/price/avg", summary="قیمت متوسط")
-@coins_cache
+@cache_coins_with_archive()
 async def get_coin_price_avg(
     coin_id: str = Query("bitcoin"),
     timestamp: str = Query("1636315200")
