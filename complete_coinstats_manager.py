@@ -106,69 +106,108 @@ class CompleteCoinStatsManager:
             return cached_data.get('data')
         except Exception:
             return None
-
-    def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True) -> Dict:
+            
+    def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True, 
+                         simple_test: bool = False) -> Dict:
         """ساخت درخواست به API با مدیریت کامل خطا"""
-        self._rate_limit()
+    
+        # برای تست سلامت، کش و ریت لیمیت را غیرفعال می‌کنیم
+        if simple_test:
+            use_cache = False
+            # ریت لیمیت برای تست سریع
+            current_time = time.time()
+            if current_time - self.last_request_time < 0.1:  # 100ms
+                time.sleep(0.1)
+            self.last_request_time = current_time
+        else:
+            self._rate_limit()
+    
         self.metrics['total_requests'] += 1
-        cache_path = self._get_cache_path(endpoint, params)
-
-        # بررسی کش
-        if use_cache and self._is_cache_valid(cache_path):
-            cached_data = self._load_from_cache(cache_path)
-            if cached_data is not None:
-                self.metrics['cache_hits'] += 1
-                logger.debug(f"🔍 Cache hit for: {endpoint}")
-                return cached_data
+    
+        if not simple_test:
+            cache_path = self._get_cache_path(endpoint, params)
+            # بررسی کش (فقط در حالت عادی)
+            if use_cache and self._is_cache_valid(cache_path):
+                cached_data = self._load_from_cache(cache_path)
+                if cached_data is not None:
+                    self.metrics['cache_hits'] += 1
+                    logger.debug(f"🔍 Cache hit for: {endpoint}")
+                    return cached_data
         
-        self.metrics['cache_misses'] += 1
+            self.metrics['cache_misses'] += 1
 
         url = f"{self.base_url}/{endpoint}"
         try:
-            logger.info(f"🌐 API Request: {endpoint} - Params: {params}")
-            
+            if not simple_test:
+                logger.info(f"🌐 API Request: {endpoint} - Params: {params}")
+        
             response = self.session.get(
                 url,
                 headers=self.headers,
                 params=params,
-                timeout=20
+                timeout=10 if simple_test else 20  # تایم‌اوت کوتاه‌تر برای تست
             )
-            
-            logger.info(f"📡 API Response Status: {response.status_code}")
-            
+        
+            if not simple_test:
+                logger.info(f"📡 API Response Status: {response.status_code}")
+        
             if response.status_code == 200:
                 data = response.json()
-                
-                # ذخیره در کش
-                if use_cache:
+              
+                # ذخیره در کش (فقط در حالت عادی)
+                if not simple_test and use_cache:
                     self._save_to_cache(cache_path, data)
-                
+            
                 self.metrics['successful_requests'] += 1
-                logger.info(f"✅ Success: {endpoint}")
+                if not simple_test:
+                    logger.info(f"✅ Success: {endpoint}")
                 return data
             else:
                 self.metrics['failed_requests'] += 1
-                logger.error(f"❌ API Error {response.status_code} for {endpoint}: {response.text}")
+                if not simple_test:
+                    logger.error(f"❌ API Error {response.status_code} for {endpoint}: {response.text}")
                 return {
                     "error": f"HTTP {response.status_code}",
-                    "message": response.text,
+                    "message": response.text[:100] if simple_test else response.text,  # کوتاه برای تست
                     "status": "error"
                 }
-                
+            
         except requests.exceptions.Timeout:
             self.metrics['failed_requests'] += 1
-            logger.error(f"⏰ Timeout for {endpoint}")
+            if not simple_test:
+                logger.error(f"⏰ Timeout for {endpoint}")
             return {"error": "Timeout", "status": "error"}
-            
+        
         except requests.exceptions.ConnectionError:
             self.metrics['failed_requests'] += 1
-            logger.error(f"🔌 Connection error for {endpoint}")
+            if not simple_test:
+                logger.error(f"🔌 Connection error for {endpoint}")
             return {"error": "Connection error", "status": "error"}
-            
+        
         except Exception as e:
             self.metrics['failed_requests'] += 1
-            logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
+            if not simple_test:
+                logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
             return {"error": str(e), "status": "error"}
+
+    def test_api_connection_quick(self) -> bool:
+        """تست سریع اتصال API - برای سیستم سلامت"""
+        try:
+            result = self._make_api_request('coins', {'limit': 1}, use_cache=False, simple_test=True)
+            # بررسی اینکه پاسخ معتبر است و خطا ندارد
+            return (result is not None and 
+                    'error' not in result and 
+                    isinstance(result, dict) and
+                    'result' in result)  # بررسی ساختار مورد انتظار
+        except Exception:
+            return False
+                logger.error(f"🔌 Connection error for {endpoint}")
+                return {"error": "Connection error", "status": "error"}
+            
+            except Exception as e:
+                self.metrics['failed_requests'] += 1
+                logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
+                return {"error": str(e), "status": "error"}
 
     # =============================== COINS ENDPOINTS =============================
 
