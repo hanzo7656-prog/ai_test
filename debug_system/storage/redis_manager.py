@@ -7,50 +7,116 @@ from typing import Any, Optional, Tuple, List, Dict
 
 class RedisCacheManager:
     def __init__(self):
-        self.redis_url = os.getenv("REDIS_URL")
-        self.client = None
-        self._connect()
+        self.databases = {
+            'uta': None,      # هسته مدل AI - داده‌های حیاتی
+            'utb': None,      # پردازش AI - داده‌های نیمه‌عمر  
+            'utc': None,      # داده‌های خام - تاریخی + فشرده
+            'mother_a': None, # پردازش سیستم - داده‌های حیاتی
+            'mother_b': None  # عملیات و کش - داده‌های موقت
+        }
+        self._connect_all()
         
-    def _connect(self):
-        """اتصال به Redis"""
+    def _connect_all(self):
+        """اتصال به تمام دیتابیس‌های Redis از Environment Variables در Render"""
         try:
-            self.client = redis.Redis.from_url(
-                self.redis_url,
+            # UTA_REDIS_AI - هسته مدل AI (داده‌های حیاتی)
+            self.databases['uta'] = redis.Redis.from_url(
+                os.getenv("UTA_REDIS_AI"),
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
                 retry_on_timeout=True,
-                max_connections=10
+                max_connections=5
             )
-            self.client.ping()
-            print("✅ Redis Manager connected successfully!")
+            self.databases['uta'].ping()
+            print("✅ UTA_REDIS_AI connected successfully!")
+            
+            # UTB_REDIS_AI - پردازش AI (داده‌های نیمه‌عمر)
+            self.databases['utb'] = redis.Redis.from_url(
+                os.getenv("UTB_REDIS_AI"),
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                max_connections=5
+            )
+            self.databases['utb'].ping()
+            print("✅ UTB_REDIS_AI connected successfully!")
+            
+            # UTC_REDIS_AI - داده‌های خام (تاریخی + فشرده)
+            self.databases['utc'] = redis.Redis.from_url(
+                os.getenv("UTC_REDIS_AI"),
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                max_connections=5
+            )
+            self.databases['utc'].ping()
+            print("✅ UTC_REDIS_AI connected successfully!")
+            
+            # MOTHER_A_URL - پردازش سیستم (داده‌های حیاتی)
+            self.databases['mother_a'] = redis.Redis.from_url(
+                os.getenv("MOTHER_A_URL"),
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                max_connections=5
+            )
+            self.databases['mother_a'].ping()
+            print("✅ MOTHER_A_URL connected successfully!")
+            
+            # MOTHER_B_URL - عملیات و کش (داده‌های موقت)
+            self.databases['mother_b'] = redis.Redis.from_url(
+                os.getenv("MOTHER_B_URL"),
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5,
+                retry_on_timeout=True,
+                max_connections=5
+            )
+            self.databases['mother_b'].ping()
+            print("✅ MOTHER_B_URL connected successfully!")
+            
+            print("🎯 All 5 Redis databases connected and ready!")
+            
         except Exception as e:
-            print(f"❌ Redis Manager connection failed: {e}")
-            self.client = None
+            print(f"❌ Redis connection failed: {e}")
+            # میتوانید لاگ دقیق‌تری اضافه کنید
+            for db_name, client in self.databases.items():
+                if client is None:
+                    print(f"   ❌ {db_name.upper()} failed to connect")
     
-    def set(self, key: str, value: Any, expire: int = 300) -> Tuple[bool, float]:
-        """ذخیره داده در کش - بازگشت (موفقیت, زمان پاسخ)"""
-        if not self.client:
+    def get_client(self, db_name: str) -> Optional[redis.Redis]:
+        """دریافت client دیتابیس مورد نظر"""
+        return self.databases.get(db_name)
+    
+    def set(self, db_name: str, key: str, value: Any, expire: int = 300) -> Tuple[bool, float]:
+        """ذخیره داده در دیتابیس مشخص - بازگشت (موفقیت, زمان پاسخ)"""
+        client = self.get_client(db_name)
+        if not client:
             return False, 0
         
         try:
             start_time = time.time()
             serialized_value = json.dumps(value, ensure_ascii=False)
-            success = bool(self.client.setex(key, expire, serialized_value))
+            success = bool(client.setex(key, expire, serialized_value))
             response_time = time.time() - start_time
             return success, response_time
         except Exception as e:
-            print(f"Redis set error for key {key}: {e}")
+            print(f"Redis set error for db {db_name}, key {key}: {e}")
             return False, 0
     
-    def get(self, key: str) -> Tuple[Optional[Any], float]:
-        """دریافت داده از کش - بازگشت (داده, زمان پاسخ)"""
-        if not self.client:
+    def get(self, db_name: str, key: str) -> Tuple[Optional[Any], float]:
+        """دریافت داده از دیتابیس مشخص - بازگشت (داده, زمان پاسخ)"""
+        client = self.get_client(db_name)
+        if not client:
             return None, 0
         
         try:
             start_time = time.time()
-            value = self.client.get(key)
+            value = client.get(key)
             response_time = time.time() - start_time
             
             if value:
@@ -59,82 +125,163 @@ class RedisCacheManager:
             else:
                 return None, response_time
         except Exception as e:
-            print(f"Redis get error for key {key}: {e}")
+            print(f"Redis get error for db {db_name}, key {key}: {e}")
             return None, 0
     
-    def delete(self, key: str) -> Tuple[bool, float]:
-        """حذف داده از کش - بازگشت (موفقیت, زمان پاسخ)"""
-        if not self.client:
+    def delete(self, db_name: str, key: str) -> Tuple[bool, float]:
+        """حذف داده از دیتابیس مشخص - بازگشت (موفقیت, زمان پاسخ)"""
+        client = self.get_client(db_name)
+        if not client:
             return False, 0
         
         try:
             start_time = time.time()
-            success = bool(self.client.delete(key))
+            success = bool(client.delete(key))
             response_time = time.time() - start_time
             return success, response_time
         except Exception as e:
-            print(f"Redis delete error for key {key}: {e}")
+            print(f"Redis delete error for db {db_name}, key {key}: {e}")
             return False, 0
     
-    def exists(self, key: str) -> Tuple[bool, float]:
-        """بررسی وجود کلید - بازگشت (وجود دارد, زمان پاسخ)"""
-        if not self.client:
+    def exists(self, db_name: str, key: str) -> Tuple[bool, float]:
+        """بررسی وجود کلید در دیتابیس مشخص"""
+        client = self.get_client(db_name)
+        if not client:
             return False, 0
         
         try:
             start_time = time.time()
-            exists = bool(self.client.exists(key))
+            exists = bool(client.exists(key))
             response_time = time.time() - start_time
             return exists, response_time
         except Exception as e:
-            print(f"Redis exists error for key {key}: {e}")
+            print(f"Redis exists error for db {db_name}, key {key}: {e}")
             return False, 0
     
-    def get_keys(self, pattern: str = "*") -> Tuple[List[str], float]:
-        """دریافت کلیدها - بازگشت (لیست کلیدها, زمان پاسخ)"""
-        if not self.client:
+    def get_keys(self, db_name: str, pattern: str = "*") -> Tuple[List[str], float]:
+        """دریافت کلیدها از دیتابیس مشخص"""
+        client = self.get_client(db_name)
+        if not client:
             return [], 0
         
         try:
             start_time = time.time()
-            keys = self.client.keys(pattern)
+            keys = client.keys(pattern)
             response_time = time.time() - start_time
             return keys, response_time
         except Exception as e:
-            print(f"Redis keys error for pattern {pattern}: {e}")
+            print(f"Redis keys error for db {db_name}, pattern {pattern}: {e}")
             return [], 0
     
-    def health_check(self) -> Dict[str, Any]:
-        """بررسی سلامت کامل Redis"""
-        if not self.client:
+    def set_compressed(self, db_name: str, key: str, value: Any, expire: int = 300) -> Tuple[bool, float]:
+        """ذخیره داده فشرده شده (برای داده‌های حجیم در UTC)"""
+        import gzip
+        client = self.get_client(db_name)
+        if not client:
+            return False, 0
+        
+        try:
+            start_time = time.time()
+            serialized_value = json.dumps(value, ensure_ascii=False)
+            compressed_value = gzip.compress(serialized_value.encode('utf-8'))
+            success = bool(client.setex(key, expire, compressed_value))
+            response_time = time.time() - start_time
+            return success, response_time
+        except Exception as e:
+            print(f"Redis set_compressed error for db {db_name}, key {key}: {e}")
+            return False, 0
+    
+    def get_compressed(self, db_name: str, key: str) -> Tuple[Optional[Any], float]:
+        """دریافت داده فشرده شده"""
+        import gzip
+        client = self.get_client(db_name)
+        if not client:
+            return None, 0
+        
+        try:
+            start_time = time.time()
+            value = client.get(key)
+            response_time = time.time() - start_time
+            
+            if value:
+                decompressed_value = gzip.decompress(value).decode('utf-8')
+                data = json.loads(decompressed_value)
+                return data, response_time
+            else:
+                return None, response_time
+        except Exception as e:
+            print(f"Redis get_compressed error for db {db_name}, key {key}: {e}")
+            return None, 0
+    
+    def health_check(self, db_name: str = None) -> Dict[str, Any]:
+        """بررسی سلامت دیتابیس‌ها"""
+        if db_name:
+            return self._single_health_check(db_name)
+        else:
+            health_report = {}
+            for db in self.databases.keys():
+                health_report[db] = self._single_health_check(db)
+            return health_report
+    
+    def _single_health_check(self, db_name: str) -> Dict[str, Any]:
+        """بررسی سلامت یک دیتابیس"""
+        client = self.get_client(db_name)
+        if not client:
             return {
                 "status": "disconnected", 
+                "database": db_name,
                 "error": "No Redis client available",
                 "timestamp": datetime.now().isoformat()
             }
         
         try:
             start_time = time.time()
-            self.client.ping()
+            client.ping()
             ping_time = time.time() - start_time
             
-            info = self.client.info()
+            info = client.info()
             return {
                 "status": "connected",
-                "type": "redis_cloud",
+                "database": db_name,
                 "ping_time_ms": round(ping_time * 1000, 2),
                 "used_memory": info.get('used_memory_human', 'N/A'),
                 "used_memory_bytes": info.get('used_memory', 0),
+                "used_memory_ratio": round(info.get('used_memory', 0) / (256 * 1024 * 1024), 4),  # نسبت استفاده از 256MB
                 "connected_clients": info.get('connected_clients', 0),
                 "total_commands_processed": info.get('total_commands_processed', 0),
                 "keyspace_hits": info.get('keyspace_hits', 0),
                 "keyspace_misses": info.get('keyspace_misses', 0),
+                "hit_ratio": round(info.get('keyspace_hits', 0) / max(1, info.get('keyspace_hits', 0) + info.get('keyspace_misses', 0)), 4),
                 "uptime_in_seconds": info.get('uptime_in_seconds', 0),
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
             return {
                 "status": "error", 
+                "database": db_name,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
+    
+    def get_database_usage(self) -> Dict[str, Dict[str, Any]]:
+        """دریافت گزارش استفاده از هر دیتابیس"""
+        usage_report = {}
+        for db_name, client in self.databases.items():
+            if client:
+                try:
+                    info = client.info()
+                    usage_report[db_name] = {
+                        'used_memory_human': info.get('used_memory_human', 'N/A'),
+                        'used_memory_bytes': info.get('used_memory', 0),
+                        'used_memory_percentage': round((info.get('used_memory', 0) / (256 * 1024 * 1024)) * 100, 2),
+                        'keys_count': sum([int(info.get(f'db{i}', {}).get('keys', 0)) for i in range(16)]),
+                        'connected_clients': info.get('connected_clients', 0)
+                    }
+                except Exception as e:
+                    usage_report[db_name] = {'error': str(e)}
+            else:
+                usage_report[db_name] = {'error': 'Client not connected'}
+        return usage_report
+
+# نمونه global برای استفاده در سایر فایل‌ها
+redis_manager = RedisCacheManager()
