@@ -843,11 +843,14 @@ class CompleteCoinStatsManager:
         }
 
     def get_api_status(self) -> Dict[str, Any]:
-        """وضعیت API"""
+        """وضعیت API - نسخه سازگار با health system"""
         try:
-            test_data = self.get_coins_list(limit=1)
+            # تست اتصال
+            is_connected = self.test_api_connection_quick()
+        
             return {
-                'status': 'connected' if test_data and 'data' in test_data else 'disconnected',
+                'status': 'healthy' if is_connected else 'degraded',
+                'connected': is_connected,
                 'timestamp': datetime.now().isoformat(),
                 'cache_info': self.get_cache_info(),
                 'performance_metrics': self.get_performance_metrics()
