@@ -1,362 +1,394 @@
 """
-سیستم کش هوشمند - یکپارچه با cache_debugger
-Smart Cache System Integrated with Cache Debugger
+Cache Analytics & Optimization Engine
+آنالیز و بهینه‌سازی هوشمند عملکرد کش
 """
 
-import functools
-import gzip
-import pickle
-from datetime import datetime
-from typing import Callable, Any, Dict, Optional
 import asyncio
 import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+from collections import defaultdict, deque
 
 logger = logging.getLogger(__name__)
 
-# ایمپورت سیستم کش واقعی
-try:
-    from .cache_debugger import cache_debugger
-    CACHE_DEBUGGER_AVAILABLE = True
-    logger.info("✅ Cache Debugger integrated with Smart Cache")
-except ImportError as e:
-    CACHE_DEBUGGER_AVAILABLE = False
-    logger.error(f"❌ Cache Debugger not available: {e}")
-
-class SmartCache:
-    """سیستم کش هوشمند با یکپارچه‌سازی کامل"""
+class CacheOptimizationEngine:
+    """موتور بهینه‌سازی و آنالیز عملکرد کش"""
     
     def __init__(self):
-        # استراتژی‌های هوشمند
-        self.cache_strategies = {
-            # پردازش شده - TTL بیشتر
-            'coins': {
-                'base_ttl': 300,
-                'description': 'داده‌های پردازش شده کوین‌ها',
-                'compress_threshold': 100000,
-                'priority': 'high'
-            },
-            'exchanges': {
-                'base_ttl': 600,
-                'description': 'داده‌های پردازش شده صرافی‌ها',
-                'compress_threshold': 100000,
-                'priority': 'high'
-            },
-            'news': {
-                'base_ttl': 600,
-                'description': 'اخبار پردازش شده',
-                'compress_threshold': 50000,
-                'priority': 'medium'
-            },
-            'insights': {
-                'base_ttl': 1800,
-                'description': 'تحلیل‌های پردازش شده',
-                'compress_threshold': 50000,
-                'priority': 'high'
-            },
-            
-            # داده خام - TTL کمتر
-            'raw_coins': {
-                'base_ttl': 180,
-                'description': 'داده خام کوین‌ها',
-                'compress_threshold': 50000,
-                'priority': 'low'
-            },
-            'raw_exchanges': {
-                'base_ttl': 300,
-                'description': 'داده خام صرافی‌ها',
-                'compress_threshold': 50000,
-                'priority': 'low'
-            },
-            'raw_news': {
-                'base_ttl': 300,
-                'description': 'داده خام اخبار',
-                'compress_threshold': 50000,
-                'priority': 'low'
-            },
-            'raw_insights': {
-                'base_ttl': 900,
-                'description': 'داده خام تحلیل‌ها',
-                'compress_threshold': 50000,
-                'priority': 'medium'
-            }
+        # ایمپورت سیستم‌های اصلی
+        from .cache_debugger import cache_debugger
+        from .redis_manager import redis_manager
+        
+        self.debugger = cache_debugger
+        self.redis_manager = redis_manager
+        
+        # دیتابیس برای آنالیتیکس (MOTHER_B)
+        self.analytics_db = "mother_b"
+        
+        # الگوهای دسترسی
+        self.access_patterns = defaultdict(lambda: {
+            'access_count': 0,
+            'last_access': None,
+            'access_times': deque(maxlen=100),
+            'size_history': deque(maxlen=50),
+            'hit_miss_ratio': 0
+        })
+        
+        # پیشنهادات بهینه‌سازی
+        self.optimization_suggestions = deque(maxlen=100)
+        
+        # آمار پیشرفته
+        self.advanced_stats = {
+            'peak_usage_times': defaultdict(int),
+            'key_lifespan_analysis': defaultdict(list),
+            'database_load_distribution': defaultdict(int),
+            'compression_efficiency': 0,
+            'cost_savings_estimate': 0
         }
-        
-        # آمار واقعی سیستم
-        self.cache_stats = {
-            'total_requests': 0,
-            'hits': 0,
-            'misses': 0,
-            'compressions': 0,
-            'errors': 0,
-            'bytes_saved': 0,
-            'performance': {
-                'avg_response_time': 0,
-                'last_cleanup': None,
-                'health_score': 100
-            },
-            'strategy_stats': {}
-        }
-        
-        # تنظیمات پیشرفته
-        self.compression_enabled = True
-        self.max_cache_size = 25 * 1024 * 1024  # 25MB
-        
-        # مقداردهی اولیه آمار استراتژی‌ها
-        for strategy in self.cache_strategies.keys():
-            self.cache_stats['strategy_stats'][strategy] = {
-                'hits': 0, 'misses': 0, 'size': 0, 'items': 0
-            }
 
-    def compress_data(self, data: Any) -> tuple[bytes, bool]:
-        """فشرده‌سازی هوشمند داده"""
+    def analyze_access_patterns(self, hours: int = 24) -> Dict[str, Any]:
+        """آنالیز الگوهای دسترسی به کش"""
         try:
-            if not self.compression_enabled:
-                serialized = pickle.dumps(data)
-                return serialized, False
+            # جمع‌آوری داده‌های دسترسی از cache_debugger
+            recent_operations = [
+                op for op in self.debugger.cache_operations
+                if datetime.fromisoformat(op['timestamp']) >= datetime.now() - timedelta(hours=hours)
+            ]
             
-            serialized = pickle.dumps(data)
-            original_size = len(serialized)
+            analysis = {
+                'period_hours': hours,
+                'total_operations': len(recent_operations),
+                'operations_by_hour': defaultdict(int),
+                'hot_keys': [],
+                'cold_keys': [],
+                'access_trends': {},
+                'recommendations': []
+            }
             
-            # فقط برای داده‌های بزرگ فشرده‌سازی کن
-            if original_size < 2000:  # کمتر از 2KB
-                return serialized, False
+            # تحلیل ساعتی
+            for op in recent_operations:
+                hour = datetime.fromisoformat(op['timestamp']).hour
+                analysis['operations_by_hour'][hour] += 1
             
-            compressed = gzip.compress(serialized)
-            compressed_size = len(compressed)
+            # شناسایی کلیدهای داغ و سرد
+            key_access_count = defaultdict(int)
+            for op in recent_operations:
+                key_access_count[op['key']] += 1
             
-            # اگر فشرده‌سازی موثر نبود
-            if compressed_size >= original_size * 0.9:
-                return serialized, False
+            sorted_keys = sorted(key_access_count.items(), key=lambda x: x[1], reverse=True)
+            if sorted_keys:
+                analysis['hot_keys'] = [{'key': k, 'access_count': v} for k, v in sorted_keys[:10]]
+                analysis['cold_keys'] = [{'key': k, 'access_count': v} for k, v in sorted_keys[-10:]]
             
-            self.cache_stats['compressions'] += 1
-            self.cache_stats['bytes_saved'] += (original_size - compressed_size)
-            return compressed, True
+            # تولید پیشنهادات
+            self._generate_access_recommendations(analysis, recent_operations)
+            
+            # ذخیره آنالیز
+            self._store_analytics('access_patterns', analysis)
+            
+            return analysis
             
         except Exception as e:
-            self.cache_stats['errors'] += 1
-            logger.error(f"خطای فشرده‌سازی: {e}")
-            return pickle.dumps(data), False
+            logger.error(f"❌ Error analyzing access patterns: {e}")
+            return {'error': str(e)}
 
-    def decompress_data(self, data: bytes, was_compressed: bool) -> Any:
-        """بازیابی داده فشرده"""
+    def predict_optimal_ttl(self, key_pattern: str, database: str = "utb") -> Dict[str, Any]:
+        """پیش‌بینی TTL بهینه بر اساس الگوی دسترسی"""
         try:
-            if was_compressed:
-                decompressed = gzip.decompress(data)
-                return pickle.loads(decompressed)
-            return pickle.loads(data)
-        except Exception as e:
-            self.cache_stats['errors'] += 1
-            logger.error(f"خطای بازیابی: {e}")
-            return None
-
-    def get_ttl(self, strategy: str, data_size: int = 0) -> int:
-        """TTL هوشمند بر اساس استراتژی و حجم داده"""
-        strategy_config = self.cache_strategies.get(strategy, {'base_ttl': 300})
-        base_ttl = strategy_config['base_ttl']
-        
-        # کاهش TTL برای داده‌های حجیم
-        if data_size > 5000000:    # بیش از 5MB
-            return max(60, base_ttl // 3)
-        elif data_size > 1000000:  # بیش از 1MB
-            return max(120, base_ttl // 2)
-        
-        return base_ttl
-
-    def _update_stats(self, strategy: str, hit: bool, data_size: int = 0, response_time: float = 0):
-        """به‌روزرسانی آمار واقعی"""
-        self.cache_stats['total_requests'] += 1
-        
-        if hit:
-            self.cache_stats['hits'] += 1
-            self.cache_stats['strategy_stats'][strategy]['hits'] += 1
-        else:
-            self.cache_stats['misses'] += 1
-            self.cache_stats['strategy_stats'][strategy]['misses'] += 1
-        
-        # محاسبه میانگین زمان پاسخ
-        current_avg = self.cache_stats['performance']['avg_response_time']
-        total_requests = self.cache_stats['total_requests']
-        
-        if total_requests == 1:
-            self.cache_stats['performance']['avg_response_time'] = response_time
-        else:
-            self.cache_stats['performance']['avg_response_time'] = (
-                (current_avg * (total_requests - 1) + response_time) / total_requests
-            )
-        
-        # به‌روزرسانی سایز داده
-        if data_size > 0 and not hit:
-            self.cache_stats['strategy_stats'][strategy]['size'] += data_size
-            self.cache_stats['strategy_stats'][strategy]['items'] += 1
-
-    def cache_strategy(self, strategy: str):
-        """دکوراتور اصلی با یکپارچه‌سازی واقعی"""
-        
-        def decorator(func: Callable) -> Callable:
-            @functools.wraps(func)
-            async def wrapper(*args, **kwargs):
-                if not CACHE_DEBUGGER_AVAILABLE:
-                    # Fallback: اجرای ساده بدون کش
-                    return await func(*args, **kwargs)
-                
-                start_time = datetime.now()
-                cache_key = f"{strategy}:{func.__module__}:{func.__name__}"
-                
+            # جمع‌آوری داده‌های تاریخی
+            keys = self.redis_manager.get_keys(database, key_pattern)[0]
+            
+            ttl_analysis = {
+                'pattern': key_pattern,
+                'database': database,
+                'sample_size': len(keys),
+                'current_avg_ttl': 0,
+                'recommended_ttl': 300,
+                'confidence_score': 0,
+                'key_analysis': []
+            }
+            
+            total_ttl = 0
+            analyzed_keys = 0
+            
+            for key in keys[:50]:  # نمونه‌گیری از 50 کلید اول
                 try:
-                    # چک کش در cache_debugger واقعی
-                    cached_data = cache_debugger.get_data(cache_key)
-                    
-                    if cached_data is not None:
-                        # داده ممکن است فشرده باشد
-                        if isinstance(cached_data, tuple) and len(cached_data) == 2:
-                            data, was_compressed = cached_data
-                            result = self.decompress_data(data, was_compressed)
-                        else:
-                            result = cached_data
-                            
-                        if result is not None:
-                            response_time = (datetime.now() - start_time).total_seconds() * 1000
-                            self._update_stats(strategy, True, 0, response_time)
-                            logger.info(f"✅ Cache HIT: {strategy}.{func.__name__}")
-                            return result
-                    
-                    # Cache MISS
-                    response_time = (datetime.now() - start_time).total_seconds() * 1000
-                    self._update_stats(strategy, False, 0, response_time)
-                    logger.info(f"🔄 Cache MISS: {strategy}.{func.__name__}")
-                    
-                    # اجرای تابع اصلی
-                    result = await func(*args, **kwargs)
-                    
-                    # ذخیره در کش
-                    if result is not None:
-                        # فشرده‌سازی اگر لازم باشد
-                        compressed_data, was_compressed = self.compress_data(result)
-                        data_size = len(compressed_data)
+                    # بررسی TTL فعلی
+                    ttl = self.redis_manager.get_client(database).ttl(key)
+                    if ttl > 0:
+                        total_ttl += ttl
+                        analyzed_keys += 1
                         
-                        # محاسبه TTL هوشمند
-                        expire = self.get_ttl(strategy, data_size)
-                        
-                        # ذخیره در cache_debugger واقعی
-                        cache_value = (compressed_data, was_compressed) if was_compressed else result
-                        cache_debugger.set_data(cache_key, cache_value, expire)
-                        
-                        logger.info(f"💾 Cache SET: {strategy}.{func.__name__} ({expire}s, {data_size} bytes, compressed: {was_compressed})")
+                        # تحلیل الگوی دسترسی این کلید
+                        access_stats = self._get_key_access_stats(key)
+                        ttl_analysis['key_analysis'].append({
+                            'key': key,
+                            'current_ttl': ttl,
+                            'access_count': access_stats.get('access_count', 0),
+                            'last_access': access_stats.get('last_access')
+                        })
+                except:
+                    continue
+            
+            if analyzed_keys > 0:
+                current_avg = total_ttl / analyzed_keys
+                ttl_analysis['current_avg_ttl'] = current_avg
+                
+                # محاسبه TTL بهینه
+                recommended_ttl = self._calculate_optimal_ttl(ttl_analysis['key_analysis'])
+                ttl_analysis['recommended_ttl'] = recommended_ttl
+                ttl_analysis['confidence_score'] = min(100, analyzed_keys * 2)
+            
+            return ttl_analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Error predicting optimal TTL: {e}")
+            return {'error': str(e)}
+
+    def database_health_check(self) -> Dict[str, Any]:
+        """بررسی سلامت و تعادل دیتابیس‌ها"""
+        health_report = {
+            'timestamp': datetime.now().isoformat(),
+            'database_health': {},
+            'load_balancing': {},
+            'recommendations': [],
+            'alerts': []
+        }
+        
+        databases = ['uta', 'utb', 'utc', 'mother_a', 'mother_b']
+        
+        for db in databases:
+            try:
+                # سلامت اتصال
+                health = self.redis_manager.health_check(db)
+                
+                # استفاده از حافظه
+                usage = self.redis_manager.get_database_usage().get(db, {})
+                
+                health_report['database_health'][db] = {
+                    'status': health.get('status', 'unknown'),
+                    'memory_usage_percentage': usage.get('used_memory_percentage', 0),
+                    'memory_used': usage.get('used_memory_human', 'N/A'),
+                    'keys_count': usage.get('keys_count', 0),
+                    'connected_clients': health.get('connected_clients', 0),
+                    'ping_time_ms': health.get('ping_time_ms', 0)
+                }
+                
+                # بررسی هشدارها
+                if usage.get('used_memory_percentage', 0) > 80:
+                    health_report['alerts'].append(f"🔴 {db}: حافظه نزدیک به ظرفیت")
+                
+                if health.get('status') != 'connected':
+                    health_report['alerts'].append(f"🔴 {db}: مشکل اتصال")
                     
-                    return result
+            except Exception as e:
+                health_report['database_health'][db] = {'error': str(e)}
+                health_report['alerts'].append(f"🔴 {db}: خطای بررسی سلامت")
+        
+        # تحلیل تعادل بار
+        self._analyze_load_balancing(health_report)
+        
+        return health_report
+
+    def cost_optimization_report(self) -> Dict[str, Any]:
+        """گزارش بهینه‌سازی هزینه‌ها"""
+        try:
+            # محاسبه هزینه‌های تخمینی (بر اساس استفاده از Upstash)
+            report = {
+                'timestamp': datetime.now().isoformat(),
+                'cost_estimation': {},
+                'optimization_opportunities': [],
+                'monthly_savings_estimate': 0
+            }
+            
+            usage_data = self.redis_manager.get_database_usage()
+            
+            for db_name, usage in usage_data.items():
+                # محاسبه هزینه تخمینی (فرمول ساده شده)
+                memory_usage_mb = usage.get('used_memory_bytes', 0) / (1024 * 1024)
+                estimated_cost = max(0.50, memory_usage_mb * 0.01)  # مدل هزینه ساده
+                
+                report['cost_estimation'][db_name] = {
+                    'memory_usage_mb': round(memory_usage_mb, 2),
+                    'estimated_monthly_cost': round(estimated_cost, 2),
+                    'keys_count': usage.get('keys_count', 0),
+                    'efficiency_score': self._calculate_efficiency_score(usage)
+                }
+            
+            # شناسایی فرصت‌های بهینه‌سازی
+            self._identify_cost_savings(report)
+            
+            return report
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating cost report: {e}")
+            return {'error': str(e)}
+
+    def intelligent_cache_warming(self, key_patterns: List[str], databases: List[str] = None):
+        """گرم کردن هوشمند کش بر اساس الگوهای پیش‌بینی شده"""
+        if databases is None:
+            databases = ['utb', 'utc']  # دیتابیس‌های اصلی
+        
+        warming_report = {
+            'timestamp': datetime.now().isoformat(),
+            'warmed_keys': 0,
+            'success_rate': 0,
+            'performance_impact': 'low',
+            'details': []
+        }
+        
+        successful_warms = 0
+        total_attempts = 0
+        
+        for db in databases:
+            for pattern in key_patterns:
+                try:
+                    keys = self.redis_manager.get_keys(db, pattern)[0]
+                    total_attempts += len(keys)
+                    
+                    for key in keys[:20]:  # محدود کردن برای جلوگیری از overload
+                        # بررسی وجود کلید (شبیه‌سازی دسترسی)
+                        exists, _ = self.redis_manager.exists(db, key)
+                        if exists:
+                            successful_warms += 1
+                            warming_report['details'].append({
+                                'database': db,
+                                'key': key,
+                                'status': 'warmed'
+                            })
                     
                 except Exception as e:
-                    self.cache_stats['errors'] += 1
-                    logger.error(f"❌ Cache ERROR in {strategy}.{func.__name__}: {e}")
-                    # Fallback: اجرای تابع بدون کش
-                    return await func(*args, **kwargs)
+                    warming_report['details'].append({
+                        'database': db,
+                        'pattern': pattern,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+        
+        if total_attempts > 0:
+            warming_report['warmed_keys'] = successful_warms
+            warming_report['success_rate'] = round((successful_warms / total_attempts) * 100, 2)
+        
+        return warming_report
+
+    def _generate_access_recommendations(self, analysis: Dict, operations: List):
+        """تولید پیشنهادات بر اساس الگوی دسترسی"""
+        recommendations = []
+        
+        # تحلیل ساعات پیک
+        peak_hours = sorted(analysis['operations_by_hour'].items(), key=lambda x: x[1], reverse=True)[:3]
+        if peak_hours:
+            recommendations.append(f"🕒 ساعات پیک دسترسی: {[h[0] for h in peak_hours]}")
+        
+        # تحلیل کلیدهای داغ
+        if analysis['hot_keys']:
+            hot_key = analysis['hot_keys'][0]
+            recommendations.append(f"🔥 کلید داغ: {hot_key['key']} ({hot_key['access_count']} دسترسی)")
+        
+        # تحلیل کلیدهای سرد
+        if analysis['cold_keys']:
+            cold_key_count = len([k for k in analysis['cold_keys'] if k['access_count'] == 1])
+            if cold_key_count > 10:
+                recommendations.append(f"🧊 {cold_key_count} کلید با دسترسی تک‌باره - امکان حذف")
+        
+        analysis['recommendations'] = recommendations
+
+    def _calculate_optimal_ttl(self, key_analysis: List[Dict]) -> int:
+        """محاسبه TTL بهینه"""
+        if not key_analysis:
+            return 300  # پیش‌فرض
+        
+        # میانگین TTL فعلی
+        current_ttls = [k['current_ttl'] for k in key_analysis if k['current_ttl'] > 0]
+        if not current_ttls:
+            return 300
+        
+        avg_ttl = sum(current_ttls) / len(current_ttls)
+        
+        # تنظیم بر اساس الگوی دسترسی
+        access_counts = [k['access_count'] for k in key_analysis]
+        avg_access = sum(access_counts) / len(access_counts) if access_counts else 1
+        
+        if avg_access > 50:  # دسترسی زیاد
+            return min(3600, int(avg_ttl * 1.5))
+        elif avg_access < 5:  # دسترسی کم
+            return max(60, int(avg_ttl * 0.7))
+        else:
+            return int(avg_ttl)
+
+    def _analyze_load_balancing(self, health_report: Dict):
+        """تحلیل تعادل بار بین دیتابیس‌ها"""
+        memory_usage = []
+        for db, health in health_report['database_health'].items():
+            if 'memory_usage_percentage' in health:
+                memory_usage.append(health['memory_usage_percentage'])
+        
+        if memory_usage:
+            avg_usage = sum(memory_usage) / len(memory_usage)
+            max_usage = max(memory_usage)
+            min_usage = min(memory_usage)
             
-            return wrapper
-        return decorator
+            imbalance = max_usage - min_usage
+            if imbalance > 30:  # عدم تعادل قابل توجه
+                health_report['recommendations'].append(
+                    f"⚖️ عدم تعادل حافظه: {imbalance:.1f}% - بازتوزیع داده‌ها پیشنهاد می‌شود"
+                )
 
-    def get_health_status(self) -> Dict[str, Any]:
-        """گزارش سلامت واقعی بر اساس آمار"""
-        total_requests = self.cache_stats['total_requests']
+    def _identify_cost_savings(self, report: Dict):
+        """شناسایی فرصت‌های صرفه‌جویی در هزینه"""
+        total_cost = sum([db['estimated_monthly_cost'] for db in report['cost_estimation'].values()])
         
-        # محاسبه hit rate واقعی
-        if total_requests > 0:
-            hit_rate = (self.cache_stats['hits'] / total_requests) * 100
-        else:
-            hit_rate = 0
+        # تحلیل کارایی
+        for db_name, data in report['cost_estimation'].items():
+            efficiency = data['efficiency_score']
+            if efficiency < 60:
+                report['optimization_opportunities'].append(
+                    f"🔧 {db_name}: کارایی پایین ({efficiency}%) - امکان بهینه‌سازی"
+                )
         
-        # محاسبه امتیاز سلامت
-        health_score = 100
+        # پیشنهاد consolidating اگر هزینه بالا باشد
+        if total_cost > 10:  # اگر هزینه کل بیش از 10 دلار باشد
+            report['optimization_opportunities'].append(
+                "💰 هزینه ماهانه بالا - امکان ادغام دیتابیس‌ها"
+            )
+
+    def _calculate_efficiency_score(self, usage: Dict) -> float:
+        """محاسبه امتیاز کارایی"""
+        memory_usage = usage.get('used_memory_percentage', 0)
+        keys_count = usage.get('keys_count', 0)
         
-        # کسر بر اساس خطاها
-        error_rate = (self.cache_stats['errors'] / max(total_requests, 1)) * 100
-        health_score -= min(30, error_rate * 3)
+        # هرچه حافظه کمتر استفاده شده و کلیدهای بیشتری داشته باشد، کارایی بالاتر
+        if keys_count == 0:
+            return 0
         
-        # کسر بر اساس hit rate پایین
-        if hit_rate < 50:
-            health_score -= (50 - hit_rate) / 2
-        
-        health_score = max(0, min(100, health_score))
-        
-        # وضعیت کلی
-        if health_score >= 80:
-            status = "healthy"
-        elif health_score >= 60:
-            status = "degraded"
-        else:
-            status = "unhealthy"
-        
+        efficiency = (100 - memory_usage) * (min(keys_count, 1000) / 1000)
+        return round(min(efficiency, 100), 1)
+
+    def _get_key_access_stats(self, key: str) -> Dict[str, Any]:
+        """دریافت آمار دسترسی یک کلید"""
+        # این متد نیاز به پیاده‌سازی دقیق‌تر دارد
+        # در حال حاضر یک پیاده‌سازی ساده
         return {
-            "status": status,
-            "health_score": round(health_score, 1),
-            "summary": {
-                "hit_rate": round(hit_rate, 1),
-                "total_requests": total_requests,
-                "avg_response_time": round(self.cache_stats['performance']['avg_response_time'], 2),
-                "compression_savings": self.cache_stats['bytes_saved'],
-                "strategies_active": len(self.cache_strategies)
-            },
-            "timestamp": datetime.now().isoformat(),
-            "cache_size": "25MB",
-            "compression": self.compression_enabled,
-            "detailed_stats": {
-                "hits": self.cache_stats['hits'],
-                "misses": self.cache_stats['misses'],
-                "compressions": self.cache_stats['compressions'],
-                "errors": self.cache_stats['errors'],
-                "strategy_breakdown": self.cache_stats['strategy_stats']
-            }
+            'access_count': 0,
+            'last_access': None
         }
 
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """آمار کامل سیستم کش"""
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "smart_cache_stats": self.cache_stats,
-            "strategies": self.cache_strategies,
-            "settings": {
-                "compression_enabled": self.compression_enabled,
-                "max_cache_size": f"{self.max_cache_size / 1024 / 1024}MB",
-                "cache_debugger_available": CACHE_DEBUGGER_AVAILABLE
-            }
-        }
-
-    def clear_cache(self):
-        """پاک‌سازی کش (شبیه‌سازی)"""
-        # در عمل، این باید با cache_debugger هماهنگ شود
-        self.cache_stats = {
-            'total_requests': 0,
-            'hits': 0,
-            'misses': 0,
-            'compressions': 0,
-            'errors': 0,
-            'bytes_saved': 0,
-            'performance': {'avg_response_time': 0, 'last_cleanup': datetime.now().isoformat(), 'health_score': 100},
-            'strategy_stats': {s: {'hits': 0, 'misses': 0, 'size': 0, 'items': 0} for s in self.cache_strategies}
-        }
-        logger.info("🧹 Smart Cache statistics cleared")
+    def _store_analytics(self, analytics_type: str, data: Dict):
+        """ذخیره نتایج آنالیتیکس"""
+        try:
+            key = f"analytics:{analytics_type}:{datetime.now().strftime('%Y%m%d_%H')}"
+            self.redis_manager.set(
+                self.analytics_db, 
+                key, 
+                data, 
+                expire=7*24*3600  # نگهداری 7 روز
+            )
+        except Exception as e:
+            logger.error(f"❌ Error storing analytics: {e}")
 
 # ایجاد نمونه اصلی
-smart_cache = SmartCache()
+cache_optimizer = CacheOptimizationEngine()
 
-# 🔽 دکوراتورهای از پیش تعریف شده برای ۸ فایل route
+logger.info("🚀 Cache Optimization Engine Initialized - Advanced Analytics & Optimization")
 
-# برای routes پردازش شده
-coins_cache = smart_cache.cache_strategy("coins")
-exchanges_cache = smart_cache.cache_strategy("exchanges")
-news_cache = smart_cache.cache_strategy("news")
-insights_cache = smart_cache.cache_strategy("insights")
-
-# برای routes داده خام
-raw_coins_cache = smart_cache.cache_strategy("raw_coins")
-raw_exchanges_cache = smart_cache.cache_strategy("raw_exchanges")
-raw_news_cache = smart_cache.cache_strategy("raw_news")
-raw_insights_cache = smart_cache.cache_strategy("raw_insights")
-
-logger.info("🚀 Smart Cache System Initialized - Full Integration with Cache Debugger")
-
-# 🔽 export برای استفاده در فایل‌های روت
-__all__ = [
-    "SmartCache", "smart_cache",
-    "coins_cache", "exchanges_cache", "news_cache", "insights_cache",
-    "raw_coins_cache", "raw_exchanges_cache", "raw_news_cache", "raw_insights_cache"
-]
+__all__ = ["CacheOptimizationEngine", "cache_optimizer"]
