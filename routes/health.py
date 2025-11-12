@@ -308,45 +308,31 @@ def _check_external_apis_availability() -> bool:
     """بررسی واقعی وضعیت APIهای خارجی"""
     try:
         if not coin_stats_manager:
-            logger.warning("⚠️ coin_stats_manager is None")
+            logger.warning("coin_stats_manager is None")
             return False
         
-        if not hasattr(coin_stats_manager, 'get_api_status'):
-            logger.warning("⚠️ coin_stats_manager has no get_api_status method")
-            return False
+        # استفاده از متد تست سریع
+        if hasattr(coin_stats_manager, 'test_api_connection_quick'):
+            return coin_stats_manager.test_api_connection_quick()
         
-        # تست واقعی اتصال به API
+        # روش جایگزین
         api_status = coin_stats_manager.get_api_status()
-        logger.info(f"🔍 API Status Check: {api_status}")
-        
-        # بررسی چندین حالت برای اطمینان
-        status = api_status.get('status')
-        if status == 'healthy':
-            return True
-        elif status == 'connected':
-            return True
-        elif 'error' in api_status:
-            logger.warning(f"⚠️ API has error: {api_status.get('error')}")
-            return False
-        else:
-            # اگر وضعیت مشخص نیست، تست سریع انجام بده
-            return _test_api_connection_quick()
+        return api_status.get('status') in ['healthy', 'connected']
             
     except Exception as e:
-        logger.warning(f"⚠️ External APIs availability check failed: {e}")
+        logger.warning(f"API availability check failed: {e}")
         return False
 
 def _test_api_connection_quick() -> bool:
     """تست سریع اتصال به API"""
     try:
-        # یک درخواست تست سریع به API
-        if hasattr(coin_stats_manager, '_make_api_request'):
-            # استفاده از متد داخلی برای تست
-            result = coin_stats_manager._make_api_request('coins', {'limit': 1})
-            return result is not None
+        if hasattr(coin_stats_manager, 'test_api_connection_quick'):
+            return coin_stats_manager.test_api_connection_quick()
+        
         return False
+        
     except Exception as e:
-        logger.warning(f"⚠️ API quick test failed: {e}")
+        logger.warning(f"API quick test failed: {e}")
         return False
 
 def _get_cache_details() -> Dict[str, Any]:
