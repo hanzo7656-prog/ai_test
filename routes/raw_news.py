@@ -12,7 +12,7 @@ try:
 except ImportError as e:
     logger.error(f"❌ Cache system unavailable: {e}")
     # Fallback نهایی
-    def coins_cache(func):
+    def cache_raw_news_with_archive(func):
         return func
 
 raw_news_router = APIRouter(prefix="/api/raw/news", tags=["Raw News"])
