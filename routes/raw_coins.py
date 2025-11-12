@@ -7,24 +7,18 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from debug_system.storage.smart_cache_system import raw_coins_cache
-    logger.info("✅ Using Smart Cache for coins")
+    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
-    logger.warning(f"⚠️ Smart Cache not available: {e}")
-    try:
-        # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_raw_coins as raw_coins_cache
-        logger.info("✅ Using Legacy Cache for coins")
-    except ImportError as e2:
-        logger.error(f"❌ No cache system available: {e2}")
-        # تعریف دکوراتور خالی به عنوان fallback نهایی
-        def coins_cache(func):
-            return func
+    logger.error(f"❌ Cache system unavailable: {e}")
+    # Fallback نهایی
+    def coins_cache(func):
+        return func
 
 raw_coins_router = APIRouter(prefix="/api/raw/coins", tags=["Raw Coins"])
 
 @raw_coins_router.get("/list", summary="لیست خام نمادها")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_coins_list(
     limit: int = Query(20, ge=1, le=1000),
     page: int = Query(1, ge=1),
@@ -92,7 +86,7 @@ async def get_raw_coins_list(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/details/{coin_id}", summary="جزئیات خام نماد")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_coin_details(
     coin_id: str, 
     currency: str = Query("USD"),
@@ -127,7 +121,7 @@ async def get_raw_coin_details(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/charts/{coin_id}", summary="داده‌های چارت نماد")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_coin_charts(
     coin_id: str, 
     period: str = Query("all", description="بازه زمانی: 24h,1w,1m,3m,1y,all")
@@ -167,7 +161,7 @@ async def get_raw_coin_charts(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/multi-charts", summary="داده‌های چارت چندنماد")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_multi_charts(
     coin_ids: str = Query(..., description="لیست coin_idها با کاما جدا شده (bitcoin,ethereum,solana)"),
     period: str = Query("all", description="بازه زمانی: 24h,1w,1m,3m,1y,all")
@@ -206,7 +200,7 @@ async def get_raw_multi_charts(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/price/avg", summary="قیمت متوسط تاریخی")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_coin_price_avg(
     coin_id: str = Query("bitcoin"),
     timestamp: str = Query("1636315200")
@@ -234,7 +228,7 @@ async def get_raw_coin_price_avg(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/price/exchange", summary="قیمت صرافی")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_raw_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
@@ -266,7 +260,7 @@ async def get_raw_exchange_price(
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_coins_router.get("/metadata", summary="متادیتای کوین‌ها")
-@raw_coins_cache
+@cache_raw_coins_with_archive()
 async def get_coins_metadata():
     """دریافت متادیتای کامل کوین‌ها از CoinStats API - برای آموزش هوش مصنوعی"""
     try:
