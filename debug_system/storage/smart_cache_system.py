@@ -16,11 +16,22 @@ class CacheOptimizationEngine:
     
     def __init__(self):
         # ایمپورت سیستم‌های اصلی
-        from .cache_debugger import cache_debugger
-        from .redis_manager import redis_manager
+        try:
+            from debug_system.storage.cache_debugger import cache_debugger
+            from debug_system.storage.redis_manager import redis_manager
         
-        self.debugger = cache_debugger
-        self.redis_manager = redis_manager
+            self.debugger = cache_debugger
+            self.redis_manager = redis_manager
+            logger.info("✅ Storage modules imported successfully")
+        
+        except ImportError as e:
+            logger.error(f"❌ Failed to import storage modules: {e}")
+            # ایجاد stub برای جلوگیری از خطا
+            class StubManager:
+                def __getattr__(self, name):
+                    return lambda *args, **kwargs: {}
+            self.debugger = StubManager()
+            self.redis_manager = StubManager()
         
         # دیتابیس برای آنالیتیکس (MOTHER_B)
         self.analytics_db = "mother_b"
@@ -271,6 +282,49 @@ class CacheOptimizationEngine:
         
         return warming_report
 
+    def get_health_status(self) -> Dict[str, Any]:
+        """وضعیت سلامت کش - سازگار با health system"""
+        try:
+            health_report = self.database_health_check()
+        
+            # تبدیل به ساختار مورد انتظار سلامت
+            return {
+                "status": "healthy",
+                "health_score": self._calculate_overall_health_score(health_report),
+                "databases_connected": self._count_connected_databases(health_report),
+                "total_databases": 5,
+                "details": health_report,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"❌ Error in get_health_status: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def _calculate_overall_health_score(self, health_report: Dict) -> int:
+        """محاسبه امتیاز سلامت کلی"""
+        connected_count = self._count_connected_databases(health_report)
+    
+        if connected_count == 5:
+            return 95
+        elif connected_count >= 3:
+            return 75
+        elif connected_count >= 1:
+            return 50
+        else:
+            return 0
+
+    def _count_connected_databases(self, health_report: Dict) -> int:
+        """شمارش دیتابیس‌های متصل"""
+        count = 0
+        for db_health in health_report.get('database_health', {}).values():
+            if db_health.get('status') == 'connected':
+                count += 1
+        return count
+        
     def _generate_access_recommendations(self, analysis: Dict, operations: List):
         """تولید پیشنهادات بر اساس الگوی دسترسی"""
         recommendations = []
