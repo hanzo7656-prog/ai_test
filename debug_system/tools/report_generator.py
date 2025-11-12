@@ -311,4 +311,4 @@ class ReportGenerator:
         return threats[:5]  # فقط ۵ تهدید رایج
 
 # ایجاد نمونه گلوبال
-report_generator = ReportGenerator(None, None)  # بعداً مقداردهی می‌شود
+report_generator = ReportGenerator(debug_manager, History_manager)  
