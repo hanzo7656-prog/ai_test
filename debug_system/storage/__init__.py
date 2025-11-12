@@ -1,178 +1,166 @@
 """
-VortexAI Storage System
-Complete cache and storage management with 5 Redis databases
+Debug System Storage Package
+مدیریت پیشرفته کش، تاریخچه، لاگ و بهینه‌سازی
+
+ماژول‌ها:
+- cache_debugger: مانیتورینگ و دیباگ کش
+- cache_decorators: دکوراتورهای هوشمند کش
+- history_manager: مدیریت تاریخچه و آرشیو
+- log_manager: سیستم لاگینگ پیشرفته  
+- redis_manager: مدیریت اتصال به Redis
+- cache_optimizer: آنالیز و بهینه‌سازی هوشمند
 """
 
 __version__ = "1.0.0"
-__author__ = "VortexAI Team"
+__author__ = "Debug System Team"
 
-# ایمپورت ماژول‌های اصلی storage
+# ایمپورت ماژول‌های اصلی
 from .cache_debugger import CacheDebugger, cache_debugger
-from .history_manager import HistoryManager, history_manager
-from .log_manager import LogManager, log_manager
-from .redis_manager import RedisCacheManager, redis_manager
-
-# ایمپورت دکوراتورهای کش
 from .cache_decorators import (
-    # دکوراتورهای اصلی
     cache_response,
     cache_with_archive,
-    
-    # دکوراتورهای با آرشیو
-    cache_coins_with_archive,
-    cache_news_with_archive,
-    cache_insights_with_archive,
-    cache_exchanges_with_archive,
-    cache_raw_coins_with_archive,
-    cache_raw_news_with_archive,
-    cache_raw_insights_with_archive,
-    cache_raw_exchanges_with_archive,
-    
-    # دکوراتورهای ساده
-    cache_coins,
-    cache_news,
-    cache_insights,
-    cache_exchanges,
-    cache_raw_coins,
-    cache_raw_news,
-    cache_raw_insights,
-    cache_raw_exchanges,
-    
-    # متدهای مدیریت آرشیو
+    cache_with_fallback,
+    generate_cache_key,
+    generate_archive_key,
     get_historical_data,
     get_archive_stats,
     cleanup_old_archives,
     
-    # دکوراتورهای پیشرفته
-    cache_with_fallback,
-    clear_cache_pattern
-)
-
-# ایمپورت Smart Cache System
-try:
-    from .smart_cache_system import CacheOptimizationEngine, cache_optimizer
-    SMART_CACHE_AVAILABLE = True
-except ImportError:
-    SMART_CACHE_AVAILABLE = False
-    cache_optimizer = None
-
-# ایمپورت Unified Cache Manager
-try:
-    from .unified_cache_manager import UnifiedCacheManager, unified_cache_manager
-    UNIFIED_CACHE_AVAILABLE = True
-except ImportError:
-    UNIFIED_CACHE_AVAILABLE = False
-    unified_cache_manager = None
-
-def initialize_storage_system():
-    """راه‌اندازی کامل سیستم storage"""
-    try:
-        print("🔄 Initializing Storage System...")
-        
-        # بررسی اتصال Redis
-        redis_status = redis_manager.health_check()
-        print(f"🎯 Redis Status: {redis_status.get('status', 'unknown')}")
-        
-        # راه‌اندازی ماژول‌ها
-        storage_system = {
-            "log_manager": log_manager,
-            "history_manager": history_manager,
-            "cache_debugger": cache_debugger,
-            "redis_manager": redis_manager,
-            "smart_cache": cache_optimizer if SMART_CACHE_AVAILABLE else "Not Available",
-            "unified_cache_manager": unified_cache_manager if UNIFIED_CACHE_AVAILABLE else "Not Available"
-        }
-        
-        # بررسی وضعیت کلی
-        overall_status = "degraded"
-        if redis_status.get("status") == "connected":
-            if SMART_CACHE_AVAILABLE or UNIFIED_CACHE_AVAILABLE:
-                overall_status = "advanced"
-            else:
-                overall_status = "basic"
-        
-        print(f"✅ Storage system initialized with Smart Cache integration")
-        print(f"    - Log Manager: {type(log_manager).__name__}")
-        print(f"    - History Manager: {type(history_manager).__name__}")
-        print(f"    - Cache Debugger: {type(cache_debugger).__name__}")
-        print(f"    - Redis Manager: {type(redis_manager).__name__}")
-        print(f"    - Smart Cache: {'Available' if SMART_CACHE_AVAILABLE else 'Not Available'}")
-        print(f"    - Unified Cache Manager: {'Available' if UNIFIED_CACHE_AVAILABLE else 'Not Available'}")
-        print(f"    - Overall Cache Status: {overall_status}")
-        
-        # گزارش وضعیت جزئی
-        status_details = {
-            "smart_cache": "available" if SMART_CACHE_AVAILABLE else "not_available",
-            "legacy_cache": "available",
-            "redis": redis_status.get("status", "unknown")
-        }
-        
-        for component, status in status_details.items():
-            print(f"      - {component}: {status}")
-        
-        return storage_system
-        
-    except Exception as e:
-        print(f"❌ Storage system initialization failed: {e}")
-        # بازگشت حداقل سیستم
-        return {
-            "log_manager": log_manager,
-            "history_manager": history_manager,
-            "cache_debugger": cache_debugger,
-            "redis_manager": redis_manager,
-            "smart_cache": "Not Available",
-            "unified_cache_manager": "Not Available"
-        }
-
-# راه‌اندازی خودکار
-storage_system = initialize_storage_system()
-
-__all__ = [
-    # ماژول‌های اصلی
-    "CacheDebugger", "cache_debugger",
-    "HistoryManager", "history_manager", 
-    "LogManager", "log_manager",
-    "RedisCacheManager", "redis_manager",
-    
-    # دکوراتورهای کش
-    "cache_response",
-    "cache_with_archive",
+    # دکوراتورهای مخصوص route ها
+    cache_coins, cache_news, cache_insights, cache_exchanges,
+    cache_raw_coins, cache_raw_news, cache_raw_insights, cache_raw_exchanges,
     
     # دکوراتورهای با آرشیو
-    "cache_coins_with_archive",
-    "cache_news_with_archive", 
-    "cache_insights_with_archive",
-    "cache_exchanges_with_archive",
-    "cache_raw_coins_with_archive",
-    "cache_raw_news_with_archive",
-    "cache_raw_insights_with_archive", 
-    "cache_raw_exchanges_with_archive",
+    cache_coins_with_archive, cache_news_with_archive,
+    cache_insights_with_archive, cache_exchanges_with_archive,
+    cache_raw_coins_with_archive, cache_raw_news_with_archive,
+    cache_raw_insights_with_archive, cache_raw_exchanges_with_archive,
     
-    # دکوراتورهای ساده
-    "cache_coins",
-    "cache_news",
-    "cache_insights",
-    "cache_exchanges", 
-    "cache_raw_coins",
-    "cache_raw_news",
-    "cache_raw_insights",
-    "cache_raw_exchanges",
+    # نقشه‌نگاری دیتابیس
+    DATABASE_MAPPING
+)
+from .history_manager import HistoryManager, history_manager
+from .log_manager import LogManager, log_manager
+from .redis_manager import RedisCacheManager, redis_manager
+from .cache_optimizer import CacheOptimizationEngine, cache_optimizer
+
+# صادرات عمومی
+__all__ = [
+    # کلاس‌های اصلی
+    'CacheDebugger',
+    'HistoryManager', 
+    'LogManager',
+    'RedisCacheManager',
+    'CacheOptimizationEngine',
     
-    # مدیریت آرشیو
-    "get_historical_data",
-    "get_archive_stats", 
-    "cleanup_old_archives",
+    # نمونه‌های گلوبال
+    'cache_debugger',
+    'history_manager',
+    'log_manager', 
+    'redis_manager',
+    'cache_optimizer',
     
-    # پیشرفته
-    "cache_with_fallback",
-    "clear_cache_pattern",
+    # دکوراتورهای کش
+    'cache_response',
+    'cache_with_archive',
+    'cache_with_fallback',
     
-    # Smart Cache
-    "CacheOptimizationEngine", "cache_optimizer",
+    # توابع کمکی
+    'generate_cache_key',
+    'generate_archive_key',
+    'get_historical_data',
+    'get_archive_stats',
+    'cleanup_old_archives',
     
-    # Unified Cache
-    "UnifiedCacheManager", "unified_cache_manager",
+    # دکوراتورهای مخصوص
+    'cache_coins', 'cache_news', 'cache_insights', 'cache_exchanges',
+    'cache_raw_coins', 'cache_raw_news', 'cache_raw_insights', 'cache_raw_exchanges',
+    'cache_coins_with_archive', 'cache_news_with_archive',
+    'cache_insights_with_archive', 'cache_exchanges_with_archive', 
+    'cache_raw_coins_with_archive', 'cache_raw_news_with_archive',
+    'cache_raw_insights_with_archive', 'cache_raw_exchanges_with_archive',
     
-    # Initialization
-    "initialize_storage_system", "storage_system"
+    # نقشه‌نگاری
+    'DATABASE_MAPPING'
 ]
+
+# اطلاعات پکیج
+PACKAGE_INFO = {
+    "name": "debug-system-storage",
+    "version": __version__,
+    "description": "Advanced caching, monitoring and optimization system for debug infrastructure",
+    "modules": [
+        "cache_debugger - Real-time cache monitoring and analytics",
+        "cache_decorators - Intelligent caching decorators with archive support", 
+        "history_manager - Historical data and metrics storage",
+        "log_manager - Advanced logging system with compression",
+        "redis_manager - Multi-database Redis connection management",
+        "cache_optimizer - AI-powered cache optimization engine"
+    ],
+    "databases": {
+        "uta": "AI Model Core - Critical data",
+        "utb": "AI Processing - Semi-critical data", 
+        "utc": "Raw Data - Historical + Compressed",
+        "mother_a": "System Processing - Critical data",
+        "mother_b": "Operations & Cache - Temporary data"
+    }
+}
+
+def get_package_info():
+    """دریافت اطلاعات پکیج"""
+    return PACKAGE_INFO.copy()
+
+def initialize_storage_systems():
+    """
+    مقداردهی اولیه تمام سیستم‌های ذخیره‌سازی
+    برای استفاده در startup برنامه
+    """
+    systems_status = {}
+    
+    try:
+        # بررسی اتصال Redis
+        redis_health = redis_manager.health_check()
+        systems_status['redis'] = {
+            'status': 'connected' if all(
+                db.get('status') == 'connected' 
+                for db in redis_health.values()
+            ) else 'partial',
+            'details': redis_health
+        }
+        
+        # بررسی دیتابیس تاریخچه
+        history_manager._init_database()
+        systems_status['history_db'] = {'status': 'initialized'}
+        
+        # بررسی سیستم لاگ
+        systems_status['log_system'] = {'status': 'active'}
+        
+        # بررسی سیستم بهینه‌سازی
+        optimizer_health = cache_optimizer.get_health_status()
+        systems_status['optimizer'] = optimizer_health
+        
+        # لاگ وضعیت
+        log_manager.log_system_metrics({
+            'component': 'storage_package',
+            'action': 'initialization',
+            'status': 'completed',
+            'systems_status': systems_status,
+            'timestamp': __import__('datetime').datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        systems_status['error'] = str(e)
+        # لاگ خطا
+        log_manager.log_system_metrics({
+            'component': 'storage_package',
+            'action': 'initialization',
+            'status': 'failed',
+            'error': str(e),
+            'timestamp': __import__('datetime').datetime.now().isoformat()
+        })
+    
+    return systems_status
+
+# پیام راه‌اندازی
+print(f"✅ Debug System Storage v{__version__} initialized")
+print("📦 Available modules: cache_debugger, cache_decorators, history_manager, log_manager, redis_manager, cache_optimizer")
