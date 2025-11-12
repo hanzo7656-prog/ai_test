@@ -7,24 +7,18 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from debug_system.storage.smart_cache_system import exchanges_cache
-    logger.info("✅ Using Smart Cache for coins")
+    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
-    logger.warning(f"⚠️ Smart Cache not available: {e}")
-    try:
-        # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_exchanges as exchanges_cache
-        logger.info("✅ Using Legacy Cache for coins")
-    except ImportError as e2:
-        logger.error(f"❌ No cache system available: {e2}")
-        # تعریف دکوراتور خالی به عنوان fallback نهایی
-        def coins_cache(func):
-            return func
+    logger.error(f"❌ Cache system unavailable: {e}")
+    # Fallback نهایی
+    def coins_cache(func):
+        return func
 
 exchanges_router = APIRouter(prefix="/api/exchanges", tags=["Exchanges"])
 
 @exchanges_router.get("/list", summary="لیست صرافی‌ها")
-@exchanges_cache
+@cache_exchanges_with_archive()
 async def get_exchanges_list():
     """دریافت لیست صرافی‌های پردازش شده"""
     try:
@@ -68,7 +62,7 @@ async def get_exchanges_list():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/markets", summary="مارکت‌ها")
-@exchanges_cache
+@cache_exchanges_with_archive()
 async def get_markets():
     """دریافت مارکت‌های پردازش شده"""
     try:
@@ -110,7 +104,7 @@ async def get_markets():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/fiats", summary="ارزهای فیات")
-@exchanges_cache
+@cache_exchanges_with_archive()
 async def get_fiats():
     """دریافت ارزهای فیات پردازش شده"""
     try:
@@ -152,7 +146,7 @@ async def get_fiats():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/currencies", summary="ارزها")
-@exchanges_cache
+@cache_exchanges_with_archive()
 async def get_currencies():
     """دریافت ارزهای پردازش شده"""
     try:
@@ -180,7 +174,7 @@ async def get_currencies():
         raise HTTPException(status_code=500, detail=str(e))
 
 @exchanges_router.get("/price", summary="قیمت صرافی")
-@exchanges_cache
+@cache_exchanges_with_archive()
 async def get_exchange_price(
     exchange: str = Query("Binance"),
     from_coin: str = Query("BTC"),
