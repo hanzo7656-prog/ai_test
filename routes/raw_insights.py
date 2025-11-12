@@ -7,24 +7,18 @@ from complete_coinstats_manager import coin_stats_manager
 logger = logging.getLogger(__name__)
 
 try:
-    from debug_system.storage.smart_cache_system import raw_insights_cache
-    logger.info("✅ Using Smart Cache for coins")
+    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
-    logger.warning(f"⚠️ Smart Cache not available: {e}")
-    try:
-        # fallback به سیستم قدیم
-        from debug_system.storage.cache_decorators import cache_raw_insights as raw_insights_cache
-        logger.info("✅ Using Legacy Cache for coins")
-    except ImportError as e2:
-        logger.error(f"❌ No cache system available: {e2}")
-        # تعریف دکوراتور خالی به عنوان fallback نهایی
-        def coins_cache(func):
-            return func
+    logger.error(f"❌ Cache system unavailable: {e}")
+    # Fallback نهایی
+    def coins_cache(func):
+        return func
 
 raw_insights_router = APIRouter(prefix="/api/raw/insights", tags=["Raw Insights"])
 
 @raw_insights_router.get("/btc-dominance", summary="داده‌های دامیننس بیت‌کوین")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_raw_btc_dominance(type: str = Query("all", description="بازه زمانی: all, 24h, 1w, 1m, 3m, 1y")):
     """دریافت داده‌های خام دامیننس بیت‌کوین از CoinStats API"""
     try:
@@ -56,7 +50,7 @@ async def get_raw_btc_dominance(type: str = Query("all", description="بازه �
         raise HTTPException(status_code=500, detail=str(e))
         
 @raw_insights_router.get("/fear-greed", summary="داده‌های شاخص ترس و طمع")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_raw_fear_greed():
     """دریافت داده‌های خام شاخص ترس و طمع از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -83,7 +77,7 @@ async def get_raw_fear_greed():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_insights_router.get("/fear-greed/chart", summary="داده‌های تاریخی شاخص ترس و طمع")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_raw_fear_greed_chart():
     """دریافت داده‌های تاریخی خام شاخص ترس و طمع از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -109,7 +103,7 @@ async def get_raw_fear_greed_chart():
         logger.error(f"Error in raw fear-greed chart: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 @raw_insights_router.get("/rainbow-chart/{coin_id}", summary="داده‌های چارت رنگین‌کمان")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_raw_rainbow_chart(coin_id: str):
     """دریافت داده‌های خام چارت رنگین‌کمان از CoinStats API - داده‌های واقعی برای هوش مصنوعی"""
     try:
@@ -195,7 +189,7 @@ def _analyze_rainbow_chart_data(rainbow_data: Dict, coin_id: str) -> Dict[str, A
     }
     
 @raw_insights_router.get("/market-analysis", summary="تحلیل کلی بازار")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_market_analysis():
     """دریافت تحلیل جامع بازار از داده‌های واقعی - برای آموزش هوش مصنوعی"""
     try:
@@ -226,7 +220,7 @@ async def get_market_analysis():
         raise HTTPException(status_code=500, detail=str(e))
 
 @raw_insights_router.get("/metadata", summary="متادیتای بینش‌های بازار")
-@raw_insights_cache
+@cache_raw_insights_with_archive()
 async def get_insights_metadata():
     """دریافت متادیتای کامل بینش‌های بازار - برای آموزش هوش مصنوعی"""
     try:
