@@ -8,7 +8,7 @@ Debug System Storage Package
 - history_manager: مدیریت تاریخچه و آرشیو
 - log_manager: سیستم لاگینگ پیشرفته  
 - redis_manager: مدیریت اتصال به Redis
-- cache_optimizer: آنالیز و بهینه‌سازی هوشمند
+- smart_cache_system: آنالیز و بهینه‌سازی هوشمند
 """
 
 __version__ = "1.0.0"
@@ -42,7 +42,7 @@ from .cache_decorators import (
 from .history_manager import HistoryManager, history_manager
 from .log_manager import LogManager, log_manager
 from .redis_manager import RedisCacheManager, redis_manager
-from .cache_optimizer import CacheOptimizationEngine, cache_optimizer
+from .smart_cache_system import CacheOptimizationEngine, cache_optimizer
 
 # صادرات عمومی
 __all__ = [
