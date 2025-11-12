@@ -106,6 +106,21 @@ class CompleteCoinStatsManager:
             return cached_data.get('data')
         except Exception:
             return None
+
+    def test_api_connection_quick(self) -> bool:
+        """تست سریع اتصال API - برای سیستم سلامت"""
+        try:
+            result = self._make_api_request('coins', {'limit': 1}, use_cache=False, simple_test=True)
+            # بررسی اینکه پاسخ معتبر است و خطا ندارد
+            return (result is not None and 
+                    'error' not in result and 
+                    isinstance(result, dict) and
+                    'result' in result)  # بررسی ساختار مورد انتظار
+        except Exception:
+            return False
+                logger.error(f"🔌 Connection error for {endpoint}")
+                return {"error": "Connection error", "status": "error"}
+            
             
     def _make_api_request(self, endpoint: str, params: Dict = None, use_cache: bool = True, 
                          simple_test: bool = False) -> Dict:
@@ -190,25 +205,10 @@ class CompleteCoinStatsManager:
                 logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
             return {"error": str(e), "status": "error"}
 
-    def test_api_connection_quick(self) -> bool:
-        """تست سریع اتصال API - برای سیستم سلامت"""
-        try:
-            result = self._make_api_request('coins', {'limit': 1}, use_cache=False, simple_test=True)
-            # بررسی اینکه پاسخ معتبر است و خطا ندارد
-            return (result is not None and 
-                    'error' not in result and 
-                    isinstance(result, dict) and
-                    'result' in result)  # بررسی ساختار مورد انتظار
-        except Exception:
-            return False
-                logger.error(f"🔌 Connection error for {endpoint}")
-                return {"error": "Connection error", "status": "error"}
-            
-            except Exception as e:
+        except Exception as e:
                 self.metrics['failed_requests'] += 1
                 logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
-                return {"error": str(e), "status": "error"}
-
+            return {"error": str(e), "status": "error"}
     # =============================== COINS ENDPOINTS =============================
 
     def get_coins_list(self, limit: int = 20, page: int = 1, currency: str = "USD",
