@@ -203,10 +203,6 @@ class CompleteCoinStatsManager:
                 logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
             return {"error": str(e), "status": "error"}
 
-        except Exception as e:
-                self.metrics['failed_requests'] += 1
-                logger.error(f"🚨 Unexpected error in {endpoint}: {e}")
-            return {"error": str(e), "status": "error"}
     # =============================== COINS ENDPOINTS =============================
 
     def get_coins_list(self, limit: int = 20, page: int = 1, currency: str = "USD",
