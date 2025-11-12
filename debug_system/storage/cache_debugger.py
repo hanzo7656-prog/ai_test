@@ -23,11 +23,31 @@ class CacheDebugger:
             'last_operation': None,
             'database': None  # اضافه شدن فیلد دیتابیس
         })
-        
-        # ایمپورت مدیر Redis اصلی از فایل redis_manager
-        from redis_manager import redis_manager
-        self.redis_manager = redis_manager
-        
+
+    
+    # ایمپورت با مسیر کامل و مدیریت خطا
+        try:
+            from debug_system.storage.redis_manager import redis_manager
+            self.redis_manager = redis_manager
+            logger.info("✅ redis_manager imported successfully")
+        except ImportError as e:
+            logger.warning(f"❌ Could not import redis_manager: {e}")
+            # ایجاد stub برای جلوگیری از خطا
+            class RedisManagerStub:
+                def health_check(self, db=None): 
+                    return {'status': 'redis_not_available', 'error': 'redis_manager import failed'}
+                def get_keys(self, db, pattern): 
+                    return [], 0
+                def set(self, db, key, value, expire): 
+                    return False, 0
+                def get(self, db, key): 
+                    return None, 0
+                def delete(self, db, key): 
+                    return False, 0
+                def exists(self, db, key): 
+                    return False, 0
+            self.redis_manager = RedisManagerStub()
+            
     def log_cache_operation(self, operation: str, key: str, success: bool, 
                           response_time: float, size: int = 0, error: str = None, 
                           database: str = None):
@@ -113,11 +133,11 @@ class CacheDebugger:
             stats_key = f"{database}:{key}"
             if stats_key not in self.cache_stats:
                 return {'error': 'Key not found in specified database'}
-            
+        
             stats = self.cache_stats[stats_key]
             total_operations = stats['hits'] + stats['misses'] + stats['sets'] + stats['deletes']
             avg_response_time = (stats['total_response_time'] / total_operations) if total_operations > 0 else 0
-            
+          
             return {
                 'database': database,
                 'key': key,
@@ -131,7 +151,7 @@ class CacheDebugger:
                 'hit_rate': (stats['hits'] / (stats['hits'] + stats['misses']) * 100) if (stats['hits'] + stats['misses']) > 0 else 0,
                 'last_operation': stats['last_operation']
             }
-        
+    
         # آمار بر اساس دیتابیس
         if database:
             db_stats = {
@@ -146,7 +166,7 @@ class CacheDebugger:
                 'total_response_time': 0,
                 'timestamp': datetime.now().isoformat()
             }
-            
+        
             for stats_key, stats in self.cache_stats.items():
                 if stats['database'] == database:
                     db_stats['total_keys'] += 1
@@ -157,20 +177,25 @@ class CacheDebugger:
                     db_stats['total_errors'] += stats['errors']
                     db_stats['total_size_bytes'] += stats['total_size']
                     db_stats['total_response_time'] += stats['total_response_time']
-            
+        
             total_operations = db_stats['total_hits'] + db_stats['total_misses'] + db_stats['total_sets'] + db_stats['total_deletes']
             db_stats['total_operations'] = total_operations
-            
+        
             if total_operations > 0:
                 db_stats['average_response_time'] = round(db_stats['total_response_time'] / total_operations, 4)
-            
+        
             read_operations = db_stats['total_hits'] + db_stats['total_misses']
             if read_operations > 0:
                 db_stats['hit_rate'] = round((db_stats['total_hits'] / read_operations) * 100, 2)
-            
-            db_stats['redis_health'] = self.redis_manager.health_check(database)
-            return db_stats
         
+            # 🔽 اینجا اصلاح شده 🔽
+            if hasattr(self, 'redis_manager') and self.redis_manager and hasattr(self.redis_manager, 'health_check'):
+                db_stats['redis_health'] = self.redis_manager.health_check(database)
+            else:
+                db_stats['redis_health'] = {'status': 'redis_manager_not_available'}
+        
+            return db_stats
+    
         # آمار کلی تمام دیتابیس‌ها
         total_stats = {
             'total_databases': 5,
@@ -185,26 +210,31 @@ class CacheDebugger:
             'hit_rate': 0,
             'average_response_time': 0,
             'database_breakdown': {},
-            'redis_health': self.redis_manager.health_check(),
             'timestamp': datetime.now().isoformat()
         }
-        
+      
         # آمار تفکیک شده بر اساس دیتابیس
         for db_name in ['uta', 'utb', 'utc', 'mother_a', 'mother_b']:
             db_stats = self.get_cache_stats(database=db_name)
             total_stats['database_breakdown'][db_name] = db_stats
-        
+    
         total_operations = total_stats['total_hits'] + total_stats['total_misses'] + total_stats['total_sets'] + total_stats['total_deletes']
         total_stats['total_operations'] = total_operations
-        
+    
         if total_operations > 0:
             total_response_time = sum(stats['total_response_time'] for stats in self.cache_stats.values())
             total_stats['average_response_time'] = round(total_response_time / total_operations, 4)
-        
+    
         read_operations = total_stats['total_hits'] + total_stats['total_misses']
         if read_operations > 0:
             total_stats['hit_rate'] = round((total_stats['total_hits'] / read_operations) * 100, 2)
-        
+    
+        # 🔽 اینجا هم اصلاح شده 🔽
+        if hasattr(self, 'redis_manager') and self.redis_manager and hasattr(self.redis_manager, 'health_check'):
+            total_stats['redis_health'] = self.redis_manager.health_check()
+        else:
+            total_stats['redis_health'] = {'status': 'redis_manager_not_available'}
+    
         return total_stats
     
     def get_cache_performance(self, database: str = None, hours: int = 24) -> Dict[str, Any]:
@@ -329,7 +359,11 @@ class CacheDebugger:
             'redis_health': stats.get('redis_health', {}),
             'timestamp': datetime.now().isoformat()
         }
-    
+
+    def analyze_cache_efficiency(self) -> Dict[str, Any]:
+        """آنالیز کارایی کش - سازگار با health system"""
+        return self.get_cache_efficiency_report()
+        
     def _calculate_efficiency_score(self, stats: Dict, performance: Dict) -> float:
         """محاسبه امتیاز کارایی کش"""
         efficiency_score = 0
