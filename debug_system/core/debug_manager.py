@@ -94,6 +94,7 @@ class DebugManager:
         }
         
         self.alert_manager = None
+        self.alert_integration_enabled = False
         self._monitoring_active = True
         self._lock = threading.RLock()
         
@@ -103,10 +104,31 @@ class DebugManager:
         """بررسی آیا دیباگ منیجر فعال است"""
         return self._monitoring_active and hasattr(self, 'endpoint_calls')
         
-    def set_alert_manager(self, alert_manager: AlertManager):
-        """تنظیم alert manager با نوع‌دهی صحیح"""
-        self.alert_manager = alert_manager
-        logger.info("✅ Alert Manager set for Debug Manager")
+    def set_alert_manager(self, alert_manager: AlertManager) -> bool:
+        """تنظیم alert manager با بررسی نوع و قابلیت"""
+        try:
+            if not hasattr(alert_manager, 'create_alert'):
+                logger.error("❌ Invalid AlertManager instance - missing create_alert method")
+                return False
+            
+            self.alert_manager = alert_manager
+            self._alert_integration_enabled = True
+            logger.info("✅ Alert Manager configured successfully - Integration Active")
+            return True
+          
+        except Exception as e:
+            logger.error(f"❌ Error setting Alert Manager: {e}")
+            return False
+
+
+    def get_alert_integration_status(self) -> Dict[str, Any]:
+        """دریافت وضعیت یکپارچه‌سازی با AlertManager"""
+        return {
+            'alert_integration_enabled': self._alert_integration_enabled,
+            'alert_manager_configured': self.alert_manager is not None,
+            'total_alerts_sent': len([a for a in self.alerts if a.get('sent_to_alert_manager', False)]),
+            'integration_status': 'active' if self._alert_integration_enabled else 'inactive'
+        }
         
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
@@ -559,7 +581,8 @@ class DebugManager:
                 'source': source,
                 'timestamp': datetime.now().isoformat(),
                 'data': data,
-                'acknowledged': False
+                'acknowledged': False,
+                'sent_to_alert_manager': False
             }
             
             with self._lock:
@@ -568,15 +591,18 @@ class DebugManager:
             # ارسال به alert_manager اگر تنظیم شده
             if self.alert_manager:
                 self._send_to_alert_manager(level, message, source, data)
-            
+                alert['sent_to_alert_manager'] = True
             logger.warning(f"🚨 {level.value} Alert: {message}")
             
         except Exception as e:
             logger.error(f"❌ Failed to create alert: {e}")
     
     def _send_to_alert_manager(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
-        """ارسال هشدار به alert_manager با تبدیل صحیح enumها"""
+        """ارسال هشدار به alert_manager با مدیریت خطای پیشرفته"""
         try:
+            if not self._alert_integration_enabled or not self.alert_manager:
+                return  # بدون خطا - فقط اگر انتگراسیون غیرفعال است
+            
             # نگاشت DebugLevel به AlertLevel
             level_mapping = {
                 DebugLevel.INFO: AlertLevel.INFO,
@@ -584,29 +610,38 @@ class DebugManager:
                 DebugLevel.ERROR: AlertLevel.ERROR,
                 DebugLevel.CRITICAL: AlertLevel.CRITICAL
             }
-            
+        
             # نگاشت منبع به نوع هشدار
             type_mapping = {
                 "data_normalizer": AlertType.SYSTEM,
                 "system_monitor": AlertType.SYSTEM,
                 "debug_manager": AlertType.SYSTEM
             }
+        
+            alert_level = level_mapping.get(level)
+            if not alert_level:
+                logger.warning(f"⚠️ Unknown debug level for alert mapping: {level}")
+                return
             
-            alert_level = level_mapping.get(level, AlertLevel.WARNING)
             alert_type = type_mapping.get(source, AlertType.PERFORMANCE)
-            
+        
+            # ارسال هشدار
             self.alert_manager.create_alert(
                 level=alert_level,
                 alert_type=alert_type,
-                title=f"{alert_level.value} Alert: {message}",
+                title=f"{alert_level.value} Alert from {source}",
                 message=message,
                 source=source,
                 data=data
             )
-            
+        
+            logger.debug(f"📨 Alert sent to AlertManager: {message}")
+        
         except Exception as e:
             logger.error(f"❌ Error sending to alert manager: {e}")
-    
+            # غیرفعال کردن انتگراسیون در صورت خطای مکرر
+            self._alert_integration_enabled = False
+        
     def _create_internal_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
         """ایجاد هشدار داخلی بدون ارسال به alert_manager"""
         try:
