@@ -457,69 +457,63 @@ def _get_cache_details() -> Dict[str, Any]:
         details["error"] = str(e)
         return details
 
-def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, api_status: Dict, system_metrics: Dict) -> List[str]:
-    """تولید توصیه‌های هوشمند بر اساس وضعیت واقعی کامپوننت‌ها"""
+def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, 
+                                 api_status: Dict, system_metrics: Dict) -> List[str]:
+    """تولید توصیه‌های هوشمند برای معماری Hybrid"""
     recommendations = []
     
-    # بررسی سیستم کش
-    cache_status = cache_details.get("overall_status")
-    connected_dbs = cache_details.get("connected_databases", 0)
-    
-    if cache_status == "unavailable":
-        recommendations.append("🔴 CRITICAL: Cache system completely unavailable - Check Redis connections")
-    elif cache_status == "degraded":
-        recommendations.append("🟡 WARNING: Cache system degraded - Only {connected_dbs}/5 databases connected")
-    elif connected_dbs < 5:
-        recommendations.append("🔧 OPTIMIZATION: Connect all 5 Redis databases for optimal performance")
-    
-    # بررسی آرشیو
-    if not cache_details.get("archive_system_available", False):
-        recommendations.append("📦 ENABLE: Historical archive system for data persistence")
-    
-    # بررسی بهینه‌ساز کش
-    if not cache_details.get("cache_optimizer_available", False):
-        recommendations.append("⚡ OPTIMIZATION: Enable cache optimization engine for better performance")
-    
-    # بررسی نرمال‌سازی
-    norm_success_rate = normalization_metrics.get("success_rate", 0)
-    if norm_success_rate < 80:
-        recommendations.append("🔄 CRITICAL: Data normalization success rate critically low ({norm_success_rate}%)")
-    elif norm_success_rate < 90:
-        recommendations.append("🔄 WARNING: Data normalization success rate below optimal ({norm_success_rate}%)")
-    
-    # بررسی API
-    api_available = api_status.get("available", False)
-    if not api_available:
-        recommendations.append("🌐 CRITICAL: External API connectivity issues - Check API key and network")
-    elif api_status.get("status") != "healthy":
-        recommendations.append("🌐 WARNING: External API status degraded - Monitor performance")
-    
-    # بررسی منابع سیستم
+    # بررسی منابع لوکال
     memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
-    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
     disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
     
     if memory_usage > 90:
-        recommendations.append("💾 CRITICAL: Memory usage critically high - Consider scaling or optimization")
+        recommendations.append("🔴 CRITICAL: Local memory critically high - Optimize local cache")
     elif memory_usage > 80:
-        recommendations.append("💾 WARNING: High memory usage - Monitor and optimize")
-    
-    if cpu_usage > 90:
-        recommendations.append("⚡ CRITICAL: CPU usage critically high - Investigate performance issues")
-    elif cpu_usage > 80:
-        recommendations.append("⚡ WARNING: High CPU usage - Consider load balancing")
+        recommendations.append("🟡 WARNING: High local memory usage - Clear temporary data")
     
     if disk_usage > 90:
-        recommendations.append("💽 CRITICAL: Disk space critically low - Immediate cleanup required")
+        recommendations.append("🔴 CRITICAL: Local disk space critically low - Run urgent cleanup")
     elif disk_usage > 85:
-        recommendations.append("💽 WARNING: Disk space running low - Schedule cleanup")
+        recommendations.append("🟡 WARNING: Local disk space running low - Schedule cleanup")
+    
+    # بررسی دیتابیس‌های ابری
+    connected_dbs = cache_details.get("connected_databases", 0)
+    if connected_dbs < 5:
+        recommendations.append(f"🔴 CRITICAL: Only {connected_dbs}/5 cloud databases connected")
+    elif connected_dbs < 5:
+        recommendations.append(f"🟡 WARNING: {connected_dbs}/5 cloud databases connected")
+    
+    # بررسی استفاده از فضای ابری
+    for db_name, db_info in cache_details.get("database_details", {}).items():
+        if db_info.get("status") == "connected":
+            used_percent = db_info.get("used_memory_percent", 0)
+            if used_percent > 90:
+                recommendations.append(f"🔴 {db_name.upper()}: Cloud storage critically full ({used_percent}%)")
+            elif used_percent > 80:
+                recommendations.append(f"🟡 {db_name.upper()}: Cloud storage nearly full ({used_percent}%)")
     
     # بررسی عملکرد کش
     cache_hit_rate = cache_details.get("real_metrics", {}).get("hit_rate", 0)
     if cache_hit_rate < 50:
-        recommendations.append("🎯 OPTIMIZATION: Cache hit rate very low ({cache_hit_rate}%) - Review caching strategy")
+        recommendations.append("🎯 OPTIMIZATION: Cache hit rate very low - Review caching strategy")
     elif cache_hit_rate < 80:
-        recommendations.append("🎯 OPTIMIZATION: Cache hit rate could be improved ({cache_hit_rate}%)")
+        recommendations.append("🎯 OPTIMIZATION: Cache hit rate could be improved")
+    
+    # بررسی API
+    if not api_status.get("available", False):
+        recommendations.append("🌐 CRITICAL: External API connectivity issues")
+    
+    # بررسی نرمال‌سازی
+    norm_success_rate = normalization_metrics.get("success_rate", 0)
+    if norm_success_rate < 80:
+        recommendations.append("🔄 CRITICAL: Data normalization success rate critically low")
+    
+    # توصیه‌های معماری Hybrid
+    if memory_usage > 70 and cache_hit_rate < 60:
+        recommendations.append("🏗️ ARCHITECTURE: Consider moving more data to cloud storage")
+    
+    if connected_dbs == 5 and memory_usage < 50:
+        recommendations.append("✅ ARCHITECTURE: Hybrid setup working optimally")
     
     return recommendations
 
@@ -547,42 +541,66 @@ def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dic
     return max(0, min(100, base_score))
                                    
 def _get_real_cache_health(cache_details: Dict) -> Dict[str, Any]:
-    """دریافت وضعیت واقعی سلامت کش - نسخه اصلاح شده"""
+    """دریافت وضعیت واقعی سلامت کش - نسخه Hybrid"""
     
     # استفاده از داده‌های واقعی از cache_details
     cache_status = cache_details.get("overall_status", "unavailable")
     connected_dbs = cache_details.get("connected_databases", 0)
     real_metrics = cache_details.get("real_metrics", {})
     
-    # محاسبه امتیاز سلامت بر اساس داده‌های واقعی
+    # محاسبه امتیاز سلامت بر اساس معماری Hybrid
     if connected_dbs == 5:
         cache_health_score = 95
         health_status = "healthy"
+        architecture = "5-cloud-databases"
     elif connected_dbs >= 3:
         cache_health_score = 75
         health_status = "degraded"
+        architecture = "partial-cloud-connection"
     elif connected_dbs >= 1:
         cache_health_score = 50
         health_status = "degraded"
+        architecture = "minimal-cloud-connection"
     else:
         cache_health_score = 0
         health_status = "unavailable"
+        architecture = "no-cloud-connection"
     
-    # تنظیم وضعیت دیتابیس‌ها بر اساس داده‌های واقعی
+    # وضعیت دیتابیس‌ها بر اساس داده‌های واقعی
     database_status = {}
+    cloud_storage_used = 0
+    cloud_storage_total = 1280  # 5 × 256MB
+    
     for db_name in ['uta', 'utb', 'utc', 'mother_a', 'mother_b']:
         db_info = cache_details.get("database_details", {}).get(db_name, {})
+        used_mb = db_info.get("used_memory_mb", 0)
+        cloud_storage_used += used_mb
+        
         database_status[db_name] = {
             "status": db_info.get("status", "unknown"),
+            "storage_type": "cloud",
+            "max_mb": 256,
+            "used_mb": used_mb,
+            "used_percent": db_info.get("used_memory_percent", 0),
             "connected": db_info.get("status") == "connected"
         }
     
     return {
+        "architecture": architecture,
         "status": health_status,
         "health_score": cache_health_score,
-        "architecture": cache_status,
-        "databases_connected": connected_dbs,
-        "total_databases": 5,
+        "storage_type": "hybrid",
+        "local_resources": {
+            "ram_mb": 512,
+            "disk_gb": 1
+        },
+        "cloud_resources": {
+            "databases_connected": connected_dbs,
+            "total_databases": 5,
+            "storage_used_mb": round(cloud_storage_used, 2),
+            "storage_total_mb": cloud_storage_total,
+            "storage_used_percent": round((cloud_storage_used / cloud_storage_total) * 100, 2)
+        },
         "database_status": database_status,
         "real_metrics": real_metrics,
         "performance": {
@@ -1394,76 +1412,44 @@ async def urgent_disk_cleanup():
 
 @health_router.get("/cleanup/disk-status")
 async def disk_status_detailed():
-    """وضعیت دقیق دیسک با جزئیات فایل‌های حجیم"""
+    """وضعیت دقیق دیسک با معماری Hybrid"""
     try:
         disk = psutil.disk_usage('/')
-        
-        # یافتن فایل‌های حجیم
-        large_files = []
-        total_large_files_size = 0
-        
-        # اسکن فایل‌های بزرگتر از 1MB
-        for root, dirs, files in os.walk('.'):
-            for file in files:
-                filepath = os.path.join(root, file)
-                try:
-                    if os.path.isfile(filepath):
-                        file_size = os.path.getsize(filepath)
-                        if file_size > 1 * 1024 * 1024:  # بیشتر از 1MB
-                            size_mb = file_size / (1024 * 1024)
-                            large_files.append({
-                                "path": filepath,
-                                "size_mb": round(size_mb, 2),
-                                "type": "large_file"
-                            })
-                            total_large_files_size += file_size
-                except (OSError, Exception):
-                    continue
-        
-        # محاسبه حجم پوشه‌های خاص
-        folder_sizes = {}
-        special_folders = ['__pycache__', 'node_modules', '.git', 'logs', '.cache']
-        
-        for folder in special_folders:
-            folder_size = 0
-            folder_count = 0
-            for found_folder in glob.glob(f"**/{folder}", recursive=True):
-                if os.path.isdir(found_folder):
-                    for dirpath, dirnames, filenames in os.walk(found_folder):
-                        for filename in filenames:
-                            filepath = os.path.join(dirpath, filename)
-                            try:
-                                if os.path.isfile(filepath):
-                                    folder_size += os.path.getsize(filepath)
-                                    folder_count += 1
-                            except (OSError, Exception):
-                                continue
-            
-            if folder_size > 0:
-                folder_sizes[folder] = {
-                    "size_mb": round(folder_size / (1024 * 1024), 2),
-                    "file_count": folder_count
-                }
+        memory = psutil.virtual_memory()
         
         return {
-            "disk_usage": {
-                "total_gb": 1.0,
-                "used_gb": round(disk.used / (1024**3), 2),
-                "free_gb": round(disk.free / (1024**3), 2),
-                "percent_used": disk.percent,
-                "critical_warning": disk.percent > 85
+            "architecture": "hybrid_local_cloud",
+            "local_resources": {
+                "memory": {
+                    "total_mb": round(memory.total / (1024 * 1024), 2),
+                    "available_mb": round(memory.available / (1024 * 1024), 2),
+                    "used_percent": memory.percent,
+                    "critical_warning": memory.percent > 85
+                },
+                "disk": {
+                    "total_gb": round(disk.total / (1024**3), 2),  # مقدار واقعی
+                    "used_gb": round(disk.used / (1024**3), 2),
+                    "free_gb": round(disk.free / (1024**3), 2),
+                    "percent_used": disk.percent,
+                    "critical_warning": disk.percent > 85
+                }
             },
-            "large_files": {
-                "count": len(large_files),
-                "total_size_mb": round(total_large_files_size / (1024 * 1024), 2),
-                "files": large_files[:10]  # فقط 10 فایل اول
+            "cloud_resources": {
+                "total_storage_mb": 1280,
+                "databases_count": 5,
+                "storage_per_db_mb": 256,
+                "databases": {
+                    "uta": {"purpose": "AI Core Models", "storage_mb": 256},
+                    "utb": {"purpose": "AI Processed Data", "storage_mb": 256},
+                    "utc": {"purpose": "Raw Data + Historical Archive", "storage_mb": 256},
+                    "mother_a": {"purpose": "System Core Data", "storage_mb": 256},
+                    "mother_b": {"purpose": "Operations & Analytics", "storage_mb": 256}
+                }
             },
-            "special_folders": folder_sizes,
             "cleanup_recommendations": [
-                "Run /api/health/cleanup/urgent to free space immediately",
-                "Delete __pycache__ folders (usually 50-200MB)",
-                "Clear log files if they are too large",
-                "Remove temporary .pyc files"
+                "Run /api/health/cleanup/urgent to free local disk space",
+                "Monitor cloud storage usage via /api/health/cache",
+                "Use /api/health/storage/architecture for detailed view"
             ],
             "timestamp": datetime.now().isoformat()
         }
