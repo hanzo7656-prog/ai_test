@@ -95,12 +95,16 @@ class CacheDebugger:
     
     # ==================== API های کاربردی برای routes ====================
     
-    def set_data(self, database: str, key: str, value: Any, expire: int = 300) -> bool:
-        """ذخیره داده در کش (برای استفاده در routes)"""
-        success, response_time = self.redis_manager.set(database, key, value, expire)
-        size = len(json.dumps(value, ensure_ascii=False)) if success else 0
-        self.log_cache_operation('SET', key, success, response_time, size, database=database)
-        return success
+    def set_data(self, key: str, value: Any, expire: int = 300, database: str = "uta") -> bool:
+        """ذخیره داده در کش - با مقدار پیش‌فرض"""
+        try:
+            success, response_time = self.redis_manager.set(database, key, value, expire)
+            size = len(json.dumps(value, ensure_ascii=False)) if success else 0
+            self.log_cache_operation('SET', key, success, response_time, size, database=database)
+            return success
+        except Exception as e:
+            logger.error(f"❌ Cache set_data error: {e}")
+            return False
     
     def get_data(self, database: str, key: str) -> Optional[Any]:
         """دریافت داده از کش (برای استفاده در routes)"""
