@@ -89,5 +89,5 @@ __all__ = [
     "DevTools", "dev_tools",
     "TestingTools", "testing_tools", 
     "ReportGenerator", "report_generator",
-    "initialize_tools_system"
+    "initialize_tools_system", "tools_system"
 ]
