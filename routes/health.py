@@ -152,9 +152,7 @@ class DebugSystemManager:
             except Exception as e:
                 logger.error(f"❌ Error initializing realtime: {e}")
             
-            # ایمپورت tools - این مشکل اصلی بود!
-            # در کلاس DebugSystemManager، بخش tools:
-            # در متد initialize()، بخش tools:
+            
             try:
                 from debug_system.tools import initialize_tools_system
     
@@ -268,40 +266,32 @@ def get_debug_module(module_name: str):
 # ==================== HELPER FUNCTIONS ====================
 
 def _check_cache_availability() -> bool:
-    """بررسی واقعی وضعیت سیستم کش"""
+    """بررسی واقعی وضعیت سیستم کش - نسخه اصلاح شده"""
     try:
-        # Smart Cache:اول #
-        smart_cache_ok = False
-        if smart_cache and hasattr(smart_cache, 'get_health_status'):
-            try:
-                cache_health = smart_cache.get_health_status()  # ✅ الان این متد وجود داره
-                smart_cache_ok = cache_health.get("status") == "healthy"
-                logger.info(f"✅ Smart cache health: {cache_health.get('status')}")
-            except Exception as e:
-                logger.warning(f"❌ Smart cache health check failed: {e}")
-                smart_cache_ok = False
-        else:
-            smart_cache_ok = False
-            logger.warning("❌ Smart cache not available or missing get_health_status method")
-        
-        # بررسی دوم: Redis
+        # بررسی Redis
         from debug_system.storage import redis_manager
         redis_health = redis_manager.health_check()
-        redis_ok = redis_health.get("status") == "connected"
         
-        # بررسی سوم: Cache Debugger
-        cache_debugger_ok = False
+        # بررسی اتصال حداقل یک دیتابیس
+        connected_dbs = 0
+        for db_name, status in redis_health.items():
+            if isinstance(status, dict) and status.get('status') == 'connected':
+                connected_dbs += 1
+        
+        # بررسی Cache Debugger
+        cache_debugger_available = False
         try:
             from debug_system.storage.cache_debugger import cache_debugger
-            cache_debugger_ok = hasattr(cache_debugger, 'get_cache_stats')
-        except ImportError:
-            cache_debugger_ok = False
+            cache_stats = cache_debugger.get_cache_stats()
+            cache_debugger_available = cache_stats.get('total_operations', 0) > 0
+        except:
+            cache_debugger_available = False
         
-        # اگر حداقل یکی از سیستم‌ها کار کند، کش در دسترس است
-        return smart_cache_ok or redis_ok or cache_debugger_ok
+        # کش در دسترس است اگر حداقل یک دیتابیس متصل باشد یا cache_debugger کار کند
+        return connected_dbs > 0 or cache_debugger_available
         
     except Exception as e:
-        logger.warning(f"⚠️ Cache availability check failed: {e}")
+        logger.error(f"❌ Cache availability check failed: {e}")
         return False
 
 def _check_normalization_availability() -> bool:
@@ -319,25 +309,45 @@ def _check_normalization_availability() -> bool:
         logger.warning(f"⚠️ Normalization availability check failed: {e}")
         return False
 
-def _check_external_apis_availability() -> bool:
-    """بررسی واقعی وضعیت APIهای خارجی"""
+def _check_external_apis_availability() -> Dict[str, Any]:
+    """بررسی واقعی وضعیت APIهای خارجی - نسخه کامل"""
     try:
         if not coin_stats_manager:
-            logger.warning("coin_stats_manager is None")
-            return False
+            return {
+                "available": False,
+                "status": "manager_not_initialized",
+                "details": {"error": "coin_stats_manager is None"}
+            }
         
-        # استفاده از متد تست سریع
-        if hasattr(coin_stats_manager, 'test_api_connection_quick'):
-            return coin_stats_manager.test_api_connection_quick()
-        
-        # روش جایگزین
+        # گرفتن وضعیت کامل API
         api_status = coin_stats_manager.get_api_status()
-        return api_status.get('status') in ['healthy', 'connected']
+        
+        # بررسی عمیق‌تر اتصال
+        connection_test = coin_stats_manager.test_api_connection_quick()
+        
+        # گرفتن متریک‌های عملکرد
+        performance_metrics = {}
+        if hasattr(coin_stats_manager, 'get_performance_metrics'):
+            performance_metrics = coin_stats_manager.get_performance_metrics()
+        
+        return {
+            "available": connection_test and api_status.get('status') == 'healthy',
+            "status": api_status.get('status', 'unknown'),
+            "connection_test": connection_test,
+            "details": api_status,
+            "performance_metrics": performance_metrics,
+            "cache_info": coin_stats_manager.get_cache_info() if hasattr(coin_stats_manager, 'get_cache_info') else {},
+            "timestamp": datetime.now().isoformat()
+        }
             
     except Exception as e:
-        logger.warning(f"API availability check failed: {e}")
-        return False
-
+        logger.error(f"❌ API availability check failed: {e}")
+        return {
+            "available": False,
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 def _test_api_connection_quick() -> bool:
     """تست سریع اتصال به API"""
     try:
@@ -350,8 +360,10 @@ def _test_api_connection_quick() -> bool:
         logger.warning(f"API quick test failed: {e}")
         return False
 
+
+        
 def _get_cache_details() -> Dict[str, Any]:
-    """دریافت جزئیات وضعیت کش - نسخه واقعی"""
+    """دریافت جزئیات وضعیت کش - نسخه واقعی و کامل"""
     details = {
         "smart_cache_available": False,
         "cache_optimizer_available": False,
@@ -359,34 +371,39 @@ def _get_cache_details() -> Dict[str, Any]:
         "redis_available": False,
         "cache_debugger_available": False,
         "connected_databases": 0,
-        "overall_status": "unavailable"
+        "database_details": {},
+        "overall_status": "unavailable",
+        "real_metrics": {}
     }
     
     try:
         # بررسی واقعی وضعیت Redis
         from debug_system.storage import redis_manager
-        
-        # تست اتصال به تمام دیتابیس‌ها
         redis_health = redis_manager.health_check()
+        
         connected_count = 0
+        database_details = {}
         
         for db_name, health in redis_health.items():
-            if health.get('status') == 'connected':
+            if isinstance(health, dict) and health.get('status') == 'connected':
                 connected_count += 1
+                database_details[db_name] = {
+                    "status": "connected",
+                    "role": health.get('role', 'unknown'),
+                    "keys": health.get('keys', 0),
+                    "memory_usage": health.get('memory_usage', 0)
+                }
+            else:
+                database_details[db_name] = {
+                    "status": "disconnected",
+                    "error": str(health) if not isinstance(health, dict) else health.get('error', 'unknown')
+                }
         
         details["redis_available"] = connected_count > 0
         details["connected_databases"] = connected_count
-        
-        # تعیین وضعیت کلی بر اساس اتصال واقعی
-        if connected_count == 5:
-            details["overall_status"] = "advanced"
-        elif connected_count >= 1:
-            details["overall_status"] = "basic" 
-        else:
-            details["overall_status"] = "unavailable"
+        details["database_details"] = database_details
         
         # بررسی سیستم کش جدید
-        details["new_cache_system_available"] = NEW_CACHE_SYSTEM_AVAILABLE
         if NEW_CACHE_SYSTEM_AVAILABLE:
             try:
                 archive_stats = get_archive_stats()
@@ -398,50 +415,281 @@ def _get_cache_details() -> Dict[str, Any]:
         
         # بررسی Cache Optimization Engine
         if cache_optimizer and hasattr(cache_optimizer, 'analyze_access_patterns'):
-            details["cache_optimizer_available"] = True
+            try:
+                # تست واقعی عملکرد
+                analysis = cache_optimizer.analyze_access_patterns(hours=1)
+                details["cache_optimizer_available"] = True
+                details["optimizer_metrics"] = analysis.get('summary', {})
+            except Exception as e:
+                details["cache_optimizer_available"] = False
+                details["optimizer_error"] = str(e)
         
-        # بررسی Cache Debugger
+        # بررسی Cache Debugger و گرفتن متریک‌های واقعی
         try:
             from debug_system.storage.cache_debugger import cache_debugger
-            details["cache_debugger_available"] = hasattr(cache_debugger, 'get_cache_stats')
-        except ImportError:
+            cache_stats = cache_debugger.get_cache_stats()
+            details["cache_debugger_available"] = True
+            details["real_metrics"] = {
+                "hit_rate": cache_stats.get('hit_rate', 0),
+                "total_operations": cache_stats.get('total_operations', 0),
+                "avg_response_time": cache_stats.get('avg_response_time', 0),
+                "cache_size": cache_stats.get('cache_size', 0),
+                "keys_count": cache_stats.get('keys_count', 0)
+            }
+        except Exception as e:
             details["cache_debugger_available"] = False
+            details["cache_debugger_error"] = str(e)
+        
+        # تعیین وضعیت کلی بر اساس اتصال واقعی
+        if connected_count == 5:
+            details["overall_status"] = "advanced"
+        elif connected_count >= 3:
+            details["overall_status"] = "healthy"
+        elif connected_count >= 1:
+            details["overall_status"] = "degraded"
+        else:
+            details["overall_status"] = "unavailable"
         
         return details
         
     except Exception as e:
         logger.error(f"❌ Error getting real cache details: {e}")
-        # Fallback به وضعیت قبلی در صورت خطا
+        details["error"] = str(e)
         return details
 
-def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, api_status: str) -> List[str]:
-    """تولید توصیه‌های هوشمند بر اساس وضعیت کامپوننت‌ها"""
+def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, api_status: Dict, system_metrics: Dict) -> List[str]:
+    """تولید توصیه‌های هوشمند بر اساس وضعیت واقعی کامپوننت‌ها"""
     recommendations = []
     
     # بررسی سیستم کش
-    if not cache_details.get("five_databases_available", False):
-        recommendations.append("🔧 Connect all 5 Redis databases for optimal cache performance")
+    cache_status = cache_details.get("overall_status")
+    connected_dbs = cache_details.get("connected_databases", 0)
     
+    if cache_status == "unavailable":
+        recommendations.append("🔴 CRITICAL: Cache system completely unavailable - Check Redis connections")
+    elif cache_status == "degraded":
+        recommendations.append("🟡 WARNING: Cache system degraded - Only {connected_dbs}/5 databases connected")
+    elif connected_dbs < 5:
+        recommendations.append("🔧 OPTIMIZATION: Connect all 5 Redis databases for optimal performance")
+    
+    # بررسی آرشیو
     if not cache_details.get("archive_system_available", False):
-        recommendations.append("📦 Enable historical archive system for data persistence")
+        recommendations.append("📦 ENABLE: Historical archive system for data persistence")
     
-    if cache_details.get("connected_databases", 0) < 3:
-        recommendations.append("⚠️ Low database connectivity - check Redis connections")
+    # بررسی بهینه‌ساز کش
+    if not cache_details.get("cache_optimizer_available", False):
+        recommendations.append("⚡ OPTIMIZATION: Enable cache optimization engine for better performance")
     
     # بررسی نرمال‌سازی
-    if normalization_metrics.get("success_rate", 0) < 85:
-        recommendations.append("🔄 Improve data normalization rules - current success rate is low")
+    norm_success_rate = normalization_metrics.get("success_rate", 0)
+    if norm_success_rate < 80:
+        recommendations.append("🔄 CRITICAL: Data normalization success rate critically low ({norm_success_rate}%)")
+    elif norm_success_rate < 90:
+        recommendations.append("🔄 WARNING: Data normalization success rate below optimal ({norm_success_rate}%)")
     
     # بررسی API
-    if api_status != "healthy":
-        recommendations.append("🌐 Fix external API connectivity issues")
+    api_available = api_status.get("available", False)
+    if not api_available:
+        recommendations.append("🌐 CRITICAL: External API connectivity issues - Check API key and network")
+    elif api_status.get("status") != "healthy":
+        recommendations.append("🌐 WARNING: External API status degraded - Monitor performance")
     
-    # بررسی منابع
-    memory = psutil.virtual_memory()
-    if memory.percent > 80:
-        recommendations.append("💾 High memory usage - consider optimization")
+    # بررسی منابع سیستم
+    memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
+    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
+    disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
+    
+    if memory_usage > 90:
+        recommendations.append("💾 CRITICAL: Memory usage critically high - Consider scaling or optimization")
+    elif memory_usage > 80:
+        recommendations.append("💾 WARNING: High memory usage - Monitor and optimize")
+    
+    if cpu_usage > 90:
+        recommendations.append("⚡ CRITICAL: CPU usage critically high - Investigate performance issues")
+    elif cpu_usage > 80:
+        recommendations.append("⚡ WARNING: High CPU usage - Consider load balancing")
+    
+    if disk_usage > 90:
+        recommendations.append("💽 CRITICAL: Disk space critically low - Immediate cleanup required")
+    elif disk_usage > 85:
+        recommendations.append("💽 WARNING: Disk space running low - Schedule cleanup")
+    
+    # بررسی عملکرد کش
+    cache_hit_rate = cache_details.get("real_metrics", {}).get("hit_rate", 0)
+    if cache_hit_rate < 50:
+        recommendations.append("🎯 OPTIMIZATION: Cache hit rate very low ({cache_hit_rate}%) - Review caching strategy")
+    elif cache_hit_rate < 80:
+        recommendations.append("🎯 OPTIMIZATION: Cache hit rate could be improved ({cache_hit_rate}%)")
     
     return recommendations
+
+def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dict, 
+                               api_status: Dict, system_metrics: Dict) -> int:
+    """محاسبه واقعی امتیاز سلامت سیستم بر اساس متریک‌های واقعی"""
+    base_score = 100
+    
+    # کسر بر اساس وضعیت کش
+    cache_status = cache_details.get("overall_status")
+    if cache_status == "unavailable":
+        base_score -= 40
+    elif cache_status == "degraded":
+        base_score -= 20
+    elif cache_status == "healthy":
+        base_score -= 5
+    
+    # کسر بر اساس نرخ موفقیت نرمال‌سازی
+    norm_success = normalization_metrics.get("success_rate", 0)
+    if norm_success < 80:
+        base_score -= 25
+    elif norm_success < 90:
+        base_score -= 10
+    elif norm_success < 95:
+        base_score -= 5
+    
+    # کسر بر اساس وضعیت API
+    if not api_status.get("available", False):
+        base_score -= 20
+    elif api_status.get("status") != "healthy":
+        base_score -= 10
+    
+    # کسر بر اساس منابع سیستم
+    memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
+    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
+    disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
+    
+    if memory_usage > 90:
+        base_score -= 15
+    elif memory_usage > 80:
+        base_score -= 8
+    
+    if cpu_usage > 90:
+        base_score -= 15
+    elif cpu_usage > 80:
+        base_score -= 8
+    
+    if disk_usage > 90:
+        base_score -= 20
+    elif disk_usage > 85:
+        base_score -= 10
+    
+    # کسر بر اساس عملکرد کش
+    cache_hit_rate = cache_details.get("real_metrics", {}).get("hit_rate", 0)
+    if cache_hit_rate < 50:
+        base_score -= 10
+    elif cache_hit_rate < 70:
+        base_score -= 5
+    
+    # اطمینان از محدوده معقول
+    return max(0, min(100, base_score))
+
+def _get_real_cache_health(cache_details: Dict) -> Dict[str, Any]:
+    """دریافت وضعیت واقعی سلامت کش"""
+    
+    cache_status = cache_details.get("overall_status", "unavailable")
+    connected_dbs = cache_details.get("connected_databases", 0)
+    real_metrics = cache_details.get("real_metrics", {})
+    
+    # محاسبه امتیاز سلامت کش
+    cache_health_score = 0
+    if cache_status == "advanced":
+        cache_health_score = 95
+    elif cache_status == "healthy":
+        cache_health_score = 80
+    elif cache_status == "degraded":
+        cache_health_score = 60
+    else:
+        cache_health_score = 0
+    
+    # تنظیم وضعیت بر اساس امتیاز
+    status_mapping = {
+        90: "healthy",
+        70: "degraded", 
+        0: "unavailable"
+    }
+    
+    health_status = "unavailable"
+    for threshold, status in status_mapping.items():
+        if cache_health_score >= threshold:
+            health_status = status
+            break
+    
+    return {
+        "status": health_status,
+        "health_score": cache_health_score,
+        "architecture": cache_status,
+        "databases_connected": connected_dbs,
+        "total_databases": 5,
+        "real_metrics": real_metrics,
+        "features": {
+            "real_time_cache": connected_dbs > 0,
+            "historical_archive": cache_details.get("archive_system_available", False),
+            "data_compression": cache_details.get("cache_optimizer_available", False),
+            "smart_ttl_management": cache_details.get("cache_optimizer_available", False),
+            "access_pattern_analysis": cache_details.get("cache_optimizer_available", False),
+            "cost_optimization": cache_details.get("cache_optimizer_available", False)
+        },
+        "performance": {
+            "connected_databases": connected_dbs,
+            "total_archives": cache_details.get("archive_stats", {}).get("total_archives", 0),
+            "archive_size_mb": cache_details.get("archive_stats", {}).get("total_size_mb", 0),
+            "optimization_available": cache_details.get("cache_optimizer_available", False)
+        },
+        "summary": {
+            "hit_rate": real_metrics.get("hit_rate", 0),
+            "total_requests": real_metrics.get("total_operations", 0),
+            "avg_response_time": real_metrics.get("avg_response_time", 0),
+            "compression_savings": 0,  # نیاز به پیاده‌سازی واقعی
+            "strategies_active": 4 if cache_details.get("cache_optimizer_available") else 1
+        }
+    }
+
+def _get_real_database_configs() -> Dict[str, Any]:
+    """دریافت تنظیمات واقعی دیتابیس‌ها"""
+    try:
+        from debug_system.storage import redis_manager
+        
+        # گرفتن اطلاعات واقعی از redis_manager
+        redis_health = redis_manager.health_check()
+        
+        database_configs = {}
+        roles = {
+            "uta": "AI Core Models - Long term storage",
+            "utb": "AI Processed Data - Medium TTL", 
+            "utc": "Raw Data + Historical Archive - Short TTL + Long term archive",
+            "mother_a": "System Core Data - Critical system data", 
+            "mother_b": "Operations & Analytics - Cache analytics and temp data"
+        }
+        
+        for db_name, role_description in roles.items():
+            db_status = redis_health.get(db_name, {})
+            if isinstance(db_status, dict):
+                database_configs[db_name] = {
+                    "role": role_description,
+                    "status": db_status.get('status', 'unknown'),
+                    "keys": db_status.get('keys', 0),
+                    "memory_usage_mb": db_status.get('memory_usage', 0),
+                    "connected": db_status.get('status') == 'connected'
+                }
+            else:
+                database_configs[db_name] = {
+                    "role": role_description,
+                    "status": "error",
+                    "error": str(db_status),
+                    "connected": False
+                }
+        
+        return database_configs
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting real database configs: {e}")
+        # Fallback به تنظیمات پایه
+        return {
+            "uta": {"role": "AI Core Models - Long term storage", "status": "unknown", "connected": False},
+            "utb": {"role": "AI Processed Data - Medium TTL", "status": "unknown", "connected": False},
+            "utc": {"role": "Raw Data + Historical Archive", "status": "unknown", "connected": False},
+            "mother_a": {"role": "System Core Data", "status": "unknown", "connected": False},
+            "mother_b": {"role": "Operations & Analytics", "status": "unknown", "connected": False}
+        }
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
 @health_router.get("/status")
@@ -459,7 +707,7 @@ async def health_status():
         
         # 2. وضعیت سیستم کش - نسخه کاملاً آپدیت شده
         cache_details = _get_cache_details()
-        cache_health = {}
+        cache_health = _get_real_cache_health(cache_details)
         cache_available = cache_details["overall_status"] != "unavailable"
 
         try:
@@ -560,9 +808,9 @@ async def health_status():
             }
         
         # 3. وضعیت API خارجی - نسخه واقعی
-        api_status = "unknown"
-        api_details = {}
-        api_available = _check_external_apis_availability()
+        api_status_info = _check_external_apis_availability()
+        api_available = api_status_info.get("available", False)
+        api_status = api_status_info.get("status", "unknown")
 
         if coin_stats_manager:
             try:
@@ -634,7 +882,12 @@ async def health_status():
         }
         
         # 7. محاسبه سلامت کلی سیستم - نسخه آپدیت شده
-        health_score = 100
+        health_score = _calculate_real_health_score(
+            cache_details=cache_details,
+            normalization_metrics=normalization_metrics,
+            api_status=api_status_info,
+            system_metrics=resources_status
+        )
         
         # کسر امتیاز بر اساس خطاها - منطق آپدیت شده
         cache_status = cache_health.get("status")
@@ -728,7 +981,12 @@ async def health_status():
         
         # 10. هشدارها و توصیه‌ها - نسخه آپدیت شده
         alerts = []
-        recommendations = []
+        recommendations = _get_component_recommendations(
+            cache_details=cache_details,
+            normalization_metrics=normalization_metrics,
+            api_status=api_status_info,
+            system_metrics=resources_status
+        )
         
         # بررسی هشدارها
         if health_score < 90:
@@ -860,17 +1118,12 @@ async def health_status():
             }
         },
             
+            # خط ~610 - جایگزینی با تابع جدید
             "cache_architecture_details": {
-                "databases": {
-                    "uta": "AI Core Models - Long term storage",
-                    "utb": "AI Processed Data - Medium TTL", 
-                    "utc": "Raw Data + Historical Archive - Short TTL + Long term archive",
-                    "mother_a": "System Core Data - Critical system data",
-                    "mother_b": "Operations & Analytics - Cache analytics and temp data"
-                },
+                "databases": _get_real_database_configs(),  # ✅ تابع جدید
                 "features_available": cache_health.get("features", {}),
                 "performance_metrics": cache_health.get("performance", {})
-            }
+        
         }
         
         return response
