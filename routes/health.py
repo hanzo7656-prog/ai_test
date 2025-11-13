@@ -162,17 +162,17 @@ class DebugSystemManager:
                 debug_manager_instance = cls._modules.get('debug_manager')
                 history_manager_instance = cls._modules.get('history_manager')  # ✅ این خط اضافه شد
     
-            if debug_manager_instance and history_manager_instance:
-                tools_result = initialize_tools_system(
-                    debug_manager_instance=debug_manager_instance,
-                    history_manager_instance=history_manager_instance  # ✅ حالا تعریف شده
-                )
+                if debug_manager_instance and history_manager_instance:
+                    tools_result = initialize_tools_system(
+                        debug_manager_instance=debug_manager_instance,
+                        history_manager_instance=history_manager_instance  # ✅ حالا تعریف شده
+                    )
         
-                cls._modules.update({
-                    'report_generator': tools_result.get('report_generator'),
-                    'dev_tools': tools_result.get('dev_tools'),
-                    'testing_tools': tools_result.get('testing_tools')
-                })
+                    cls._modules.update({
+                        'report_generator': tools_result.get('report_generator'),
+                        'dev_tools': tools_result.get('dev_tools'),
+                        'testing_tools': tools_result.get('testing_tools')
+                    })
         
                     logger.info("✅ Tools initialized with dependencies")
                 else:
