@@ -412,8 +412,15 @@ except ImportError as e:
 # 🔽 سیستم کش - این بلوک رو اضافه کن
 try:
     from debug_system.storage import redis_manager, cache_debugger
+    
+    # تست سلامت Redis
     redis_health = redis_manager.health_check()
-    print(f"✅ Cache system imported - Redis: {redis_health['status']}")
+    
+    # 🔽 این رو جایگزین کن:
+    status = getattr(redis_health, 'status', 
+                    redis_health.get('status', 'unknown') if isinstance(redis_health, dict) else 'checked')
+    
+    print(f"✅ Cache system imported - Redis: {status}")
     
     # تست عملکرد کش
     test_success = cache_debugger.set_data("system_startup_test", {"status": "ok", "time": datetime.now().isoformat()}, 60)
@@ -423,13 +430,10 @@ try:
         print("⚠️ Cache system test: FAILED")
     
     CACHE_AVAILABLE = True
-except ImportError as e:
-    print(f"❌ Cache system import error: {e}")
-    CACHE_AVAILABLE = False
+    
 except Exception as e:
     print(f"❌ Cache system initialization error: {e}")
     CACHE_AVAILABLE = False
-    
 # ==================== DEBUG SYSTEM IMPORTS ====================
 DEBUG_SYSTEM_AVAILABLE = False
 live_dashboard_manager = None
