@@ -400,4 +400,4 @@ class IntelligentBackgroundWorker:
         return self.active_tasks.get(task_id)
 
 # نمونه گلوبال
-background_worker = IntelligentBackgroundWorker(max_workers=4, max_cpu_percent=65.0)p
+background_worker = IntelligentBackgroundWorker(max_workers=4, max_cpu_percent=65.0)
