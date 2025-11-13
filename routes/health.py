@@ -398,7 +398,7 @@ def _get_cache_details() -> Dict[str, Any]:
         logger.error(f"❌ Error getting cache details: {e}")
         return details
 
-def _get_component_recommendations(self, cache_details: Dict, normalization_metrics: Dict, api_status: str) -> List[str]:
+def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, api_status: str) -> List[str]:
     """تولید توصیه‌های هوشمند بر اساس وضعیت کامپوننت‌ها"""
     recommendations = []
     
@@ -426,7 +426,6 @@ def _get_component_recommendations(self, cache_details: Dict, normalization_metr
         recommendations.append("💾 High memory usage - consider optimization")
     
     return recommendations
-
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
 @health_router.get("/status")
