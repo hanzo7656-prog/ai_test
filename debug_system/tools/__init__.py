@@ -1,13 +1,13 @@
 """
-Debug System Tools
-Development and testing utilities
+Debug System Tools Package
+ابزارهای توسعه، تست و گزارش‌گیری
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های خالی - در initialize پر می‌شوند
+# نمونه‌های خالی - در initialize پر می‌شوند
 dev_tools = None
 testing_tools = None
 report_generator = None
@@ -15,6 +15,7 @@ report_generator = None
 def initialize_tools_system(debug_manager_instance=None, history_manager_instance=None):
     """راه‌اندازی و ارتباط ابزارهای توسعه"""
     try:
+        # Lazy import برای جلوگیری از circular dependency
         from .dev_tools import DevTools
         from .testing_tools import TestingTools
         from .report_generator import ReportGenerator
@@ -25,34 +26,68 @@ def initialize_tools_system(debug_manager_instance=None, history_manager_instanc
         if debug_manager_instance:
             dev_tools = DevTools(debug_manager_instance)
             testing_tools = TestingTools(debug_manager_instance)
+            logger.info("✅ DevTools and TestingTools initialized")
         
         if debug_manager_instance and history_manager_instance:
             report_generator = ReportGenerator(debug_manager_instance, history_manager_instance)
+            logger.info("✅ ReportGenerator initialized")
         
-        logger.info("✅ Debug tools system initialized")
-        logger.info(f"   - Dev Tools: {type(dev_tools).__name__ if dev_tools else 'Not available'}")
-        logger.info(f"   - Testing Tools: {type(testing_tools).__name__ if testing_tools else 'Not available'}")
-        logger.info(f"   - Report Generator: {type(report_generator).__name__ if report_generator else 'Not available'}")
+        logger.info("🎯 Debug tools system fully initialized")
         
         return {
             "dev_tools": dev_tools,
-            "testing_tools": testing_tools,
-            "report_generator": report_generator
+            "testing_tools": testing_tools, 
+            "report_generator": report_generator,
+            "status": "success"
         }
+        
     except Exception as e:
         logger.error(f"❌ Tools initialization failed: {e}")
+        # ایجاد stub برای جلوگیری از خطا
+        class StubTools:
+            def __getattr__(self, name):
+                return lambda *args, **kwargs: {"error": "Tools not initialized"}
+        
+        if debug_manager_instance and not dev_tools:
+            dev_tools = StubTools()
+            testing_tools = StubTools()
+        
+        if debug_manager_instance and history_manager_instance and not report_generator:
+            report_generator = StubTools()
+        
         return {
             "dev_tools": dev_tools,
             "testing_tools": testing_tools,
-            "report_generator": report_generator
+            "report_generator": report_generator,
+            "status": "partial",
+            "error": str(e)
         }
 
-# راه‌اندازی اولیه (بدون dependency)
-tools_system = initialize_tools_system()
+# ایمپورت کلاس‌ها برای export
+try:
+    from .dev_tools import DevTools
+    from .testing_tools import TestingTools
+    from .report_generator import ReportGenerator
+except ImportError as e:
+    logger.warning(f"⚠️ Could not import tools classes: {e}")
+    
+    # ایجاد stub classes
+    class DevTools:
+        def __init__(self, debug_manager=None):
+            self.debug_manager = debug_manager
+    
+    class TestingTools:
+        def __init__(self, debug_manager=None):
+            self.debug_manager = debug_manager
+    
+    class ReportGenerator:
+        def __init__(self, debug_manager=None, history_manager=None):
+            self.debug_manager = debug_manager
+            self.history_manager = history_manager
 
 __all__ = [
     "DevTools", "dev_tools",
-    "TestingTools", "testing_tools",
+    "TestingTools", "testing_tools", 
     "ReportGenerator", "report_generator",
-    "initialize_tools_system", "tools_system"
+    "initialize_tools_system"
 ]
