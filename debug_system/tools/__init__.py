@@ -156,6 +156,8 @@ def initialize_tools_system(debug_manager_instance=None, history_manager_instanc
 def _setup_default_scheduled_tasks():
     """راه‌اندازی کارهای زمان‌بندی شده پیش‌فرض"""
     try:
+        global task_scheduler, background_tasks
+        
         # زمان‌بندی پاک‌سازی دوره‌ای
         task_scheduler.schedule_task(
             task_id="daily_cleanup",
@@ -187,7 +189,6 @@ def _setup_default_scheduled_tasks():
         
     except Exception as e:
         logger.warning(f"⚠️ Failed to setup default scheduled tasks: {e}")
-
 def shutdown_tools_system():
     """خاموش کردن ایمن تمام سیستم‌ها"""
     try:
