@@ -324,51 +324,74 @@ def get_historical_data(function_name: str, prefix: str, start_date: str, end_da
     return historical_results
 
 def get_archive_stats(prefix: str = None) -> Dict[str, Any]:
-    """آمار داده‌های آرشیو شده"""
-    archive_pattern = "archive:*" if not prefix else f"archive:*:{prefix}:*"
-    archive_keys = cache_debugger.get_keys("utc", archive_pattern)[0]
-    
-    stats = {
-        'total_archives': len(archive_keys),
-        'by_strategy': defaultdict(int),
-        'by_prefix': defaultdict(int),
-        'by_function': defaultdict(int),
-        'oldest_archive': None,
-        'newest_archive': None,
-        'total_size_mb': 0
-    }
-    
-    for key in archive_keys:
-        try:
-            parts = key.split(':')
-            if len(parts) >= 4:
-                strategy = parts[1]
-                archive_prefix = parts[2] if len(parts) > 2 else "unknown"
-                time_part = parts[3] if len(parts) > 3 else "unknown"
-                
-                stats['by_strategy'][strategy] += 1
-                stats['by_prefix'][archive_prefix] += 1
-                
-                # محاسبه اندازه تقریبی
-                data = cache_debugger.get_data("utc", key)
-                if data:
-                    stats['total_size_mb'] += len(json.dumps(data)) / (1024 * 1024)
-                    
-                    function_name = data.get('metadata', {}).get('function', 'unknown')
-                    stats['by_function'][function_name] += 1
-                
-                # به روزرسانی قدیمی‌ترین و جدیدترین
-                if time_part != "unknown":
-                    if not stats['oldest_archive'] or time_part < stats['oldest_archive']:
-                        stats['oldest_archive'] = time_part
-                    if not stats['newest_archive'] or time_part > stats['newest_archive']:
-                        stats['newest_archive'] = time_part
+    """آمار داده‌های آرشیو شده با مدیریت خطا"""
+    try:
+        archive_pattern = "archive:*" if not prefix else f"archive:*:{prefix}:*"
         
-        except Exception as e:
-            print(f"❌ Error processing archive key {key}: {e}")
-    
-    stats['total_size_mb'] = round(stats['total_size_mb'], 2)
-    return stats
+        # 🔧 اضافه کردن مدیریت خطا
+        keys_result = cache_debugger.get_keys("utc", archive_pattern)
+        archive_keys = keys_result[0] if keys_result else []
+        
+        stats = {
+            'total_archives': len(archive_keys),
+            'by_strategy': defaultdict(int),
+            'by_prefix': defaultdict(int),
+            'by_function': defaultdict(int),
+            'oldest_archive': None,
+            'newest_archive': None,
+            'total_size_mb': 0,
+            'status': 'success'
+        }
+        
+        # نمونه‌گیری از کلیدها برای جلوگیری از overload
+        sample_keys = archive_keys[:100]  # فقط ۱۰۰ کلید اول
+        
+        for key in sample_keys:
+            try:
+                parts = key.split(':')
+                if len(parts) >= 4:
+                    strategy = parts[1]
+                    archive_prefix = parts[2] if len(parts) > 2 else "unknown"
+                    
+                    stats['by_strategy'][strategy] += 1
+                    stats['by_prefix'][archive_prefix] += 1
+                    
+                    # محاسبه اندازه تقریبی
+                    data = cache_debugger.get_data("utc", key)
+                    if data:
+                        stats['total_size_mb'] += len(json.dumps(data)) / (1024 * 1024)
+                        
+                        function_name = data.get('metadata', {}).get('function', 'unknown')
+                        stats['by_function'][function_name] += 1
+                    
+                    # به روزرسانی قدیمی‌ترین و جدیدترین
+                    time_part = parts[3] if len(parts) > 3 else "unknown"
+                    if time_part != "unknown":
+                        if not stats['oldest_archive'] or time_part < stats['oldest_archive']:
+                            stats['oldest_archive'] = time_part
+                        if not stats['newest_archive'] or time_part > stats['newest_archive']:
+                            stats['newest_archive'] = time_part
+            
+            except Exception as e:
+                logger.warning(f"⚠️ Error processing archive key {key}: {e}")
+                continue
+        
+        stats['total_size_mb'] = round(stats['total_size_mb'], 2)
+        stats['sampled_keys'] = len(sample_keys)
+        stats['total_keys_in_pattern'] = len(archive_keys)
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"❌ Error in get_archive_stats: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'total_archives': 0,
+            'by_strategy': {},
+            'by_prefix': {},
+            'by_function': {}
+        }
 
 def cleanup_old_archives(days_old: int = 365):
     """پاک کردن آرشیوهای قدیمی"""
