@@ -69,6 +69,9 @@ class DebugSystemManager:
             return cls._modules
         
         try:
+            import time
+            time.sleep(2)
+            
             logger.info("🔄 Initializing debug system (lazy loading)...")
             
             # ایمپورت core modules - اینها همیشه باید کار کنند
@@ -151,23 +154,30 @@ class DebugSystemManager:
             
             # ایمپورت tools - این مشکل اصلی بود!
             # در کلاس DebugSystemManager، بخش tools:
+            # در متد initialize()، بخش tools:
             try:
                 from debug_system.tools import initialize_tools_system
     
-                # مقداردهی tools با dependencyهای واقعی
-                tools_result = initialize_tools_system(
-                    debug_manager_instance=debug_manager,
-                    history_manager_instance=history_manager_instance
-                )
+                # استفاده از instanceهای واقعی که قبلاً لود شده‌اند
+                debug_manager_instance = cls._modules.get('debug_manager')
+                history_manager_instance = cls._modules.get('history_manager')  # ✅ این خط اضافه شد
     
+            if debug_manager_instance and history_manager_instance:
+                tools_result = initialize_tools_system(
+                    debug_manager_instance=debug_manager_instance,
+                    history_manager_instance=history_manager_instance  # ✅ حالا تعریف شده
+                )
+        
                 cls._modules.update({
                     'report_generator': tools_result.get('report_generator'),
                     'dev_tools': tools_result.get('dev_tools'),
                     'testing_tools': tools_result.get('testing_tools')
                 })
-    
-                logger.info("✅ Tools initialized with dependencies")
-    
+        
+                    logger.info("✅ Tools initialized with dependencies")
+                else:
+                    logger.warning("⚠️ Tools initialization skipped - dependencies not available")
+        
             except ImportError as e:
                 logger.error(f"❌ Could not load tools: {e}")
             except Exception as e:
