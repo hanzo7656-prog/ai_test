@@ -6,14 +6,18 @@ from complete_coinstats_manager import coin_stats_manager
 
 logger = logging.getLogger(__name__)
 
+# 🔧 اصلاح ایمپورت
 try:
-    from debug_system.storage.cache_decorators import cache_coins_with_archive as coins_cache
+    from debug_system.storage.cache_decorators import cache_news_with_archive
     logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
     logger.error(f"❌ Cache system unavailable: {e}")
     # Fallback نهایی
-    def cache_news_with_archive(func):
-        return func
+    def cache_news_with_archive():
+        def decorator(func):
+            return func
+        return decorator
+
 
 news_router = APIRouter(prefix="/api/news", tags=["News"])
 
