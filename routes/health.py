@@ -1072,7 +1072,7 @@ async def health_status():
                 "databases": _get_real_database_configs(),  # ✅ تابع جدید
                 "features_available": cache_health.get("features", {}),
                 "performance_metrics": cache_health.get("performance", {})
-        
+            }
         }
         
         return response
