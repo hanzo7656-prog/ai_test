@@ -341,41 +341,54 @@ def _test_api_connection_quick() -> bool:
         return False
 
 def _get_cache_details() -> Dict[str, Any]:
-    """دریافت جزئیات وضعیت کش - نسخه به‌روز شده"""
+    """دریافت جزئیات وضعیت کش - نسخه واقعی"""
     details = {
         "smart_cache_available": False,
         "cache_optimizer_available": False,
         "new_cache_system_available": NEW_CACHE_SYSTEM_AVAILABLE,
         "redis_available": False,
         "cache_debugger_available": False,
+        "connected_databases": 0,
         "overall_status": "unavailable"
     }
     
     try:
-        # بررسی Cache Optimization Engine
-        if cache_optimizer and hasattr(cache_optimizer, 'analyze_access_patterns'):
-            details["cache_optimizer_available"] = True
-            details["cache_optimizer_health"] = "available"
-            try:
-                analysis = cache_optimizer.analyze_access_patterns(hours=1)
-                details["optimization_analysis"] = analysis
-            except Exception as e:
-                details["optimization_analysis_error"] = str(e)
-
+        # بررسی واقعی وضعیت Redis
+        from debug_system.storage import redis_manager
+        
+        # تست اتصال به تمام دیتابیس‌ها
+        redis_health = redis_manager.health_check()
+        connected_count = 0
+        
+        for db_name, health in redis_health.items():
+            if health.get('status') == 'connected':
+                connected_count += 1
+        
+        details["redis_available"] = connected_count > 0
+        details["connected_databases"] = connected_count
+        
+        # تعیین وضعیت کلی بر اساس اتصال واقعی
+        if connected_count == 5:
+            details["overall_status"] = "advanced"
+        elif connected_count >= 1:
+            details["overall_status"] = "basic" 
+        else:
+            details["overall_status"] = "unavailable"
+        
         # بررسی سیستم کش جدید
         details["new_cache_system_available"] = NEW_CACHE_SYSTEM_AVAILABLE
         if NEW_CACHE_SYSTEM_AVAILABLE:
             try:
                 archive_stats = get_archive_stats()
                 details["archive_stats"] = archive_stats
+                details["archive_system_available"] = archive_stats.get('total_archives', 0) > 0
             except Exception as e:
                 details["archive_stats_error"] = str(e)
+                details["archive_system_available"] = False
         
-        # بررسی Redis
-        from debug_system.storage import redis_manager
-        redis_health = redis_manager.health_check()
-        details["redis_available"] = redis_health.get("status") == "connected"
-        details["redis_health"] = redis_health
+        # بررسی Cache Optimization Engine
+        if cache_optimizer and hasattr(cache_optimizer, 'analyze_access_patterns'):
+            details["cache_optimizer_available"] = True
         
         # بررسی Cache Debugger
         try:
@@ -384,16 +397,11 @@ def _get_cache_details() -> Dict[str, Any]:
         except ImportError:
             details["cache_debugger_available"] = False
         
-        # وضعیت کلی
-        if (details["cache_optimizer_available"] or 
-            details["new_cache_system_available"] or 
-            details["redis_available"]):
-            details["overall_status"] = "available"
-        
         return details
         
     except Exception as e:
-        logger.error(f"❌ Error getting cache details: {e}")
+        logger.error(f"❌ Error getting real cache details: {e}")
+        # Fallback به وضعیت قبلی در صورت خطا
         return details
 
 def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, api_status: str) -> List[str]:
