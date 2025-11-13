@@ -125,6 +125,23 @@ class CacheDebugger:
         self.log_cache_operation('EXISTS', key, exists, response_time, database=database)
         return exists
     
+    def get_keys(self, database: str, pattern: str = "*") -> Tuple[List[str], float]:
+        """دریافت کلیدها از دیتابیس مشخص - سازگار با cache_decorators"""
+        try:
+            keys, response_time = self.redis_manager.get_keys(database, pattern)
+            
+            # لاگ عملیات برای دیباگ
+            for key in keys[:5]:  # فقط ۵ کلید اول را لاگ کن
+                self.log_cache_operation('KEYS', key, True, response_time, database=database)
+            
+            return keys, response_time
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting keys from {database} with pattern {pattern}: {e}")
+            # لاگ خطا
+            self.log_cache_operation('KEYS', pattern, False, 0, error=str(e), database=database)
+            return [], 0
+    
     # ==================== متدهای مانیتورینگ و آنالیز ====================
     
     def get_cache_stats(self, database: str = None, key: str = None) -> Dict[str, Any]:
