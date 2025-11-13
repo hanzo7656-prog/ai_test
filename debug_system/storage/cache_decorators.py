@@ -5,16 +5,22 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 from collections import defaultdict
 
-# ایمپورت با مدیریت خطا برای جلوگیری از circular import
+# ایمپورت صحیح از ماژول همسطح
 try:
-    from debug_system.storage.cache_debugger import cache_debugger
+    # روش ۱: ایمپورت نسبی
+    from .cache_debugger import cache_debugger
 except ImportError:
-    # Fallback برای مواقعی که مستقیماً اجرا می‌شود
-    import sys
-    import os
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    from cache_debugger import cache_debugger
+    try:
+        # روش ۲: ایمپورت مطلق  
+        from debug_system.storage.cache_debugger import cache_debugger
+    except ImportError:
+        # روش ۳: Fallback برای توسعه
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from storage.cache_debugger import cache_debugger
 
+# بقیه کد بدون تغییر...
 # نقشه‌نگاری دیتابیس‌ها برای انواع مختلف داده
 DATABASE_MAPPING = {
     # داده‌های پردازش شده AI - UTB
