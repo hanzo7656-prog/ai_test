@@ -87,45 +87,48 @@ class PerformanceMonitor:
         }
 
     def _calculate_performance_grade(self, stats: Dict) -> str:
-        """محاسبه گرید عملکرد"""
+        """محاسبه گرید عملکرد با درنظرگیری نرمال‌سازی"""
         response_time = stats['average_response_time']
         success_rate = stats['success_rate']
         cache_hit_rate = stats['cache_performance']['hit_rate']
-        
+    
+        # ✅ استفاده از داده‌های نرمال‌سازی از normalization_info
+        norm_performance = stats.get('normalization_performance', {})
+        norm_success_rate = norm_performance.get('success_rate', 100)
+        norm_quality_score = norm_performance.get('avg_quality_score', 100)
+    
         # محاسبه امتیاز
         score = 0
-        
-        # امتیاز زمان پاسخ (50%)
+    
+        # امتیاز زمان پاسخ (35%)
         if response_time <= self.response_time_thresholds['excellent']:
-            score += 50
+            score += 35
         elif response_time <= self.response_time_thresholds['good']:
-            score += 40
+            score += 28
         elif response_time <= self.response_time_thresholds['fair']:
-            score += 30
-        elif response_time <= self.response_time_thresholds['poor']:
-            score += 20
-        else:
-            score += 10
-            
-        # امتیاز نرخ موفقیت (30%)
-        score += (success_rate / 100) * 30
-        
-        # امتیاز نرخ کش (20%)
-        score += (cache_hit_rate / 100) * 20
-        
+            score += 21
+         elif response_time <= self.response_time_thresholds['poor']:
+            score += 14
+         else:
+            score += 7
+          
+        # امتیاز نرخ موفقیت (25%)
+        score += (success_rate / 100) * 25
+    
+        # امتیاز نرخ کش (15%)
+        score += (cache_hit_rate / 100) * 15
+    
+        # ✅ امتیاز نرمال‌سازی (25%)
+        norm_score = (norm_success_rate / 100) * 12.5 + (norm_quality_score / 100) * 12.5
+        score += norm_score
+    
         # تعیین گرید
-        if score >= 90:
-            return 'A+'
-        elif score >= 80:
-            return 'A'
-        elif score >= 70:
-            return 'B'
-        elif score >= 60:
-            return 'C'
-        elif score >= 50:
-            return 'D'
-        else:
-            return 'F'
+        if score >= 90: return 'A+'
+        elif score >= 80: return 'A'
+        elif score >= 70: return 'B'
+        elif score >= 60: return 'C'
+        elif score >= 50: return 'D'
+        else: return 'F'
 
     def _identify_bottlenecks(self, stats: Dict, endpoint: str) -> List[Dict[str, Any]]:
         """شناسایی bottlenecks"""
@@ -134,6 +137,10 @@ class PerformanceMonitor:
         success_rate = stats['success_rate']
         cache_hit_rate = stats['cache_performance']['hit_rate']
         api_calls_ratio = stats['api_calls'] / stats['total_calls'] if stats['total_calls'] > 0 else 0
+
+        norm_performance = stats.get('normalization_performance', {})
+        norm_success_rate = norm_performance.get('success_rate', 100)
+        norm_quality_score = norm_performance.get('avg_quality_score', 100)
 
         # بررسی زمان پاسخ
         if response_time > self.response_time_thresholds['unacceptable']:
@@ -169,6 +176,14 @@ class PerformanceMonitor:
                 'suggestion': 'Review cache strategy and TTL settings'
             })
 
+        if norm_success_rate < 90:
+            bottlenecks.append({
+                'type': 'normalization_reliability',
+                'severity': 'high' if norm_success_rate < 80 else 'medium',
+                'message': f'Normalization success rate {norm_success_rate:.1f}% is low',
+                'suggestion': 'Review data normalization rules and error handling'
+            })
+            
         # بررسی فراخوانی‌های API
         if api_calls_ratio > 3:
             bottlenecks.append({
@@ -307,28 +322,57 @@ class PerformanceMonitor:
         }
 
     def get_performance_report(self) -> Dict[str, Any]:
-        """تولید گزارش کامل عملکرد"""
+        """تولید گزارش کامل عملکرد با اطلاعات نرمال‌سازی"""
         performance_overview = self.analyze_endpoint_performance()
         slowest_endpoints = self.get_slowest_endpoints(10)
         most_called_endpoints = self.get_most_called_endpoints(10)
-        
+    
+        # ✅ جمع‌آوری متریک‌های نرمال‌سازی از endpointها
+        normalization_metrics = []
+        for endpoint, stats in performance_overview['endpoint_performance'].items():
+            norm_perf = stats.get('normalization_performance', {})
+            if norm_perf:
+                normalization_metrics.append({
+                    'endpoint': endpoint,
+                    'success_rate': norm_perf.get('success_rate', 0),
+                    'quality_score': norm_perf.get('avg_quality_score', 0),
+                    'total_normalized': norm_perf.get('total_normalized', 0),
+                    'normalization_errors': norm_perf.get('normalization_errors', 0)
+                })
+    
         # شناسایی اندپوینت‌های مشکل‌دار
         problematic_endpoints = []
         for endpoint in slowest_endpoints:
             if endpoint['performance_grade'] in ['D', 'F']:
                 problematic_endpoints.append(endpoint)
-        
+    
+        # ✅ شناسایی مشکلات نرمال‌سازی
+        normalization_problems = [
+            ep for ep in normalization_metrics 
+            if ep['success_rate'] < 85 or ep['quality_score'] < 70
+        ]
+    
         return {
             'report_timestamp': datetime.now().isoformat(),
             'summary': {
                 'total_endpoints_monitored': len(performance_overview['endpoint_performance']),
                 'overall_performance_grade': self._calculate_overall_performance_grade(performance_overview),
-                'problematic_endpoints_count': len(problematic_endpoints)
+                'problematic_endpoints_count': len(problematic_endpoints),
+                # ✅ اضافه شد
+                'normalization_issues_count': len(normalization_problems),
+                'avg_normalization_success': statistics.mean([nm['success_rate'] for nm in normalization_metrics]) if normalization_metrics else 0,
+                'avg_data_quality': statistics.mean([nm['quality_score'] for nm in normalization_metrics]) if normalization_metrics else 0
             },
             'performance_overview': performance_overview,
             'slowest_endpoints': slowest_endpoints,
             'most_called_endpoints': most_called_endpoints,
             'problematic_endpoints': problematic_endpoints,
+            # ✅ اضافه شد
+            'normalization_analysis': {
+                'metrics': normalization_metrics,
+                'problematic_endpoints': normalization_problems,
+                'recommendations': self._generate_normalization_recommendations(normalization_problems)
+            },
             'recommendations': self._generate_system_recommendations(performance_overview, problematic_endpoints)
         }
 
@@ -389,6 +433,43 @@ class PerformanceMonitor:
             recommendations.append("Conduct system-wide performance audit")
             recommendations.append("Consider architectural improvements for low-performing endpoints")
         
+        return recommendations
+
+
+    def _generate_normalization_recommendations(self, normalization_metrics: List[Dict]) -> List[str]:
+        """تولید توصیه‌های مربوط به نرمال‌سازی"""
+        recommendations = []
+    
+        if not normalization_metrics:
+            return ["📊 No normalization data available for analysis"]
+    
+        # تحلیل متریک‌های نرمال‌سازی
+        success_rates = [nm.get('success_rate', 0) for nm in normalization_metrics]
+        quality_scores = [nm.get('quality_score', 0) for nm in normalization_metrics]
+    
+        avg_success = sum(success_rates) / len(success_rates) if success_rates else 0
+        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
+    
+        # تولید توصیه‌ها بر اساس آمار
+        if avg_success < 85:
+            recommendations.append("🔄 Normalization success rate is low - Review data patterns")
+    
+        if avg_quality < 70:
+            recommendations.append("📊 Data quality needs improvement - Check validation rules")
+    
+        # شناسایی endpointهای مشکل‌دار
+        problematic_endpoints = [
+            nm for nm in normalization_metrics 
+            if nm.get('success_rate', 100) < 80 or nm.get('quality_score', 100) < 60
+        ]
+    
+        if problematic_endpoints:
+            ep_names = [ep['endpoint'] for ep in problematic_endpoints[:3]]
+            recommendations.append(f"🎯 Focus on endpoints: {', '.join(ep_names)}")
+    
+        if not recommendations:
+            recommendations.append("✅ Normalization system is performing well")
+    
         return recommendations
 
     def analyze_bottlenecks(self) -> List[Dict[str, Any]]:
