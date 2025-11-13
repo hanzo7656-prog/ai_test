@@ -640,7 +640,6 @@ def _get_real_database_configs() -> Dict[str, Any]:
             "mother_b": {"role": "Operations & Analytics", "status": "unknown", "connected": False}
         }
 # ==================== BASIC HEALTH ENDPOINTS ====================
-
 @health_router.get("/status")
 async def health_status():
     """وضعیت سلامت کامل سیستم - روت اصلی با سیستم کش آپدیت شده"""
@@ -830,7 +829,28 @@ async def health_status():
             "connections": 5
         }
         
-        # 7. محاسبه سلامت کلی سیستم - نسخه آپدیت شده
+        # 7. وضعیت منابع
+        resources_status = {
+            "cpu": {
+                "usage_percent": cpu_usage,
+                "cores": psutil.cpu_count(),
+                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+            },
+            "memory": {
+                "usage_percent": memory.percent,
+                "used_gb": round(memory.used / (1024**3), 2),
+                "available_gb": round(memory.available / (1024**3), 2),
+                "total_gb": round(memory.total / (1024**3), 2)
+            },
+            "disk": {
+                "usage_percent": disk.percent,
+                "used_gb": round(disk.used / (1024**3), 2),
+                "free_gb": round(disk.free / (1024**3), 2),
+                "total_gb": round(disk.total / (1024**3), 2)
+            }
+        }
+        
+        # 8. محاسبه سلامت کلی سیستم - نسخه آپدیت شده
         health_score = _calculate_real_health_score(
             cache_details=cache_details,
             normalization_metrics=normalization_metrics,
@@ -868,7 +888,7 @@ async def health_status():
         # وضعیت کلی بر اساس امتیاز
         overall_status = "healthy" if health_score >= 90 else "degraded" if health_score >= 70 else "unhealthy"
         
-        # 8. جمع‌بندی سرویس‌ها - نسخه آپدیت شده
+        # 9. جمع‌بندی سرویس‌ها - نسخه آپدیت شده
         services_status = {
             "web_server": {
                 "status": "running",
@@ -904,27 +924,6 @@ async def health_status():
                     "ttl_optimization": cache_details["cache_optimizer_available"],
                     "cost_management": cache_details["cache_optimizer_available"]
                 }
-            }
-        }
-        
-        # 9. وضعیت منابع
-        resources_status = {
-            "cpu": {
-                "usage_percent": cpu_usage,
-                "cores": psutil.cpu_count(),
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-            },
-            "memory": {
-                "usage_percent": memory.percent,
-                "used_gb": round(memory.used / (1024**3), 2),
-                "available_gb": round(memory.available / (1024**3), 2),
-                "total_gb": round(memory.total / (1024**3), 2)
-            },
-            "disk": {
-                "usage_percent": disk.percent,
-                "used_gb": round(disk.used / (1024**3), 2),
-                "free_gb": round(disk.free / (1024**3), 2),
-                "total_gb": round(disk.total / (1024**3), 2)
             }
         }
         
@@ -1018,58 +1017,57 @@ async def health_status():
             "components_status": {
                 # سیستم کش
                 "cache_system": {
-                "available": cache_available,
-                "architecture": cache_health.get("architecture", "unknown"),
-                "connected_databases": cache_details.get("connected_databases", 0),
-                "total_databases": 5,
-                "status": cache_health.get("status", "unknown")
+                    "available": cache_available,
+                    "architecture": cache_health.get("architecture", "unknown"),
+                    "connected_databases": cache_details.get("connected_databases", 0),
+                    "total_databases": 5,
+                    "status": cache_health.get("status", "unknown")
+                },
+        
+                # قابلیت‌های پیشرفته
+                "advanced_features": {
+                    "historical_archive": cache_details.get("archive_system_available", False),
+                    "cache_optimization": cache_details.get("cache_optimizer_available", False),
+                    "smart_ttl": cache_health.get("features", {}).get("smart_ttl_management", False),
+                    "data_compression": cache_health.get("features", {}).get("data_compression", False)
+                },
+        
+                # سیستم‌های جانبی
+                "debug_system": {
+                    "available": DebugSystemManager.is_available(),
+                    "loaded_modules": DebugSystemManager.get_status_report().get('loaded_modules', 0)
+                },
+        
+                "data_processing": {
+                    "normalization_available": _check_normalization_availability(),
+                    "success_rate": normalization_metrics.get("success_rate", 0),
+                    "total_processed": normalization_metrics.get("total_processed", 0)
+                },
+        
+                "external_apis": {
+                    "available": _check_external_apis_availability(),
+                    "status": api_status,
+                    "details": api_details.get('status', 'unknown')
+                },
+        
+                # وضعیت کلی کامپوننت‌ها
+                "overall_health": {
+                    "all_core_components": (
+                        cache_available and 
+                        _check_normalization_availability() and 
+                        _check_external_apis_availability()
+                    ),
+                    "all_advanced_features": (
+                        cache_details.get("archive_system_available", False) and
+                        cache_details.get("cache_optimizer_available", False) and
+                        cache_health.get("features", {}).get("smart_ttl_management", False)
+                    ),
+                    "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status_info, resources_status)
+                }
             },
-    
-            # قابلیت‌های پیشرفته
-            "advanced_features": {
-                "historical_archive": cache_details.get("archive_system_available", False),
-                "cache_optimization": cache_details.get("cache_optimizer_available", False),
-                "smart_ttl": cache_health.get("features", {}).get("smart_ttl_management", False),
-                "data_compression": cache_health.get("features", {}).get("data_compression", False)
-            },
-    
-            # سیستم‌های جانبی
-            "debug_system": {
-                "available": DebugSystemManager.is_available(),
-                "loaded_modules": DebugSystemManager.get_status_report().get('loaded_modules', 0)
-            },
-    
-            "data_processing": {
-                "normalization_available": _check_normalization_availability(),
-                "success_rate": normalization_metrics.get("success_rate", 0),
-                "total_processed": normalization_metrics.get("total_processed", 0)
-            },
-    
-            "external_apis": {
-                "available": _check_external_apis_availability(),
-                "status": api_status,
-                "details": api_details.get('status', 'unknown')
-            },
-    
-            # وضعیت کلی کامپوننت‌ها
-            "overall_health": {
-                "all_core_components": (
-                    cache_available and 
-                    _check_normalization_availability() and 
-                    _check_external_apis_availability()
-                ),
-                "all_advanced_features": (
-                    cache_details.get("archive_system_available", False) and
-                    cache_details.get("cache_optimizer_available", False) and
-                    cache_health.get("features", {}).get("smart_ttl_management", False)
-                ),
-                "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status)
-            }
-        },
-            
-            # خط ~610 - جایگزینی با تابع جدید
+                
             "cache_architecture_details": {
-                "databases": _get_real_database_configs(),  # ✅ تابع جدید
+                "databases": _get_real_database_configs(),
                 "features_available": cache_health.get("features", {}),
                 "performance_metrics": cache_health.get("performance", {})
             }
