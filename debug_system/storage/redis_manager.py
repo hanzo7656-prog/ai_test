@@ -224,29 +224,36 @@ class RedisCacheManager:
             return health_report
     
     def _single_health_check(self, db_name: str) -> Dict[str, Any]:
-        """بررسی سلامت یک دیتابیس"""
+    def _single_health_check(self, db_name: str) -> Dict[str, Any]:
+        """بررسی سلامت یک دیتابیس - نسخه اصلاح شده"""
         client = self.get_client(db_name)
         if not client:
             return {
                 "status": "disconnected", 
                 "database": db_name,
+                "storage_type": "cloud",
                 "error": "No Redis client available",
                 "timestamp": datetime.now().isoformat()
             }
-        
+    
         try:
             start_time = time.time()
             client.ping()
             ping_time = time.time() - start_time
-            
+        
             info = client.info()
+            used_memory = info.get('used_memory', 0)
+            max_memory = 256 * 1024 * 1024  # 256MB برای هر دیتابیس ابری
+        
             return {
                 "status": "connected",
                 "database": db_name,
+                "storage_type": "cloud",
                 "ping_time_ms": round(ping_time * 1000, 2),
-                "used_memory": info.get('used_memory_human', 'N/A'),
-                "used_memory_bytes": info.get('used_memory', 0),
-                "used_memory_ratio": round(info.get('used_memory', 0) / (256 * 1024 * 1024), 4),  # نسبت استفاده از 256MB
+                "max_memory_mb": 256,
+                "used_memory_mb": round(used_memory / (1024 * 1024), 2),
+                "used_memory_percent": round((used_memory / max_memory) * 100, 2),
+                "available_mb": round(256 - (used_memory / (1024 * 1024)), 2),
                 "connected_clients": info.get('connected_clients', 0),
                 "total_commands_processed": info.get('total_commands_processed', 0),
                 "keyspace_hits": info.get('keyspace_hits', 0),
@@ -259,29 +266,43 @@ class RedisCacheManager:
             return {
                 "status": "error", 
                 "database": db_name,
+                "storage_type": "cloud",
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
     
     def get_database_usage(self) -> Dict[str, Dict[str, Any]]:
-        """دریافت گزارش استفاده از هر دیتابیس"""
+        """دریافت گزارش استفاده از هر دیتابیس - نسخه Hybrid"""
         usage_report = {}
         for db_name, client in self.databases.items():
             if client:
                 try:
                     info = client.info()
+                    used_memory = info.get('used_memory', 0)
+                    max_memory = 256 * 1024 * 1024  # 256MB برای دیتابیس ابری
+                
                     usage_report[db_name] = {
-                        'used_memory_human': info.get('used_memory_human', 'N/A'),
-                        'used_memory_bytes': info.get('used_memory', 0),
-                        'used_memory_percentage': round((info.get('used_memory', 0) / (256 * 1024 * 1024)) * 100, 2),
+                        'storage_type': 'cloud',
+                        'max_memory_mb': 256,
+                        'used_memory_mb': round(used_memory / (1024 * 1024), 2),
+                        'used_memory_percentage': round((used_memory / max_memory) * 100, 2),
+                        'available_mb': round(256 - (used_memory / (1024 * 1024)), 2),
                         'keys_count': sum([int(info.get(f'db{i}', {}).get('keys', 0)) for i in range(16)]),
-                        'connected_clients': info.get('connected_clients', 0)
+                        'connected_clients': info.get('connected_clients', 0),
+                        'hit_ratio': round(info.get('keyspace_hits', 0) / max(1, info.get('keyspace_hits', 0) + info.get('keyspace_misses', 0)) * 100, 2)
                     }
                 except Exception as e:
-                    usage_report[db_name] = {'error': str(e)}
+                    usage_report[db_name] = {
+                        'storage_type': 'cloud',
+                        'error': str(e),
+                        'max_memory_mb': 256
+                    }
             else:
-                usage_report[db_name] = {'error': 'Client not connected'}
+                usage_report[db_name] = {
+                    'storage_type': 'cloud', 
+                    'error': 'Client not connected',
+                    'max_memory_mb': 256
+                }
         return usage_report
-
 # نمونه global برای استفاده در سایر فایل‌ها
 redis_manager = RedisCacheManager()
