@@ -224,7 +224,6 @@ class RedisCacheManager:
             return health_report
     
     def _single_health_check(self, db_name: str) -> Dict[str, Any]:
-    def _single_health_check(self, db_name: str) -> Dict[str, Any]:
         """بررسی سلامت یک دیتابیس - نسخه اصلاح شده"""
         client = self.get_client(db_name)
         if not client:
