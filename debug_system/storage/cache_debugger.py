@@ -128,20 +128,38 @@ class CacheDebugger:
     def get_keys(self, database: str, pattern: str = "*") -> Tuple[List[str], float]:
         """دریافت کلیدها از دیتابیس مشخص - سازگار با cache_decorators"""
         try:
+            # استفاده از redis_manager برای دریافت کلیدها
             keys, response_time = self.redis_manager.get_keys(database, pattern)
-            
-            # لاگ عملیات برای دیباگ
-            for key in keys[:5]:  # فقط ۵ کلید اول را لاگ کن
-                self.log_cache_operation('KEYS', key, True, response_time, database=database)
-            
+        
+            # لاگ عملیات برای مانیتورینگ
+            operation_data = {
+                'operation': 'KEYS',
+                'key': pattern,
+                'database': database,
+                'success': True,
+                'response_time': response_time,
+                'size': len(keys),
+                'timestamp': datetime.now().isoformat()
+            }
+            self.cache_operations.append(operation_data)
+        
+            # آپدیت آمار
+            stats_key = f"{database}:keys_pattern"
+            self.cache_stats[stats_key]['hits'] += 1
+            self.cache_stats[stats_key]['last_operation'] = datetime.now().isoformat()
+        
             return keys, response_time
-            
+        
         except Exception as e:
-            logger.error(f"❌ Error getting keys from {database} with pattern {pattern}: {e}")
+            logger.error(f"❌ Error getting keys from {database} with pattern '{pattern}': {e}")
+        
             # لاگ خطا
-            self.log_cache_operation('KEYS', pattern, False, 0, error=str(e), database=database)
+            self.log_cache_operation(
+                'KEYS', pattern, False, 0, 
+                error=str(e), database=database
+            )
+        
             return [], 0
-    
     # ==================== متدهای مانیتورینگ و آنالیز ====================
     
     def get_cache_stats(self, database: str = None, key: str = None) -> Dict[str, Any]:
