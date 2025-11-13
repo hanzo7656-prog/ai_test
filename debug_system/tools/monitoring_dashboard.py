@@ -199,22 +199,25 @@ class WorkerMonitoringDashboard:
         """جمع‌آوری متریک‌های زمان‌بندی"""
         if not self.time_scheduler:
             return {'status': 'unavailable'}
-        
+      
         try:
             scheduling_analytics = self.time_scheduler.get_scheduling_analytics()
-            
+        
+            # اضافه کردن بررسی برای جلوگیری از KeyError
+            performance_analysis = scheduling_analytics.get('performance_analysis', {})
+        
             return {
                 'status': 'active',
-                'active_tasks': scheduling_analytics['scheduling_status']['active_tasks'],
-                'upcoming_tasks': scheduling_analytics['scheduling_status']['upcoming_tasks'],
-                'success_rate': scheduling_analytics['performance_analysis']['overall_success_rate'],
-                'efficiency_score': scheduling_analytics['performance_analysis']['efficiency_score'],
-                'optimal_windows': scheduling_analytics['predictions']['optimal_scheduling_windows']
+                'active_tasks': scheduling_analytics.get('scheduling_status', {}).get('active_tasks', 0),
+                'upcoming_tasks': scheduling_analytics.get('scheduling_status', {}).get('upcoming_tasks', 0),
+                'success_rate': performance_analysis.get('overall_success_rate', 0),  # ✅ اصلاح شده
+                'efficiency_score': performance_analysis.get('efficiency_score', 0),   # ✅ اصلاح شده
+                'optimal_windows': scheduling_analytics.get('predictions', {}).get('optimal_scheduling_windows', [])
             }
         except Exception as e:
             logger.error(f"❌ Failed to collect scheduling metrics: {e}")
             return {'status': 'error', 'error': str(e)}
-    
+            
     def _collect_recovery_metrics(self) -> Dict[str, Any]:
         """جمع‌آوری متریک‌های سیستم بازیابی"""
         if not self.recovery_manager:
@@ -238,31 +241,33 @@ class WorkerMonitoringDashboard:
     def _calculate_task_throughput(self, worker_status: Dict) -> float:
         """محاسبه throughput کارها"""
         try:
-            total_processed = worker_status['performance_stats']['total_tasks_processed']
+            total_processed = worker_status.get('performance_stats', {}).get('total_tasks_processed', 0)
             if total_processed == 0:
                 return 0.0
-            
+        
             # محاسبه بر اساس تاریخچه (ساده‌سازی)
             return round(total_processed / 3600, 2)  # کار در ساعت
-        except:
+        except Exception as e:
+            logger.error(f"❌ Error calculating task throughput: {e}")
             return 0.0
-    
+            
     def _calculate_worker_success_rate(self, worker_status: Dict) -> float:
         """محاسبه نرخ موفقیت worker"""
         try:
-            task_breakdown = worker_status['performance_stats']['tasks_by_type']
+            task_breakdown = worker_status.get('performance_stats', {}).get('tasks_by_type', {})
             total_success = 0
             total_tasks = 0
-            
+        
             for task_type, stats in task_breakdown.items():
                 total_success += stats.get('completed', 0)
                 total_tasks += stats.get('submitted', 0)
-            
+        
             if total_tasks == 0:
                 return 100.0
-            
+         
             return round((total_success / total_tasks) * 100, 2)
-        except:
+        except Exception as e:
+            logger.error(f"❌ Error calculating worker success rate: {e}")
             return 100.0
     
     def _calculate_overall_health(self, system_metrics: Dict, worker_metrics: Dict, resource_metrics: Dict) -> Dict[str, Any]:
