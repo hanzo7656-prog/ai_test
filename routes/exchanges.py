@@ -8,12 +8,12 @@ logger = logging.getLogger(__name__)
 
 # 🔧 اصلاح ایمپورت
 try:
-    from debug_system.storage.cache_decorators import cache_coins_with_archive
+    from debug_system.storage.cache_decorators import cache_exchanges_with_archive
     logger.info("✅ Cache System: Archive Enabled")
 except ImportError as e:
     logger.error(f"❌ Cache system unavailable: {e}")
     # Fallback نهایی
-    def cache_coins_with_archive():
+    def cache_exchanges_with_archive():
         def decorator(func):
             return func
         return decorator
