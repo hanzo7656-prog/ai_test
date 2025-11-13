@@ -4,7 +4,16 @@ import json
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 from collections import defaultdict
-from .cache_debugger import cache_debugger
+
+# ایمپورت با مدیریت خطا برای جلوگیری از circular import
+try:
+    from debug_system.storage.cache_debugger import cache_debugger
+except ImportError:
+    # Fallback برای مواقعی که مستقیماً اجرا می‌شود
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from cache_debugger import cache_debugger
 
 # نقشه‌نگاری دیتابیس‌ها برای انواع مختلف داده
 DATABASE_MAPPING = {
