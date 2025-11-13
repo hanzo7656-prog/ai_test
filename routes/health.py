@@ -1163,6 +1163,66 @@ async def system_overview():
         "timestamp": datetime.now().isoformat()
     }
 
+
+@health_router.get("/storage/architecture")
+async def get_storage_architecture():
+    """نمایش کامل معماری Hybrid Storage"""
+    try:
+        # جمع‌آوری اطلاعات واقعی
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        cache_details = _get_cache_details()
+        
+        return {
+            "architecture": {
+                "type": "hybrid_local_cloud",
+                "description": "Local processing with cloud persistence"
+            },
+            "local_server": {
+                "provider": "Render",
+                "specs": {
+                    "ram_mb": round(memory.total / (1024 * 1024), 2),
+                    "disk_gb": round(disk.total / (1024**3), 2),
+                    "cpu_cores": psutil.cpu_count()
+                },
+                "current_usage": {
+                    "ram_used_percent": memory.percent,
+                    "disk_used_percent": disk.percent,
+                    "cpu_used_percent": psutil.cpu_percent(interval=1)
+                },
+                "role": "application_runtime_local_cache"
+            },
+            "cloud_storage": {
+                "total_databases": 5,
+                "total_storage_mb": 1280,
+                "storage_per_database_mb": 256,
+                "connected_databases": cache_details.get("connected_databases", 0),
+                "role": "persistent_data_storage_historical_archive"
+            },
+            "data_flow": {
+                "ingestion": "external_apis → local_processing → cloud_storage",
+                "retrieval": "cloud_storage → local_cache → api_response",
+                "caching_strategy": "multi_layer_hybrid"
+            },
+            "database_roles": {
+                "uta": "AI Core Models - Long term storage",
+                "utb": "AI Processed Data - Medium TTL", 
+                "utc": "Raw Data + Historical Archive - Short TTL + Long term archive",
+                "mother_a": "System Core Data - Critical system data", 
+                "mother_b": "Operations & Analytics - Cache analytics and temp data"
+            },
+            "performance_optimization": "Local cache for hot data + Cloud persistence for all data",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Storage architecture report failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to generate storage architecture report: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+        
 @health_router.get("/ping")
 async def health_ping():
     """تست ساده حیات سیستم"""
