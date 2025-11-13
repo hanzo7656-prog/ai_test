@@ -150,32 +150,30 @@ class DebugSystemManager:
                 logger.error(f"❌ Error initializing realtime: {e}")
             
             # ایمپورت tools - این مشکل اصلی بود!
+            # در کلاس DebugSystemManager، بخش tools:
             try:
-                from debug_system.tools.report_generator import ReportGenerator
-                from debug_system.tools.dev_tools import DevTools
-                from debug_system.tools.testing_tools import TestingTools
-                
-                # ایجاد tools با dependencyهای لازم
-                history_manager_instance = cls._modules.get('history_manager')
-                report_generator = ReportGenerator(debug_manager, history_manager_instance)
-                dev_tools = DevTools(debug_manager)
-                testing_tools = TestingTools(debug_manager)
-                
+                from debug_system.tools import initialize_tools_system
+    
+                # مقداردهی tools با dependencyهای واقعی
+                tools_result = initialize_tools_system(
+                    debug_manager_instance=debug_manager,
+                    history_manager_instance=history_manager_instance
+                )
+    
                 cls._modules.update({
-                    'report_generator': report_generator,
-                    'dev_tools': dev_tools,
-                    'testing_tools': testing_tools
+                    'report_generator': tools_result.get('report_generator'),
+                    'dev_tools': tools_result.get('dev_tools'),
+                    'testing_tools': tools_result.get('testing_tools')
                 })
-                
+    
                 logger.info("✅ Tools initialized with dependencies")
-                
+    
             except ImportError as e:
                 logger.error(f"❌ Could not load tools: {e}")
             except Exception as e:
                 logger.error(f"❌ Error initializing tools: {e}")
-            
             cls._initialized = True
-            
+              
             # لاگ ماژول‌های load شده
             loaded_modules = [name for name, module in cls._modules.items() if module is not None]
             failed_modules = [name for name, module in cls._modules.items() if module is None]
