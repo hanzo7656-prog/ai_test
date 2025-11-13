@@ -520,7 +520,7 @@ class WorkerMonitoringDashboard:
                 'stats': {
                     'total_active': len([a for a in self.active_alerts if not a['acknowledged']]),
                     'critical_count': len([a for a in self.active_alerts if a['level'] == 'critical' and not a['acknowledged']]),
-                    'warning_count': len([a for a in self.active_alerts if a['level'] == 'warning' and not a['acknowledged'])
+                    'warning_count': len([a for a in self.active_alerts if a['level'] == 'warning' and not a['acknowledged']])
                 }
             },
             'performance_analysis': {
