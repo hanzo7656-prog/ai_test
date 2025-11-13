@@ -85,6 +85,14 @@ except ImportError as e:
             self.debug_manager = debug_manager
             self.history_manager = history_manager
 
+# Fallback برای tools_system
+tools_system = {
+    "dev_tools": dev_tools,
+    "testing_tools": testing_tools, 
+    "report_generator": report_generator,
+    "initialize": initialize_tools_system
+}
+
 __all__ = [
     "DevTools", "dev_tools",
     "TestingTools", "testing_tools", 
