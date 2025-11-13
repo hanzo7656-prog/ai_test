@@ -841,7 +841,7 @@ async def health_status():
                     cache_details.get("cache_optimizer_available", False) and
                     cache_health.get("features", {}).get("smart_ttl_management", False)
                 ),
-                "recommended_actions": self._get_component_recommendations(cache_details, normalization_metrics, api_status)
+                "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status)
             }
         },
             
