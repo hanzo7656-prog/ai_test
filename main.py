@@ -440,8 +440,14 @@ try:
     from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
     from debug_system.storage import history_manager, log_manager, cache_debugger
     from debug_system.realtime import websocket_manager, console_stream
-    from debug_system.tools import tools_system, dev_tools, testing_tools, report_generator
-    
+    from debug_system.tools import dev_tools, testing_tools, report_generator, initialize_tools_system
+
+    # و بعداً در کد:
+    try:
+        from debug_system.tools import tools_system
+    except ImportError:
+        tools_system = None
+        print("⚠️ tools_system not available - using fallback")
     from debug_system.realtime.live_dashboard import LiveDashboardManager
     
     DEBUG_SYSTEM_AVAILABLE = True
