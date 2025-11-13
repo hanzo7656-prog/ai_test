@@ -660,7 +660,7 @@ def _get_real_database_configs() -> Dict[str, Any]:
 # ==================== BASIC HEALTH ENDPOINTS ====================
 @health_router.get("/status")
 async def health_status():
-    """وضعیت سلامت کامل سیستم - روت اصلی با سیستم کش آپدیت شده"""
+    """وضعیت سلامت کامل سیستم - با اطلاعات کامل Background Worker"""
     
     # زمان شروع برای محاسبه عملکرد
     start_time = time.time()
@@ -847,28 +847,63 @@ async def health_status():
             "connections": 5
         }
         
-        # 7. وضعیت منابع
-        resources_status = {
-            "cpu": {
-                "usage_percent": cpu_usage,
-                "cores": psutil.cpu_count(),
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-            },
-            "memory": {
-                "usage_percent": memory.percent,
-                "used_gb": round(memory.used / (1024**3), 2),
-                "available_gb": round(memory.available / (1024**3), 2),
-                "total_gb": round(memory.total / (1024**3), 2)
-            },
-            "disk": {
-                "usage_percent": disk.percent,
-                "used_gb": round(disk.used / (1024**3), 2),
-                "free_gb": round(disk.free / (1024**3), 2),
-                "total_gb": round(disk.total / (1024**3), 2)
-            }
+        # 7. 🔥 وضعیت کامل Background Worker - بخش جدید
+        background_worker_status = {
+            "available": False,
+            "is_running": False,
+            "workers_active": 0,
+            "workers_total": 0,
+            "queue_size": 0,
+            "tasks_processed": 0,
+            "success_rate": 0,
+            "health_status": "unknown",
+            "detailed_metrics": {}
         }
         
-        # 8. محاسبه سلامت کلی سیستم - نسخه آپدیت شده
+        try:
+            background_worker = get_debug_module('background_worker')
+            if background_worker and hasattr(background_worker, 'is_running'):
+                worker_metrics = background_worker.get_detailed_metrics()
+                
+                background_worker_status = {
+                    "available": True,
+                    "is_running": background_worker.is_running,
+                    "workers_active": worker_metrics['worker_status']['active_workers'],
+                    "workers_total": worker_metrics['worker_status']['total_workers'],
+                    "queue_size": worker_metrics['queue_status']['queue_size'],
+                    "active_tasks": worker_metrics['queue_status']['active_tasks'],
+                    "completed_tasks": worker_metrics['queue_status']['completed_tasks'],
+                    "failed_tasks": worker_metrics['queue_status']['failed_tasks'],
+                    "tasks_processed": worker_metrics.get('performance_stats', {}).get('total_tasks_processed', 0),
+                    "success_rate": worker_metrics.get('performance_stats', {}).get('success_rate', 100),
+                    "worker_utilization": worker_metrics['worker_status'].get('worker_utilization', 0),
+                    "health_status": "healthy" if background_worker.is_running and worker_metrics['queue_status']['queue_size'] < 20 else "degraded",
+                    "system_health": worker_metrics.get('system_health', {}),
+                    "performance_stats": worker_metrics.get('performance_stats', {}),
+                    "current_metrics": worker_metrics.get('current_metrics', {})
+                }
+                
+                # اضافه کردن وضعیت real-time کارگران
+                live_workers = []
+                for worker_id, worker_data in worker_metrics.get('worker_metrics', {}).items():
+                    if worker_data.get('status') == 'active':
+                        live_workers.append({
+                            "worker_id": str(worker_id),
+                            "task_id": worker_data.get('task_id', 'idle'),
+                            "status": worker_data.get('status'),
+                            "start_time": worker_data.get('start_time'),
+                            "cpu_usage": worker_data.get('cpu_usage', 0),
+                            "memory_usage": worker_data.get('memory_usage', 0)
+                        })
+                
+                background_worker_status["live_workers"] = live_workers
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get background worker status: {e}")
+            background_worker_status["error"] = str(e)
+            background_worker_status["health_status"] = "error"
+        
+        # 8. محاسبه سلامت کلی سیستم - نسخه آپدیت شده با Background Worker
         health_score = _calculate_real_health_score(
             cache_details=cache_details,
             normalization_metrics=normalization_metrics,
@@ -876,7 +911,7 @@ async def health_status():
             system_metrics=resources_status
         )
         
-        # کسر امتیاز بر اساس خطاها - منطق آپدیت شده
+        # کسر امتیاز بر اساس خطاها - با در نظر گرفتن Background Worker
         cache_status = cache_health.get("status")
         if cache_status == "healthy":
             # سیستم کش پیشرفته - امتیاز کامل
@@ -903,10 +938,20 @@ async def health_status():
         if disk.percent > 85:
             health_score -= 10
         
+        # 🔥 کسر امتیاز بر اساس وضعیت Background Worker
+        if not background_worker_status["available"]:
+            health_score -= 10
+        elif not background_worker_status["is_running"]:
+            health_score -= 15
+        elif background_worker_status["health_status"] == "degraded":
+            health_score -= 5
+        elif background_worker_status["health_status"] == "error":
+            health_score -= 20
+        
         # وضعیت کلی بر اساس امتیاز
         overall_status = "healthy" if health_score >= 90 else "degraded" if health_score >= 70 else "unhealthy"
         
-        # 9. جمع‌بندی سرویس‌ها - نسخه آپدیت شده
+        # 9. جمع‌بندی سرویس‌ها - نسخه آپدیت شده با Background Worker
         services_status = {
             "web_server": {
                 "status": "running",
@@ -942,10 +987,52 @@ async def health_status():
                     "ttl_optimization": cache_details["cache_optimizer_available"],
                     "cost_management": cache_details["cache_optimizer_available"]
                 }
+            },
+            # 🔥 بخش جدید: وضعیت Background Worker
+            "background_worker": {
+                "status": "active" if background_worker_status["is_running"] else "inactive",
+                "health_status": background_worker_status["health_status"],
+                "workers": {
+                    "active": background_worker_status["workers_active"],
+                    "total": background_worker_status["workers_total"],
+                    "utilization_percent": background_worker_status["worker_utilization"]
+                },
+                "queue": {
+                    "size": background_worker_status["queue_size"],
+                    "active_tasks": background_worker_status["active_tasks"],
+                    "completed_tasks": background_worker_status["completed_tasks"],
+                    "failed_tasks": background_worker_status["failed_tasks"]
+                },
+                "performance": {
+                    "tasks_processed": background_worker_status["tasks_processed"],
+                    "success_rate": background_worker_status["success_rate"],
+                    "available": background_worker_status["available"]
+                }
             }
         }
         
-        # 10. هشدارها و توصیه‌ها - نسخه آپدیت شده
+        # 10. وضعیت منابع
+        resources_status = {
+            "cpu": {
+                "usage_percent": cpu_usage,
+                "cores": psutil.cpu_count(),
+                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+            },
+            "memory": {
+                "usage_percent": memory.percent,
+                "used_gb": round(memory.used / (1024**3), 2),
+                "available_gb": round(memory.available / (1024**3), 2),
+                "total_gb": round(memory.total / (1024**3), 2)
+            },
+            "disk": {
+                "usage_percent": disk.percent,
+                "used_gb": round(disk.used / (1024**3), 2),
+                "free_gb": round(disk.free / (1024**3), 2),
+                "total_gb": round(disk.total / (1024**3), 2)
+            }
+        }
+        
+        # 11. هشدارها و توصیه‌ها - نسخه آپدیت شده
         alerts = []
         recommendations = _get_component_recommendations(
             cache_details=cache_details,
@@ -954,7 +1041,7 @@ async def health_status():
             system_metrics=resources_status
         )
         
-        # بررسی هشدارها
+        # بررسی هشدارها - با اضافه کردن Background Worker
         if health_score < 90:
             alerts.append({
                 "level": "WARNING",
@@ -1002,7 +1089,37 @@ async def health_status():
             })
             recommendations.append("Clean up disk space immediately using /api/health/cleanup/urgent")
         
-        # 11. پاسخ نهایی - نسخه آپدیت شده
+        # 🔥 هشدارهای جدید برای Background Worker
+        if not background_worker_status["available"]:
+            alerts.append({
+                "level": "CRITICAL",
+                "message": "Background Worker system not available",
+                "component": "background_worker"
+            })
+            recommendations.append("Check Background Worker initialization and dependencies")
+        elif not background_worker_status["is_running"]:
+            alerts.append({
+                "level": "WARNING",
+                "message": "Background Worker is not running",
+                "component": "background_worker"
+            })
+            recommendations.append("Start Background Worker system")
+        elif background_worker_status["queue_size"] > 50:
+            alerts.append({
+                "level": "WARNING",
+                "message": "Background Worker queue is growing",
+                "component": "background_worker"
+            })
+            recommendations.append("Consider scaling workers or optimizing task processing")
+        elif background_worker_status["success_rate"] < 90:
+            alerts.append({
+                "level": "WARNING",
+                "message": "Background Worker success rate is low",
+                "component": "background_worker"
+            })
+            recommendations.append("Investigate task failures in Background Worker")
+        
+        # 12. پاسخ نهایی - نسخه آپدیت شده
         response = {
             "status": overall_status,
             "health_score": health_score,
@@ -1029,7 +1146,14 @@ async def health_status():
                 "system_uptime": services_status["web_server"]["uptime_seconds"],
                 "total_requests_processed": normalization_metrics.get("total_processed", 0),
                 "memory_usage_percent": resources_status["memory"]["usage_percent"],
-                "cpu_usage_percent": resources_status["cpu"]["usage_percent"]
+                "cpu_usage_percent": resources_status["cpu"]["usage_percent"],
+                # 🔥 متریک‌های جدید Background Worker
+                "background_worker_available": background_worker_status["available"],
+                "background_worker_running": background_worker_status["is_running"],
+                "background_workers_active": background_worker_status["workers_active"],
+                "background_queue_size": background_worker_status["queue_size"],
+                "background_tasks_processed": background_worker_status["tasks_processed"],
+                "background_success_rate": background_worker_status["success_rate"]
             },
             
             "components_status": {
@@ -1068,22 +1192,36 @@ async def health_status():
                     "details": api_details.get('status', 'unknown')
                 },
         
+                # 🔥 وضعیت کامل Background Worker
+                "background_worker_system": {
+                    "available": background_worker_status["available"],
+                    "is_running": background_worker_status["is_running"],
+                    "workers_available": background_worker_status["workers_active"] > 0,
+                    "queue_healthy": background_worker_status["queue_size"] < 20,
+                    "performance_healthy": background_worker_status["success_rate"] > 90,
+                    "resource_efficient": background_worker_status["worker_utilization"] < 90,
+                    "live_workers_count": len(background_worker_status.get("live_workers", [])),
+                    "detailed_status": background_worker_status
+                },
+        
                 # وضعیت کلی کامپوننت‌ها
                 "overall_health": {
                     "all_core_components": (
                         cache_available and 
                         _check_normalization_availability() and 
-                        _check_external_apis_availability()
+                        _check_external_apis_availability() and
+                        background_worker_status["available"]  # 🔥 اضافه شده
                     ),
                     "all_advanced_features": (
                         cache_details.get("archive_system_available", False) and
                         cache_details.get("cache_optimizer_available", False) and
-                        cache_health.get("features", {}).get("smart_ttl_management", False)
+                        cache_health.get("features", {}).get("smart_ttl_management", False) and
+                        background_worker_status["is_running"]  # 🔥 اضافه شده
                     ),
-                    "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status_info, resources_status)
+                    "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status)
                 }
             },
-                
+            
             "cache_architecture_details": {
                 "databases": _get_real_database_configs(),
                 "features_available": cache_health.get("features", {}),
@@ -2189,6 +2327,367 @@ async def warm_cache_intelligently(patterns: List[str], databases: List[str] = N
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Cache warming error: {e}")
+
+
+# ==================== BACKGROUND WORKER ENDPOINTS ====================
+@health_router.get("/background/status")
+async def get_background_worker_status():
+    """وضعیت کامل سیستم Background Worker"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        monitoring_dashboard = get_debug_module('monitoring_dashboard')
+        
+        worker_metrics = background_worker.get_detailed_metrics()
+        dashboard_data = monitoring_dashboard.get_dashboard_data()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "worker_system": {
+                "is_active": background_worker.is_running,
+                "total_workers": worker_metrics['worker_status']['total_workers'],
+                "active_workers": worker_metrics['worker_status']['active_workers'],
+                "worker_utilization": worker_metrics['worker_status'].get('worker_utilization', 0),
+                "queue_size": worker_metrics['queue_status']['queue_size'],
+                "active_tasks": worker_metrics['queue_status']['active_tasks']
+            },
+            "performance": {
+                "health_score": dashboard_data['summary']['overall_health']['score'],
+                "performance_score": dashboard_data['summary']['performance_score'],
+                "success_rate": worker_metrics.get('performance_stats', {}).get('success_rate', 0),
+                "total_tasks_processed": worker_metrics.get('performance_stats', {}).get('total_tasks_processed', 0)
+            },
+            "resource_usage": {
+                "cpu_percent": worker_metrics['current_metrics']['cpu_percent'],
+                "memory_percent": worker_metrics['current_metrics']['memory_percent'],
+                "queue_health": "healthy" if worker_metrics['queue_status']['queue_size'] < 20 else "warning"
+            },
+            "alerts": {
+                "active_alerts": len(dashboard_data['alerts']['active']),
+                "critical_alerts": dashboard_data['alerts']['stats']['critical_count']
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Background worker status error: {e}")
+
+@health_router.get("/background/workers/live")
+async def get_live_workers_status():
+    """وضعیت لحظه‌ای کارگران"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        worker_metrics = background_worker.get_detailed_metrics()
+        
+        live_workers = []
+        for worker_id, worker_data in worker_metrics.get('worker_metrics', {}).items():
+            if worker_data.get('status') == 'active':
+                live_workers.append({
+                    "worker_id": worker_id,
+                    "task_id": worker_data.get('task_id', 'idle'),
+                    "status": worker_data.get('status'),
+                    "start_time": worker_data.get('start_time'),
+                    "cpu_usage": worker_data.get('cpu_usage', 0),
+                    "memory_usage": worker_data.get('memory_usage', 0)
+                })
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "total_workers": worker_metrics['worker_status']['total_workers'],
+            "active_workers": worker_metrics['worker_status']['active_workers'],
+            "idle_workers": worker_metrics['worker_status']['total_workers'] - worker_metrics['worker_status']['active_workers'],
+            "live_workers": live_workers,
+            "utilization_percentage": worker_metrics['worker_status'].get('worker_utilization', 0)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Live workers status error: {e}")
+
+@health_router.get("/background/queue")
+async def get_queue_status():
+    """وضعیت صف کارها"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        worker_metrics = background_worker.get_detailed_metrics()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "queue_summary": worker_metrics['queue_status'],
+            "task_breakdown": worker_metrics.get('performance_stats', {}).get('tasks_by_type', {}),
+            "efficiency_metrics": {
+                "avg_task_duration": worker_metrics.get('performance_stats', {}).get('avg_task_duration', 0),
+                "throughput": worker_metrics.get('performance_stats', {}).get('total_tasks_processed', 0) / 3600,
+                "success_rate": worker_metrics.get('performance_stats', {}).get('success_rate', 100)
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Queue status error: {e}")
+
+@health_router.post("/background/workers/scale")
+async def scale_workers(worker_count: int = Query(..., ge=1, le=10)):
+    """تغییر تعداد کارگران"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        
+        # توقف worker فعلی
+        background_worker.stop()
+        
+        # ایجاد worker جدید با تعداد مشخص
+        background_worker.max_workers = worker_count
+        background_worker.executor = ThreadPoolExecutor(max_workers=worker_count)
+        background_worker.start()
+        
+        return {
+            "status": "success",
+            "message": f"Workers scaled to {worker_count}",
+            "new_worker_count": worker_count,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Worker scaling error: {e}")
+
+@health_router.post("/background/tasks/submit")
+async def submit_background_task(
+    task_type: str = Query(..., regex="^(heavy|normal|light|maintenance)$"),
+    task_name: str = Query(...),
+    priority: int = Query(1, ge=1, le=10)
+):
+    """ثبت کار جدید در پس‌زمینه"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        background_tasks = get_debug_module('background_tasks')
+        
+        # پیدا کردن تابع مربوطه
+        task_func = getattr(background_tasks, task_name, None)
+        if not task_func:
+            raise HTTPException(status_code=400, detail=f"Task {task_name} not found")
+        
+        task_id = f"{task_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        success, message = background_worker.submit_task(
+            task_id=task_id,
+            task_func=task_func,
+            task_type=task_type,
+            priority=priority
+        )
+        
+        if success:
+            return {
+                "status": "submitted",
+                "task_id": task_id,
+                "message": message,
+                "task_type": task_type,
+                "priority": priority,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=503, detail=message)
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task submission error: {e}")
+
+@health_router.get("/background/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """دریافت وضعیت یک کار خاص"""
+    try:
+        background_worker = get_debug_module('background_worker')
+        
+        task_status = background_worker.get_task_status(task_id)
+        if not task_status:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+        
+        return {
+            "status": "success",
+            "task_id": task_id,
+            "task_status": task_status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Task status error: {e}")
+
+# ==================== ADVANCED MONITORING ENDPOINTS ====================
+
+@health_router.get("/monitoring/dashboard")
+async def get_monitoring_dashboard():
+    """دریافت دشبورد کامل مانیتورینگ"""
+    try:
+        monitoring_dashboard = get_debug_module('monitoring_dashboard')
+        dashboard_data = monitoring_dashboard.get_dashboard_data()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "dashboard": dashboard_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dashboard error: {e}")
+
+@health_router.get("/monitoring/alerts")
+async def get_active_alerts():
+    """دریافت هشدارهای فعال"""
+    try:
+        monitoring_dashboard = get_debug_module('monitoring_dashboard')
+        dashboard_data = monitoring_dashboard.get_dashboard_data()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "alerts": dashboard_data['alerts']
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alerts error: {e}")
+
+@health_router.post("/monitoring/alerts/{alert_index}/acknowledge")
+async def acknowledge_alert(alert_index: int):
+    """تأیید یک هشدار"""
+    try:
+        monitoring_dashboard = get_debug_module('monitoring_dashboard')
+        
+        success = monitoring_dashboard.acknowledge_alert(alert_index)
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        
+        return {
+            "status": "success",
+            "message": f"Alert {alert_index} acknowledged",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alert acknowledgement error: {e}")
+
+@health_router.get("/monitoring/insights")
+async def get_worker_insights():
+    """دریافت بینش‌های تحلیلی"""
+    try:
+        monitoring_dashboard = get_debug_module('monitoring_dashboard')
+        insights = monitoring_dashboard.get_worker_insights()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "insights": insights
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insights error: {e}")
+
+# ==================== RESOURCE MANAGEMENT ENDPOINTS ====================
+
+@health_router.get("/resources/advanced")
+async def get_advanced_resource_metrics():
+    """متریک‌های پیشرفته منابع"""
+    try:
+        resource_manager = get_debug_module('resource_manager')
+        resource_report = resource_manager.get_detailed_resource_report()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "resource_report": resource_report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Resource metrics error: {e}")
+
+@health_router.get("/resources/optimization")
+async def get_optimization_recommendations():
+    """توصیه‌های بهینه‌سازی منابع"""
+    try:
+        resource_manager = get_debug_module('resource_manager')
+        recommendations = resource_manager.get_optimization_recommendations()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "optimization_recommendations": recommendations
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimization recommendations error: {e}")
+
+# ==================== INTELLIGENT SCHEDULING ENDPOINTS ====================
+
+@health_router.get("/scheduling/analytics")
+async def get_scheduling_analytics():
+    """آمار و آنالیز زمان‌بندی"""
+    try:
+        task_scheduler = get_debug_module('task_scheduler')
+        analytics = task_scheduler.get_scheduling_analytics()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "scheduling_analytics": analytics
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scheduling analytics error: {e}")
+
+@health_router.get("/scheduling/upcoming")
+async def get_upcoming_schedule():
+    """برنامه زمان‌بندی آینده"""
+    try:
+        task_scheduler = get_debug_module('task_scheduler')
+        analytics = task_scheduler.get_scheduling_analytics()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "upcoming_schedule": analytics.get('upcoming_schedule', [])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upcoming schedule error: {e}")
+
+# ==================== RECOVERY SYSTEM ENDPOINTS ====================
+
+@health_router.get("/recovery/status")
+async def get_recovery_status():
+    """وضعیت سیستم بازیابی"""
+    try:
+        recovery_manager = get_debug_module('recovery_manager')
+        recovery_status = recovery_manager.get_recovery_status()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "recovery_status": recovery_status
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recovery status error: {e}")
+
+@health_router.post("/recovery/snapshot/create")
+async def create_snapshot(snapshot_type: str = "manual"):
+    """ایجاد snapshot دستی"""
+    try:
+        recovery_manager = get_debug_module('recovery_manager')
+        
+        # جمع‌آوری وضعیت سیستم
+        system_state = {
+            "timestamp": datetime.now().isoformat(),
+            "type": snapshot_type,
+            "system_metrics": {}  # در واقعیت اینجا داده‌های واقعی جمع می‌شوند
+        }
+        
+        result = recovery_manager.create_snapshot(system_state, snapshot_type)
+        
+        return {
+            "status": "success" if result['success'] else "error",
+            "snapshot_result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Snapshot creation error: {e}")
+
+@health_router.post("/recovery/auto-recover")
+async def trigger_auto_recovery():
+    """فعال‌سازی بازیابی خودکار"""
+    try:
+        recovery_manager = get_debug_module('recovery_manager')
+        result = recovery_manager.auto_recover()
+        
+        return {
+            "status": "success" if result['success'] else "error",
+            "recovery_result": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Auto-recovery error: {e}")
+        
 # ==================== INITIALIZATION ====================
 @health_router.on_event("startup")
 async def startup_event():
