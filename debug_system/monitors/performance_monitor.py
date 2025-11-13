@@ -107,9 +107,9 @@ class PerformanceMonitor:
             score += 28
         elif response_time <= self.response_time_thresholds['fair']:
             score += 21
-         elif response_time <= self.response_time_thresholds['poor']:
+        elif response_time <= self.response_time_thresholds['poor']:
             score += 14
-         else:
+        else:
             score += 7
           
         # امتیاز نرخ موفقیت (25%)
