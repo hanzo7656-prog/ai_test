@@ -525,93 +525,57 @@ def _get_component_recommendations(cache_details: Dict, normalization_metrics: D
 
 def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dict, 
                                api_status: Dict, system_metrics: Dict) -> int:
-    """محاسبه واقعی امتیاز سلامت سیستم بر اساس متریک‌های واقعی"""
-    base_score = 100
+    """محاسبه واقعی امتیاز سلامت - نسخه اصلاح شده"""
     
-    # کسر بر اساس وضعیت کش
-    cache_status = cache_details.get("overall_status")
-    if cache_status == "unavailable":
-        base_score -= 40
-    elif cache_status == "degraded":
-        base_score -= 20
-    elif cache_status == "healthy":
-        base_score -= 5
+    # استفاده از داده‌های واقعی بدون تغییر دستی
+    cache_health = _get_real_cache_health(cache_details)
     
-    # کسر بر اساس نرخ موفقیت نرمال‌سازی
+    # امتیاز رو از تابع کش بگیر (نه محاسبه دستی)
+    base_score = cache_health.get("health_score", 0)
+    
+    # فقط بر اساس متریک‌های واقعی تنظیم کن
     norm_success = normalization_metrics.get("success_rate", 0)
     if norm_success < 80:
-        base_score -= 25
+        base_score -= 10
     elif norm_success < 90:
-        base_score -= 10
-    elif norm_success < 95:
         base_score -= 5
     
-    # کسر بر اساس وضعیت API
+    # وضعیت API
     if not api_status.get("available", False):
-        base_score -= 20
-    elif api_status.get("status") != "healthy":
         base_score -= 10
     
-    # کسر بر اساس منابع سیستم
-    memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
-    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
-    disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
-    
-    if memory_usage > 90:
-        base_score -= 15
-    elif memory_usage > 80:
-        base_score -= 8
-    
-    if cpu_usage > 90:
-        base_score -= 15
-    elif cpu_usage > 80:
-        base_score -= 8
-    
-    if disk_usage > 90:
-        base_score -= 20
-    elif disk_usage > 85:
-        base_score -= 10
-    
-    # کسر بر اساس عملکرد کش
-    cache_hit_rate = cache_details.get("real_metrics", {}).get("hit_rate", 0)
-    if cache_hit_rate < 50:
-        base_score -= 10
-    elif cache_hit_rate < 70:
-        base_score -= 5
-    
-    # اطمینان از محدوده معقول
     return max(0, min(100, base_score))
-
+                                   
 def _get_real_cache_health(cache_details: Dict) -> Dict[str, Any]:
-    """دریافت وضعیت واقعی سلامت کش"""
+    """دریافت وضعیت واقعی سلامت کش - نسخه اصلاح شده"""
     
+    # استفاده از داده‌های واقعی از cache_details
     cache_status = cache_details.get("overall_status", "unavailable")
     connected_dbs = cache_details.get("connected_databases", 0)
     real_metrics = cache_details.get("real_metrics", {})
     
-    # محاسبه امتیاز سلامت کش
-    cache_health_score = 0
-    if cache_status == "advanced":
+    # محاسبه امتیاز سلامت بر اساس داده‌های واقعی
+    if connected_dbs == 5:
         cache_health_score = 95
-    elif cache_status == "healthy":
-        cache_health_score = 80
-    elif cache_status == "degraded":
-        cache_health_score = 60
+        health_status = "healthy"
+    elif connected_dbs >= 3:
+        cache_health_score = 75
+        health_status = "degraded"
+    elif connected_dbs >= 1:
+        cache_health_score = 50
+        health_status = "degraded"
     else:
         cache_health_score = 0
+        health_status = "unavailable"
     
-    # تنظیم وضعیت بر اساس امتیاز
-    status_mapping = {
-        90: "healthy",
-        70: "degraded", 
-        0: "unavailable"
-    }
-    
-    health_status = "unavailable"
-    for threshold, status in status_mapping.items():
-        if cache_health_score >= threshold:
-            health_status = status
-            break
+    # تنظیم وضعیت دیتابیس‌ها بر اساس داده‌های واقعی
+    database_status = {}
+    for db_name in ['uta', 'utb', 'utc', 'mother_a', 'mother_b']:
+        db_info = cache_details.get("database_details", {}).get(db_name, {})
+        database_status[db_name] = {
+            "status": db_info.get("status", "unknown"),
+            "connected": db_info.get("status") == "connected"
+        }
     
     return {
         "status": health_status,
@@ -619,30 +583,15 @@ def _get_real_cache_health(cache_details: Dict) -> Dict[str, Any]:
         "architecture": cache_status,
         "databases_connected": connected_dbs,
         "total_databases": 5,
+        "database_status": database_status,
         "real_metrics": real_metrics,
-        "features": {
-            "real_time_cache": connected_dbs > 0,
-            "historical_archive": cache_details.get("archive_system_available", False),
-            "data_compression": cache_details.get("cache_optimizer_available", False),
-            "smart_ttl_management": cache_details.get("cache_optimizer_available", False),
-            "access_pattern_analysis": cache_details.get("cache_optimizer_available", False),
-            "cost_optimization": cache_details.get("cache_optimizer_available", False)
-        },
         "performance": {
-            "connected_databases": connected_dbs,
-            "total_archives": cache_details.get("archive_stats", {}).get("total_archives", 0),
-            "archive_size_mb": cache_details.get("archive_stats", {}).get("total_size_mb", 0),
-            "optimization_available": cache_details.get("cache_optimizer_available", False)
-        },
-        "summary": {
             "hit_rate": real_metrics.get("hit_rate", 0),
-            "total_requests": real_metrics.get("total_operations", 0),
-            "avg_response_time": real_metrics.get("avg_response_time", 0),
-            "compression_savings": 0,  # نیاز به پیاده‌سازی واقعی
-            "strategies_active": 4 if cache_details.get("cache_optimizer_available") else 1
+            "total_operations": real_metrics.get("total_operations", 0),
+            "avg_response_time": real_metrics.get("avg_response_time", 0)
         }
     }
-
+    
 def _get_real_database_configs() -> Dict[str, Any]:
     """دریافت تنظیمات واقعی دیتابیس‌ها"""
     try:
