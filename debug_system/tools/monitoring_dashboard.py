@@ -505,7 +505,35 @@ class WorkerMonitoringDashboard:
                 'health_score': {'color': '#96ceb4', 'max_value': 100}
             }
         }
+     def _get_system_status_summary(self, metrics: Dict) -> Dict[str, str]:
+        """دریافت خلاصه وضعیت سیستم"""
+        status = {}
         
+        # وضعیت سیستم
+        cpu_status = "normal"
+        if metrics['system']['cpu']['percent'] > 90:
+            cpu_status = "critical"
+        elif metrics['system']['cpu']['percent'] > 80:
+            cpu_status = "warning"
+        
+        memory_status = "normal"
+        if metrics['system']['memory']['percent'] > 90:
+            memory_status = "critical"
+        elif metrics['system']['memory']['percent'] > 80:
+            memory_status = "warning"
+        
+        status['system'] = {
+            'cpu': cpu_status,
+            'memory': memory_status,
+            'disk': "normal" if metrics['system']['disk']['usage_percent'] < 90 else "warning"
+        }
+        
+        # وضعیت کامپوننت‌ها
+        for component in ['worker', 'resources', 'scheduling', 'recovery']:
+            component_data = metrics.get(component, {})
+            status[component] = component_data.get('status', 'unknown')
+        
+        return status   
     def get_dashboard_data(self) -> Dict[str, Any]:
         """دریافت داده‌های کامل دشبورد"""
         current_metrics = self._collect_comprehensive_metrics()
@@ -541,36 +569,6 @@ class WorkerMonitoringDashboard:
             },
             'dashboard_config': self.dashboard_config
         }
-    
-    def _get_system_status_summary(self, metrics: Dict) -> Dict[str, str]:
-        """دریافت خلاصه وضعیت سیستم"""
-        status = {}
-        
-        # وضعیت سیستم
-        cpu_status = "normal"
-        if metrics['system']['cpu']['percent'] > 90:
-            cpu_status = "critical"
-        elif metrics['system']['cpu']['percent'] > 80:
-            cpu_status = "warning"
-        
-        memory_status = "normal"
-        if metrics['system']['memory']['percent'] > 90:
-            memory_status = "critical"
-        elif metrics['system']['memory']['percent'] > 80:
-            memory_status = "warning"
-        
-        status['system'] = {
-            'cpu': cpu_status,
-            'memory': memory_status,
-            'disk': "normal" if metrics['system']['disk']['usage_percent'] < 90 else "warning"
-        }
-        
-        # وضعیت کامپوننت‌ها
-        for component in ['worker', 'resources', 'scheduling', 'recovery']:
-            component_data = metrics.get(component, {})
-            status[component] = component_data.get('status', 'unknown')
-        
-        return status
     
     def _identify_current_bottlenecks(self, metrics: Dict) -> List[str]:
         """شناسایی گلوگاه‌های فعلی"""
