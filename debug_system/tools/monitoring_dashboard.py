@@ -505,7 +505,7 @@ class WorkerMonitoringDashboard:
                 'health_score': {'color': '#96ceb4', 'max_value': 100}
             }
         }
-     def _get_system_status_summary(self, metrics: Dict) -> Dict[str, str]:
+    def _get_system_status_summary(self, metrics: Dict) -> Dict[str, str]:
         """دریافت خلاصه وضعیت سیستم"""
         status = {}
         
