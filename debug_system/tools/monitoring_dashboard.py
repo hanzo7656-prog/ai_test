@@ -444,10 +444,10 @@ class WorkerMonitoringDashboard:
             'message': message,
             'timestamp': datetime.now().isoformat(),
             'metrics_snapshot': {
-                'performance_score': metrics['performance_score'],
-                'health_score': metrics['overall_health']['score'],
-                'cpu_usage': metrics['system']['cpu']['percent'],
-                'memory_usage': metrics['system']['memory']['percent']
+                'performance_score': metrics.get('performance_score', 0),
+                'health_score': metrics.get('overall_health', {}).get('score', 0),
+                'cpu_usage': metrics.get('system', {}).get('cpu', {}).get('percent', 0),
+                'memory_usage': metrics.get('system', {}).get('memory', {}).get('percent', 0)
             },
             'acknowledged': False,
             'auto_resolve': True
@@ -457,18 +457,18 @@ class WorkerMonitoringDashboard:
         """اضافه کردن هشدار به لیست فعال"""
         # بررسی تکراری نبودن هشدار
         for existing_alert in self.active_alerts:
-            if (existing_alert['category'] == alert['category'] and 
-                existing_alert['message'] == alert['message'] and
-                not existing_alert['acknowledged']):
+            if (existing_alert.get('category') == alert.get('category') and 
+                existing_alert.get('message') == alert.get('message') and
+                not existing_alert.get('acknowledged', False)):
                 return  # هشدار تکراری
-        
+    
         self.active_alerts.append(alert)
-        logger.warning(f"🚨 {alert['level'].upper()} ALERT: {alert['message']}")
-        
+        logger.warning(f"🚨 {alert.get('level', 'UNKNOWN').upper()} ALERT: {alert.get('message', 'Unknown')}")
+    
         # محدود کردن تعداد هشدارهای فعال
         if len(self.active_alerts) > 100:
             self.active_alerts = self.active_alerts[-100:]
-    
+            
     def _update_metrics_history(self, metrics: Dict):
         """به‌روزرسانی تاریخچه متریک‌ها"""
         timestamp = metrics['timestamp']
@@ -505,27 +505,27 @@ class WorkerMonitoringDashboard:
                 'health_score': {'color': '#96ceb4', 'max_value': 100}
             }
         }
-    
+        
     def get_dashboard_data(self) -> Dict[str, Any]:
         """دریافت داده‌های کامل دشبورد"""
         current_metrics = self._collect_comprehensive_metrics()
-        
+    
         return {
             'summary': {
                 'timestamp': current_metrics['timestamp'],
                 'overall_health': current_metrics['overall_health'],
                 'performance_score': current_metrics['performance_score'],
-                'active_alerts': len(self.active_alerts),
+                'active_alerts': len([a for a in self.active_alerts if not a.get('acknowledged', False)]),
                 'system_status': self._get_system_status_summary(current_metrics)
             },
             'current_metrics': current_metrics,
             'alerts': {
-                'active': [alert for alert in self.active_alerts if not alert['acknowledged']],
-                'recently_resolved': [alert for alert in self.active_alerts if alert['acknowledged']][-10:],
+                'active': [alert for alert in self.active_alerts if not alert.get('acknowledged', False)],
+                'recently_resolved': [alert for alert in self.active_alerts if alert.get('acknowledged', False)][-10:],
                 'stats': {
-                    'total_active': len([a for a in self.active_alerts if not a['acknowledged']]),
-                    'critical_count': len([a for a in self.active_alerts if a['level'] == 'critical' and not a['acknowledged']]),
-                    'warning_count': len([a for a in self.active_alerts if a['level'] == 'warning' and not a['acknowledged']])
+                    'total_active': len([a for a in self.active_alerts if not a.get('acknowledged', False)]),
+                    'critical_count': len([a for a in self.active_alerts if a.get('level') == 'critical' and not a.get('acknowledged', False)]),
+                    'warning_count': len([a for a in self.active_alerts if a.get('level') == 'warning' and not a.get('acknowledged', False)])
                 }
             },
             'performance_analysis': {
@@ -699,7 +699,7 @@ class WorkerMonitoringDashboard:
             self.active_alerts[alert_index]['acknowledged_at'] = datetime.now().isoformat()
             return True
         return False
-    
+        
     def get_worker_insights(self) -> Dict[str, Any]:
         """دریافت بینش‌های تحلیلی از عملکرد worker"""
         if not self.metrics_history.get('worker'):
