@@ -78,7 +78,7 @@ def initialize_tools_system(debug_manager_instance=None, history_manager_instanc
         logger.info("✅ Monitoring Dashboard initialized and monitoring started")
         
         # راه‌اندازی کارهای زمان‌بندی شده پیش‌فرض
-        self._setup_default_scheduled_tasks()
+        _setup_default_scheduled_tasks()
         
         logger.info("🎯 Debug tools system fully initialized with advanced background workers")
         
