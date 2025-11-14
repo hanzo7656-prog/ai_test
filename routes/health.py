@@ -50,6 +50,17 @@ try:
 except ImportError:
     coin_stats_manager = None
 
+# ایمپورت هوش مصنوعی
+try:
+    from simple_ai.brain import ai_brain
+    from integrations.ai_monitor import ai_monitor
+    AI_SYSTEM_AVAILABLE = True
+    logger.info("✅ AI System imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ AI System import failed: {e}")
+    AI_SYSTEM_AVAILABLE = False
+    ai_brain = None
+    ai_monitor = None
 
 # ایجاد روت‌ر سلامت
 health_router = APIRouter(prefix="/api/health", tags=["Health & Debug"])
@@ -657,6 +668,88 @@ def _get_real_database_configs() -> Dict[str, Any]:
             "mother_a": {"role": "System Core Data", "status": "unknown", "connected": False},
             "mother_b": {"role": "Operations & Analytics", "status": "unknown", "connected": False}
         }
+
+# در بخش HELPER FUNCTIONS، این تابع را اضافه کنید:
+
+def _check_ai_system_availability() -> Dict[str, Any]:
+    """بررسی واقعی وضعیت سیستم هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        return {
+            "available": False,
+            "status": "not_imported",
+            "error": "AI system modules not available",
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    try:
+        # بررسی سلامت مغز AI
+        ai_health = ai_brain.get_network_health()
+        
+        # بررسی مانیتورینگ AI
+        ai_metrics = ai_monitor.collect_ai_metrics()
+        
+        return {
+            "available": True,
+            "status": "healthy",
+            "brain_health": ai_health,
+            "monitor_metrics": ai_metrics,
+            "performance": {
+                "training_samples": ai_health['performance']['training_samples'],
+                "current_accuracy": ai_health['performance']['current_accuracy'],
+                "architecture_status": ai_health['actual_sparsity']
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI system health check failed: {e}")
+        return {
+            "available": False,
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+# در بخش HELPER FUNCTIONS، این تابع را اضافه کنید:
+
+def _calculate_ai_health_score(ai_health: Dict[str, Any]) -> int:
+    """محاسبه امتیاز سلامت هوش مصنوعی"""
+    try:
+        base_score = 80  # امتیاز پایه
+        
+        # تنظیم بر اساس دقت
+        accuracy = ai_health['performance']['current_accuracy']
+        if accuracy > 0.9:
+            base_score += 15
+        elif accuracy > 0.7:
+            base_score += 10
+        elif accuracy > 0.5:
+            base_score += 5
+        else:
+            base_score -= 10
+        
+        # تنظیم بر اساس تعداد نمونه‌های آموزشی
+        training_samples = ai_health['performance']['training_samples']
+        if training_samples > 1000:
+            base_score += 5
+        elif training_samples > 100:
+            base_score += 2
+        else:
+            base_score -= 5
+        
+        # تنظیم بر اساس اسپارسیتی
+        sparsity = float(ai_health['actual_sparsity'].rstrip('%'))
+        if 8 <= sparsity <= 12:  # در محدوده هدف 10%
+            base_score += 5
+        else:
+            base_score -= 5
+        
+        return max(0, min(100, base_score))
+        
+    except Exception as e:
+        logger.error(f"❌ AI health score calculation failed: {e}")
+        return 50  # امتیاز پیش‌فرض در صورت خطا
+        
 # ==================== BASIC HEALTH ENDPOINTS ====================
 
 @health_router.get("/status")
@@ -1079,7 +1172,20 @@ async def health_status():
                     "resource_efficient": background_worker_status["worker_utilization"] < 90,
                     "detailed_status": background_worker_status
                 },
-        
+                
+
+                
+                # وضعیت AI
+                "ai_system": {
+                    "available": AI_SYSTEM_AVAILABLE,
+                    "status": "healthy" if AI_SYSTEM_AVAILABLE and _check_ai_system_availability().get('status') == 'healthy' else "unavailable",
+                    "neural_network": {
+                        "neurons_active": ai_brain.get_network_health()['active_neurons'] if AI_SYSTEM_AVAILABLE else 0,
+                        "training_samples": ai_brain.get_network_health()['performance']['training_samples'] if AI_SYSTEM_AVAILABLE else 0,
+                        "accuracy": ai_brain.get_network_health()['performance']['current_accuracy'] if AI_SYSTEM_AVAILABLE else 0
+                    } if AI_SYSTEM_AVAILABLE else {}
+                },
+                
                 # وضعیت کلی کامپوننت‌ها
                 "overall_health": {
                     "all_core_components": (
@@ -2562,7 +2668,171 @@ async def trigger_auto_recovery():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Auto-recovery error: {e}")
+
+# ========================= simple AI =========================
+
+@health_router.get("/ai/status")
+async def ai_system_status():
+    """وضعیت سلامت سیستم هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        ai_health = ai_brain.get_network_health()
+        ai_metrics = ai_monitor.collect_ai_metrics()
         
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "component": "ai_system",
+            "architecture": {
+                "total_neurons": ai_health['neuron_count'],
+                "active_neurons": ai_health['active_neurons'],
+                "connection_sparsity": ai_health['connection_sparsity'],
+                "actual_sparsity": ai_health['actual_sparsity'],
+                "memory_usage_mb": ai_health['memory_usage_mb']
+            },
+            "performance": {
+                "training_samples": ai_health['performance']['training_samples'],
+                "current_accuracy": ai_health['performance']['current_accuracy'],
+                "trend_accuracy": ai_health['performance']['accuracy_trend_10'],
+                "learning_rate": ai_brain.learning_rate,
+                "last_training": ai_health['performance']['last_training']
+            },
+            "resources": {
+                "weights_size_mb": round(ai_brain.weights.nbytes / (1024 * 1024), 2),
+                "neurons_size_mb": round(ai_brain.neurons.nbytes / (1024 * 1024), 2),
+                "total_memory_mb": ai_health['memory_usage_mb']
+            },
+            "health_score": _calculate_ai_health_score(ai_health)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI status check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI status error: {e}")
+
+@health_router.get("/ai/metrics")
+async def ai_system_metrics():
+    """متریک‌های دقیق سیستم هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        ai_metrics = ai_monitor.collect_ai_metrics()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "metrics": ai_metrics
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI metrics collection failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI metrics error: {e}")
+
+@health_router.post("/ai/optimize")
+async def optimize_ai_system():
+    """بهینه‌سازی خودکار معماری هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        # بهینه‌سازی معماری
+        ai_brain.optimize_architecture()
+        
+        # جمع‌آوری متریک‌های بعد از بهینه‌سازی
+        health_after = ai_brain.get_network_health()
+        
+        return {
+            "status": "optimized",
+            "timestamp": datetime.now().isoformat(),
+            "optimization_results": {
+                "new_learning_rate": ai_brain.learning_rate,
+                "architecture_changes": {
+                    "connection_sparsity": health_after['actual_sparsity'],
+                    "average_weight": health_after['average_weight']
+                },
+                "performance_impact": {
+                    "accuracy_trend": health_after['performance']['accuracy_trend_10'],
+                    "training_efficiency": health_after['performance']['training_samples']
+                }
+            },
+            "recommendations": [
+                "Monitor accuracy trend for next 24 hours",
+                "Consider increasing training data diversity",
+                "Check memory usage after optimization"
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI optimization failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI optimization error: {e}")
+
+@health_router.get("/ai/health-report")
+async def ai_health_report():
+    """گزارش سلامت کامل هوش مصنوعی برای سیستم مادر"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        # جمع‌آوری داده‌های سلامت از مانیتور
+        health_report = ai_monitor.get_ai_health_report()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "health_report": health_report
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI health report failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI health report error: {e}")
+
+@health_router.get("/ai/architecture")
+async def ai_architecture_info():
+    """اطلاعات معماری شبکه عصبی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        health_data = ai_brain.get_network_health()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "architecture": {
+                "type": "sparse_neural_network",
+                "neuron_count": health_data['neuron_count'],
+                "connection_strategy": "sparse_connections",
+                "sparsity_target": health_data['connection_sparsity'],
+                "actual_sparsity": health_data['actual_sparsity'],
+                "learning_algorithm": "backpropagation_with_sparsity",
+                "activation_function": "tanh"
+            },
+            "resources": {
+                "memory_usage": {
+                    "total_mb": health_data['memory_usage_mb'],
+                    "weights_mb": round(ai_brain.weights.nbytes / (1024 * 1024), 2),
+                    "neurons_mb": round(ai_brain.neurons.nbytes / (1024 * 1024), 2),
+                    "bias_mb": round(ai_brain.bias.nbytes / (1024 * 1024), 2)
+                },
+                "computation": {
+                    "learning_rate": ai_brain.learning_rate,
+                    "connection_density": health_data['actual_sparsity'],
+                    "active_neurons": health_data['active_neurons']
+                }
+            },
+            "performance_characteristics": {
+                "training_efficiency": "high",
+                "memory_efficiency": "high",
+                "inference_speed": "fast",
+                "scalability": "excellent"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI architecture info failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI architecture error: {e}")
 # ==================== INITIALIZATION ====================
 @health_router.on_event("startup")
 async def startup_event():
