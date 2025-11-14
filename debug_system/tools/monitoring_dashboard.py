@@ -196,23 +196,37 @@ class WorkerMonitoringDashboard:
             return {'status': 'error', 'error': str(e)}
     
     def _collect_scheduling_metrics(self) -> Dict[str, Any]:
+    def _collect_scheduling_metrics(self) -> Dict[str, Any]:
         """جمع‌آوری متریک‌های زمان‌بندی"""
         if not self.time_scheduler:
             return {'status': 'unavailable'}
-      
+  
         try:
             scheduling_analytics = self.time_scheduler.get_scheduling_analytics()
         
-            # اضافه کردن بررسی برای جلوگیری از KeyError
-            performance_analysis = scheduling_analytics.get('performance_analysis', {})
+            # ✅ اصلاح: بررسی جامع برای جلوگیری از KeyError
+            if not scheduling_analytics:
+                return {
+                    'status': 'active',
+                    'active_tasks': 0,
+                    'upcoming_tasks': 0,
+                    'success_rate': 0,
+                    'efficiency_score': 0,
+                    'optimal_windows': []
+                }
         
+            # ✅ اصلاح: استفاده ایمن از دیکشنری‌ها
+            scheduling_status = scheduling_analytics.get('scheduling_status', {}) or {}
+            performance_analysis = scheduling_analytics.get('performance_analysis', {}) or {}
+            predictions = scheduling_analytics.get('predictions', {}) or {}
+    
             return {
                 'status': 'active',
-                'active_tasks': scheduling_analytics.get('scheduling_status', {}).get('active_tasks', 0),
-                'upcoming_tasks': scheduling_analytics.get('scheduling_status', {}).get('upcoming_tasks', 0),
-                'success_rate': performance_analysis.get('overall_success_rate', 0),  # ✅ اصلاح شده
-                'efficiency_score': performance_analysis.get('efficiency_score', 0),   # ✅ اصلاح شده
-                'optimal_windows': scheduling_analytics.get('predictions', {}).get('optimal_scheduling_windows', [])
+                'active_tasks': scheduling_status.get('active_tasks', 0),
+                'upcoming_tasks': scheduling_status.get('upcoming_tasks', 0),
+                'success_rate': performance_analysis.get('overall_success_rate', 0),
+                'efficiency_score': performance_analysis.get('efficiency_score', 0),
+                'optimal_windows': predictions.get('optimal_scheduling_windows', [])
             }
         except Exception as e:
             logger.error(f"❌ Failed to collect scheduling metrics: {e}")
@@ -461,10 +475,22 @@ class WorkerMonitoringDashboard:
                 existing_alert.get('message') == alert.get('message') and
                 not existing_alert.get('acknowledged', False)):
                 return  # هشدار تکراری
-    
+
         self.active_alerts.append(alert)
-        logger.warning(f"🚨 {alert.get('level', 'UNKNOWN').upper()} ALERT: {alert.get('message', 'Unknown')}")
     
+        # ✅ اصلاح: مدیریت صحیح AlertLevel
+        alert_level = alert.get('level', 'UNKNOWN')
+      
+        # اگر AlertLevel enum است
+        if isinstance(alert_level, AlertLevel):
+            level_str = alert_level.value.upper()
+        elif hasattr(alert_level, 'upper'):
+            level_str = alert_level.upper()
+        else:
+            level_str = str(alert_level).upper()
+    
+        logger.warning(f"🚨 {level_str} ALERT: {alert.get('message', 'Unknown')}")
+ 
         # محدود کردن تعداد هشدارهای فعال
         if len(self.active_alerts) > 100:
             self.active_alerts = self.active_alerts[-100:]
