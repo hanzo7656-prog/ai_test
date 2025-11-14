@@ -12,7 +12,7 @@ class DataIntegration:
     """یکپارچه‌سازی داده‌های خام از routes مختلف"""
     
     def __init__(self):
-        self.base_url = "http://localhost:8000"  # آدرس سرور اصلی
+        self.base_url = os.getenv("SERVICE_URL")  # آدرس سرور اصلی
         self.timeout = aiohttp.ClientTimeout(total=30)
         
         # ارتباط با سیستم کش موجود
