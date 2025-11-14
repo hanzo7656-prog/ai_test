@@ -658,6 +658,7 @@ def _get_real_database_configs() -> Dict[str, Any]:
             "mother_b": {"role": "Operations & Analytics", "status": "unknown", "connected": False}
         }
 # ==================== BASIC HEALTH ENDPOINTS ====================
+
 @health_router.get("/status")
 async def health_status():
     """وضعیت سلامت کامل سیستم - با اطلاعات کامل Background Worker"""
@@ -671,109 +672,12 @@ async def health_status():
         disk = psutil.disk_usage('/')
         cpu_usage = psutil.cpu_percent(interval=0.1)
         
-        # 2. وضعیت سیستم کش - نسخه کاملاً آپدیت شده
+        # 2. وضعیت سیستم کش
         cache_details = _get_cache_details()
         cache_health = _get_real_cache_health(cache_details)
         cache_available = cache_details["overall_status"] != "unavailable"
 
-        try:
-            if cache_details["overall_status"] == "advanced":
-                # سیستم پیشرفته با ۵ دیتابیس و آرشیو
-                cache_health = {
-                    "status": "healthy",
-                    "health_score": 95,
-                    "architecture": "5-databases-with-archive",
-                    "databases": {
-                        "uta": {"role": "AI Core Models", "status": "connected"},
-                        "utb": {"role": "AI Processed Data", "status": "connected"},
-                        "utc": {"role": "Raw Data + Historical Archive", "status": "connected"},
-                        "mother_a": {"role": "System Core Data", "status": "connected"},
-                        "mother_b": {"role": "Operations & Analytics", "status": "connected"}
-                    },
-                    "features": {
-                        "real_time_cache": True,
-                        "historical_archive": True,
-                        "data_compression": True,
-                        "smart_ttl_management": True,
-                        "access_pattern_analysis": cache_details["cache_optimizer_available"],
-                        "cost_optimization": cache_details["cache_optimizer_available"]
-                    },
-                    "performance": {
-                        "connected_databases": cache_details.get("connected_databases", 0),
-                        "total_archives": cache_details.get("archive_stats", {}).get("total_archives", 0),
-                        "archive_size_mb": cache_details.get("archive_stats", {}).get("total_size_mb", 0),
-                        "optimization_available": cache_details["cache_optimizer_available"]
-                    },
-                    "summary": {
-                        "hit_rate": 0,  # از cache_debugger می‌آید
-                        "total_requests": 0,
-                        "avg_response_time": 0,
-                        "compression_savings": 0,
-                        "strategies_active": 8
-                    }
-                }
-                
-                # اگر cache_debugger در دسترس است، آمار واقعی بگیر
-                try:
-                    from debug_system.storage.cache_debugger import cache_debugger
-                    cache_stats = cache_debugger.get_cache_stats()
-                    cache_health["summary"]["hit_rate"] = cache_stats.get('hit_rate', 0)
-                    cache_health["summary"]["total_requests"] = cache_stats.get('total_operations', 0)
-                except:
-                    pass
-                
-            elif cache_details["overall_status"] == "basic":
-                # سیستم پایه
-                cache_health = {
-                    "status": "degraded",
-                    "health_score": 70,
-                    "architecture": "single-database",
-                    "features": {
-                        "real_time_cache": True,
-                        "historical_archive": False,
-                        "data_compression": False,
-                        "smart_ttl_management": False,
-                        "access_pattern_analysis": False,
-                        "cost_optimization": False
-                    },
-                    "performance": {
-                        "connected_databases": 1,
-                        "total_archives": 0,
-                        "archive_size_mb": 0,
-                        "optimization_available": False
-                    },
-                    "summary": {
-                        "hit_rate": 0,
-                        "total_requests": 0,
-                        "avg_response_time": 0,
-                        "compression_savings": 0,
-                        "strategies_active": 0
-                    }
-                }
-            else:
-                cache_health = {
-                    "status": "unavailable",
-                    "health_score": 0,
-                    "error": "No cache system available",
-                    "architecture": "none",
-                    "features": {
-                        "real_time_cache": False,
-                        "historical_archive": False,
-                        "data_compression": False,
-                        "smart_ttl_management": False,
-                        "access_pattern_analysis": False,
-                        "cost_optimization": False
-                    }
-                }
-        
-        except Exception as e:
-            cache_health = {
-                "status": "error", 
-                "error": str(e),
-                "health_score": 0
-            }
-        
-        # 3. وضعیت API خارجی - نسخه واقعی
+        # 3. وضعیت API خارجی
         api_status_info = _check_external_apis_availability()
         api_available = api_status_info.get("available", False)
         api_status = api_status_info.get("status", "unknown")
@@ -784,7 +688,6 @@ async def health_status():
                 api_status = api_check.get('status', 'unknown')
                 api_details = api_check
         
-                # اضافه کردن متریک‌های عملکرد
                 if hasattr(coin_stats_manager, 'get_performance_metrics'):
                     perf_metrics = coin_stats_manager.get_performance_metrics()
                     api_details['performance_metrics'] = perf_metrics
@@ -796,7 +699,7 @@ async def health_status():
             api_status = "manager_not_available"
             api_details = {"error": "coin_stats_manager not initialized"}
             
-        # 4. وضعیت نرمال‌سازی داده - نسخه واقعی
+        # 4. وضعیت نرمال‌سازی داده
         normalization_metrics = {}
         normalization_available = False
 
@@ -827,7 +730,6 @@ async def health_status():
         try:
             from debug_system.storage import redis_manager
             redis_health = redis_manager.health_check()
-            # تبدیل به فرمت ساده‌تر
             redis_status = {
                 "status": redis_health.get('status', 'unknown'),
                 "databases_connected": cache_details.get("connected_databases", 0),
@@ -840,14 +742,14 @@ async def health_status():
                 "error": f"Redis not available: {e}"
             }
         
-        # 6. وضعیت دیتابیس (شبیه‌سازی)
+        # 6. وضعیت دیتابیس
         db_status = {
             "status": "connected",
             "response_time_ms": round((time.time() - start_time) * 1000, 2),
             "connections": 5
         }
         
-        # 7. 🔥 وضعیت کامل Background Worker - بخش جدید
+        # 7. وضعیت کامل Background Worker
         background_worker_status = {
             "available": False,
             "is_running": False,
@@ -868,42 +770,48 @@ async def health_status():
                 background_worker_status = {
                     "available": True,
                     "is_running": background_worker.is_running,
-                    "workers_active": worker_metrics['worker_status']['active_workers'],
-                    "workers_total": worker_metrics['worker_status']['total_workers'],
-                    "queue_size": worker_metrics['queue_status']['queue_size'],
-                    "active_tasks": worker_metrics['queue_status']['active_tasks'],
-                    "completed_tasks": worker_metrics['queue_status']['completed_tasks'],
-                    "failed_tasks": worker_metrics['queue_status']['failed_tasks'],
+                    "workers_active": worker_metrics.get('worker_status', {}).get('active_workers', 0),
+                    "workers_total": worker_metrics.get('worker_status', {}).get('total_workers', 0),
+                    "queue_size": worker_metrics.get('queue_status', {}).get('queue_size', 0),
+                    "active_tasks": worker_metrics.get('queue_status', {}).get('active_tasks', 0),
+                    "completed_tasks": worker_metrics.get('queue_status', {}).get('completed_tasks', 0),
+                    "failed_tasks": worker_metrics.get('queue_status', {}).get('failed_tasks', 0),
                     "tasks_processed": worker_metrics.get('performance_stats', {}).get('total_tasks_processed', 0),
                     "success_rate": worker_metrics.get('performance_stats', {}).get('success_rate', 100),
-                    "worker_utilization": worker_metrics['worker_status'].get('worker_utilization', 0),
-                    "health_status": "healthy" if background_worker.is_running and worker_metrics['queue_status']['queue_size'] < 20 else "degraded",
+                    "worker_utilization": worker_metrics.get('worker_status', {}).get('worker_utilization', 0),
+                    "health_status": "healthy" if background_worker.is_running and worker_metrics.get('queue_status', {}).get('queue_size', 0) < 20 else "degraded",
                     "system_health": worker_metrics.get('system_health', {}),
                     "performance_stats": worker_metrics.get('performance_stats', {}),
                     "current_metrics": worker_metrics.get('current_metrics', {})
                 }
-                
-                # اضافه کردن وضعیت real-time کارگران
-                live_workers = []
-                for worker_id, worker_data in worker_metrics.get('worker_metrics', {}).items():
-                    if worker_data.get('status') == 'active':
-                        live_workers.append({
-                            "worker_id": str(worker_id),
-                            "task_id": worker_data.get('task_id', 'idle'),
-                            "status": worker_data.get('status'),
-                            "start_time": worker_data.get('start_time'),
-                            "cpu_usage": worker_data.get('cpu_usage', 0),
-                            "memory_usage": worker_data.get('memory_usage', 0)
-                        })
-                
-                background_worker_status["live_workers"] = live_workers
                 
         except Exception as e:
             logger.warning(f"⚠️ Could not get background worker status: {e}")
             background_worker_status["error"] = str(e)
             background_worker_status["health_status"] = "error"
         
-        # 8. محاسبه سلامت کلی سیستم - نسخه آپدیت شده با Background Worker
+        # 8. وضعیت منابع - اینجا تعریف شود
+        resources_status = {
+            "cpu": {
+                "usage_percent": cpu_usage,
+                "cores": psutil.cpu_count(),
+                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+            },
+            "memory": {
+                "usage_percent": memory.percent,
+                "used_gb": round(memory.used / (1024**3), 2),
+                "available_gb": round(memory.available / (1024**3), 2),
+                "total_gb": round(memory.total / (1024**3), 2)
+            },
+            "disk": {
+                "usage_percent": disk.percent,
+                "used_gb": round(disk.used / (1024**3), 2),
+                "free_gb": round(disk.free / (1024**3), 2),
+                "total_gb": round(disk.total / (1024**3), 2)
+            }
+        }
+        
+        # 9. محاسبه سلامت کلی سیستم
         health_score = _calculate_real_health_score(
             cache_details=cache_details,
             normalization_metrics=normalization_metrics,
@@ -911,10 +819,9 @@ async def health_status():
             system_metrics=resources_status
         )
         
-        # کسر امتیاز بر اساس خطاها - با در نظر گرفتن Background Worker
+        # کسر امتیاز بر اساس خطاها
         cache_status = cache_health.get("status")
         if cache_status == "healthy":
-            # سیستم کش پیشرفته - امتیاز کامل
             pass
         elif cache_status == "degraded":
             health_score -= 15
@@ -938,7 +845,7 @@ async def health_status():
         if disk.percent > 85:
             health_score -= 10
         
-        # 🔥 کسر امتیاز بر اساس وضعیت Background Worker
+        # کسر امتیاز بر اساس وضعیت Background Worker
         if not background_worker_status["available"]:
             health_score -= 10
         elif not background_worker_status["is_running"]:
@@ -951,7 +858,7 @@ async def health_status():
         # وضعیت کلی بر اساس امتیاز
         overall_status = "healthy" if health_score >= 90 else "degraded" if health_score >= 70 else "unhealthy"
         
-        # 9. جمع‌بندی سرویس‌ها - نسخه آپدیت شده با Background Worker
+        # 10. جمع‌بندی سرویس‌ها
         services_status = {
             "web_server": {
                 "status": "running",
@@ -981,14 +888,14 @@ async def health_status():
                 "performance": normalization_metrics.get("performance_metrics", {})
             },
             "cache_optimization": {
-                "status": "available" if cache_details["cache_optimizer_available"] else "unavailable",
+                "status": "available" if cache_details.get("cache_optimizer_available", False) else "unavailable",
                 "features": {
-                    "access_analysis": cache_details["cache_optimizer_available"],
-                    "ttl_optimization": cache_details["cache_optimizer_available"],
-                    "cost_management": cache_details["cache_optimizer_available"]
+                    "access_analysis": cache_details.get("cache_optimizer_available", False),
+                    "ttl_optimization": cache_details.get("cache_optimizer_available", False),
+                    "cost_management": cache_details.get("cache_optimizer_available", False)
                 }
             },
-            # 🔥 بخش جدید: وضعیت Background Worker
+            # بخش جدید: وضعیت Background Worker
             "background_worker": {
                 "status": "active" if background_worker_status["is_running"] else "inactive",
                 "health_status": background_worker_status["health_status"],
@@ -1011,28 +918,7 @@ async def health_status():
             }
         }
         
-        # 10. وضعیت منابع
-        resources_status = {
-            "cpu": {
-                "usage_percent": cpu_usage,
-                "cores": psutil.cpu_count(),
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-            },
-            "memory": {
-                "usage_percent": memory.percent,
-                "used_gb": round(memory.used / (1024**3), 2),
-                "available_gb": round(memory.available / (1024**3), 2),
-                "total_gb": round(memory.total / (1024**3), 2)
-            },
-            "disk": {
-                "usage_percent": disk.percent,
-                "used_gb": round(disk.used / (1024**3), 2),
-                "free_gb": round(disk.free / (1024**3), 2),
-                "total_gb": round(disk.total / (1024**3), 2)
-            }
-        }
-        
-        # 11. هشدارها و توصیه‌ها - نسخه آپدیت شده
+        # 11. هشدارها و توصیه‌ها
         alerts = []
         recommendations = _get_component_recommendations(
             cache_details=cache_details,
@@ -1041,7 +927,7 @@ async def health_status():
             system_metrics=resources_status
         )
         
-        # بررسی هشدارها - با اضافه کردن Background Worker
+        # بررسی هشدارها
         if health_score < 90:
             alerts.append({
                 "level": "WARNING",
@@ -1056,14 +942,12 @@ async def health_status():
                 "message": "Using basic cache system - upgrade to advanced architecture",
                 "component": "cache_system"
             })
-            recommendations.append("Enable 5-database cache architecture for better performance")
         elif cache_architecture == "none":
             alerts.append({
                 "level": "CRITICAL",
                 "message": "Cache system unavailable - system performance degraded",
                 "component": "cache_system"
             })
-            recommendations.append("Check Redis connections and cache system configuration")
         
         if normalization_metrics.get("success_rate", 0) < 90:
             alerts.append({
@@ -1071,7 +955,6 @@ async def health_status():
                 "message": "Data normalization success rate is low",
                 "component": "data_processing"
             })
-            recommendations.append("Check data normalization rules and patterns")
         
         if resources_status["memory"]["usage_percent"] > 80:
             alerts.append({
@@ -1079,7 +962,6 @@ async def health_status():
                 "message": "High memory usage detected",
                 "component": "memory"
             })
-            recommendations.append("Consider optimizing memory usage or scaling resources")
         
         if resources_status["disk"]["usage_percent"] > 85:
             alerts.append({
@@ -1087,39 +969,34 @@ async def health_status():
                 "message": "Disk space running low",
                 "component": "disk"
             })
-            recommendations.append("Clean up disk space immediately using /api/health/cleanup/urgent")
         
-        # 🔥 هشدارهای جدید برای Background Worker
+        # هشدارهای جدید برای Background Worker
         if not background_worker_status["available"]:
             alerts.append({
                 "level": "CRITICAL",
                 "message": "Background Worker system not available",
                 "component": "background_worker"
             })
-            recommendations.append("Check Background Worker initialization and dependencies")
         elif not background_worker_status["is_running"]:
             alerts.append({
                 "level": "WARNING",
                 "message": "Background Worker is not running",
                 "component": "background_worker"
             })
-            recommendations.append("Start Background Worker system")
         elif background_worker_status["queue_size"] > 50:
             alerts.append({
                 "level": "WARNING",
                 "message": "Background Worker queue is growing",
                 "component": "background_worker"
             })
-            recommendations.append("Consider scaling workers or optimizing task processing")
         elif background_worker_status["success_rate"] < 90:
             alerts.append({
                 "level": "WARNING",
                 "message": "Background Worker success rate is low",
                 "component": "background_worker"
             })
-            recommendations.append("Investigate task failures in Background Worker")
         
-        # 12. پاسخ نهایی - نسخه آپدیت شده
+        # 12. پاسخ نهایی
         response = {
             "status": overall_status,
             "health_score": health_score,
@@ -1147,7 +1024,7 @@ async def health_status():
                 "total_requests_processed": normalization_metrics.get("total_processed", 0),
                 "memory_usage_percent": resources_status["memory"]["usage_percent"],
                 "cpu_usage_percent": resources_status["cpu"]["usage_percent"],
-                # 🔥 متریک‌های جدید Background Worker
+                # متریک‌های جدید Background Worker
                 "background_worker_available": background_worker_status["available"],
                 "background_worker_running": background_worker_status["is_running"],
                 "background_workers_active": background_worker_status["workers_active"],
@@ -1192,7 +1069,7 @@ async def health_status():
                     "details": api_details.get('status', 'unknown')
                 },
         
-                # 🔥 وضعیت کامل Background Worker
+                # وضعیت کامل Background Worker
                 "background_worker_system": {
                     "available": background_worker_status["available"],
                     "is_running": background_worker_status["is_running"],
@@ -1200,7 +1077,6 @@ async def health_status():
                     "queue_healthy": background_worker_status["queue_size"] < 20,
                     "performance_healthy": background_worker_status["success_rate"] > 90,
                     "resource_efficient": background_worker_status["worker_utilization"] < 90,
-                    "live_workers_count": len(background_worker_status.get("live_workers", [])),
                     "detailed_status": background_worker_status
                 },
         
@@ -1210,15 +1086,15 @@ async def health_status():
                         cache_available and 
                         _check_normalization_availability() and 
                         _check_external_apis_availability() and
-                        background_worker_status["available"]  # 🔥 اضافه شده
+                        background_worker_status["available"]
                     ),
                     "all_advanced_features": (
                         cache_details.get("archive_system_available", False) and
                         cache_details.get("cache_optimizer_available", False) and
                         cache_health.get("features", {}).get("smart_ttl_management", False) and
-                        background_worker_status["is_running"]  # 🔥 اضافه شده
+                        background_worker_status["is_running"]
                     ),
-                    "recommended_actions": _get_component_recommendations(cache_details, normalization_metrics, api_status)
+                    "recommended_actions": recommendations
                 }
             },
             
@@ -1233,7 +1109,6 @@ async def health_status():
         
     except Exception as e:
         logger.error(f"Error in health status: {e}")
-        # لاگ خطای دقیق‌تر
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         
