@@ -392,10 +392,10 @@ try:
     from routes.exchanges import exchanges_router
     from routes.news import news_router
     from routes.insights import insights_router
-    from routes.raw_coins import raw_coins_router
-    from routes.raw_news import raw_news_router
-    from routes.raw_insights import raw_insights_router
-    from routes.raw_exchanges import raw_exchanges_router
+    from routes.raw_data.raw_coins import raw_coins_router
+    from routes.raw_data.raw_news import raw_news_router
+    from routes.raw_data.raw_insights import raw_insights_router
+    from routes.raw_data.raw_exchanges import raw_exchanges_router
     from routes.docs import docs_router
     print("✅ All routers imported successfully!")
 except ImportError as e:
