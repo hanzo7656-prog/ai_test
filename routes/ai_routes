@@ -1,0 +1,140 @@
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from datetime import datetime
+import json
+import hashlib
+
+# ایمپورت هوش مصنوعی
+try:
+    from ..simple_ai.brain import ai_brain
+except ImportError:
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from simple_ai.brain import ai_brain
+
+router = APIRouter(prefix="/ai", tags=["Artificial Intelligence"])
+
+@router.get("/health")
+async def ai_health():
+    """بررسی سلامت هوش مصنوعی - متصل به سلامت مادر"""
+    try:
+        health_data = ai_brain.get_network_health()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "component": "ai_brain",
+            "details": health_data,
+            "dependencies": {
+                "redis_databases": ["uta", "utb", "utc"],
+                "raw_data_sources": ["raw_coins", "raw_news", "raw_insights", "raw_exchanges"]
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "component": "ai_brain",
+            "error": str(e),
+            "dependencies": {
+                "redis_databases": ["uta", "utb", "utc"],
+                "raw_data_sources": ["raw_coins", "raw_news", "raw_insights", "raw_exchanges"]
+            }
+        }
+
+@router.post("/upload-training")
+async def upload_training_file(file: UploadFile = File(...)):
+    """آپلود فایل آموزشی برای هوش مصنوعی"""
+    if not file.filename.endswith('.txt'):
+        raise HTTPException(400, "Only .txt files are supported")
+    
+    try:
+        content = await file.read()
+        text_data = content.decode('utf-8')
+        
+        # پردازش اولیه متن (ساده)
+        processed_data = preprocess_text(text_data)
+        
+        # تبدیل به ورودی شبکه (نمونه ساده)
+        inputs = text_to_vector(processed_data)
+        targets = generate_training_targets(processed_data)
+        
+        # آموزش شبکه
+        accuracy = ai_brain.learn(inputs, targets)
+        
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "processed_chars": len(processed_data),
+            "training_accuracy": accuracy,
+            "network_health": ai_brain.get_network_health()
+        }
+        
+    except Exception as e:
+        raise HTTPException(500, f"Training failed: {str(e)}")
+
+@router.get("/metrics")
+async def ai_metrics():
+    """متریک‌های هوش مصنوعی - برای سیستم مادر"""
+    health_data = ai_brain.get_network_health()
+    
+    return {
+        "component": "ai_brain",
+        "timestamp": datetime.now().isoformat(),
+        "resource_usage": {
+            "memory_mb": health_data['memory_usage_mb'],
+            "active_neurons": health_data['active_neurons'],
+            "training_samples": health_data['performance']['training_samples']
+        },
+        "performance": {
+            "current_accuracy": health_data['performance']['current_accuracy'],
+            "trend_10_accuracy": health_data['performance']['accuracy_trend_10'],
+            "learning_rate": ai_brain.learning_rate
+        },
+        "architecture": {
+            "total_neurons": health_data['neuron_count'],
+            "connection_sparsity": health_data['connection_sparsity'],
+            "actual_sparsity": health_data['actual_sparsity']
+        }
+    }
+
+@router.post("/optimize")
+async def optimize_ai():
+    """بهینه‌سازی خودکار معماری هوش مصنوعی"""
+    try:
+        ai_brain.optimize_architecture()
+        
+        return {
+            "status": "optimized",
+            "timestamp": datetime.now().isoformat(),
+            "new_learning_rate": ai_brain.learning_rate,
+            "health_after": ai_brain.get_network_health()
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Optimization failed: {str(e)}")
+
+# توابع کمکی
+def preprocess_text(text: str) -> str:
+    """پیش‌پردازش متن ساده"""
+    # تبدیل به حروف کوچک و حذف فاصله‌های اضافی
+    return ' '.join(text.lower().split())
+
+def text_to_vector(text: str, vector_size: int = 1000) -> np.ndarray:
+    """تبدیل متن به بردار عددی"""
+    import numpy as np
+    
+    # روش ساده: هش کردن کاراکترها به اعداد
+    vector = np.zeros(vector_size)
+    
+    for i, char in enumerate(text[:vector_size]):
+        # استفاده از هش برای توزیع یکنواخت
+        hash_val = int(hashlib.md5(char.encode()).hexdigest(), 16)
+        vector[i] = (hash_val % 1000) / 1000.0  # نرمالایز کردن
+    
+    return vector
+
+def generate_training_targets(text: str, vector_size: int = 1000) -> np.ndarray:
+    """تولید هدف‌های آموزشی از متن"""
+    # در این نسخه ساده، هدف‌ها مشابه ورودی هستند
+    # در نسخه‌های بعدی می‌تواند پیچیده‌تر شود
+    return text_to_vector(text, vector_size)
