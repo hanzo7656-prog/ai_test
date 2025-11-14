@@ -196,7 +196,6 @@ class WorkerMonitoringDashboard:
             return {'status': 'error', 'error': str(e)}
     
     def _collect_scheduling_metrics(self) -> Dict[str, Any]:
-    def _collect_scheduling_metrics(self) -> Dict[str, Any]:
         """جمع‌آوری متریک‌های زمان‌بندی"""
         if not self.time_scheduler:
             return {'status': 'unavailable'}
