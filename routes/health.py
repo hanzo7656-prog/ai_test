@@ -21,7 +21,6 @@ except ImportError:
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from debug_system.utils.data_normalizer import data_normalizer
 
-# 🔽 این import رو چک کن
 try:
     from debug_system.storage.smart_cache_system import cache_optimizer
     logger.info("✅ Cache Optimization Engine imported successfully")
@@ -50,6 +49,14 @@ try:
 except ImportError:
     coin_stats_manager = None
 
+# وضعیت سیستم دیباگ
+try:
+    from debug_system.core.debug_manager import debug_manager
+    DEBUG_SYSTEM_AVAILABLE = debug_manager.is_active() if hasattr(debug_manager, 'is_active') else True
+    logger.info("✅ Debug system available")
+except ImportError:
+    DEBUG_SYSTEM_AVAILABLE = False
+    logger.warning("⚠️ Debug system not available")
 # ایمپورت هوش مصنوعی
 try:
     from simple_ai.brain import ai_brain
