@@ -45,7 +45,7 @@ class SmartBackgroundTasks:
       
         try:
             # ۱. جمع‌آوری داده‌های واقعی از Redis
-            from redis_manager import redis_manager
+            from debug_system.storage.redis_manager import redis_manager
             cache_stats = redis_manager.get_database_usage()
             system_metrics = self._collect_real_system_metrics()
         
@@ -105,7 +105,7 @@ class SmartBackgroundTasks:
             processed_data = self._process_financial_data(raw_data, data_type)
         
             # ۳. ذخیره در کش
-            from redis_manager import redis_manager
+            from debug_system.storage.redis_manager import redis_manager
             cache_key = f"processed_{data_type}_{int(time.time())}"
             redis_manager.set("utb", cache_key, processed_data, expire=3600)
         
