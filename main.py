@@ -688,16 +688,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# بعد از ایجاد app (خط 400) این رو اضافه کن:
-
 @app.on_event("startup")
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
+    
+    # فعال‌سازی سیستم Background Worker
+    activate_complete_background_system()
+    
+    # فعال‌سازی سیستم دیباگ (اگر موجود باشد)
     if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
         try:
-            print("   🚀 Starting background tasks (on startup)...")
-            
-            # حالا event loop در حال اجراست
+            print("   🚀 Starting debug background tasks...")
             asyncio.create_task(start_dashboard_broadcast())
             print("   ✅ Dashboard broadcast task started")
             
@@ -705,10 +706,9 @@ async def startup_background_tasks():
             print("   ✅ Periodic cleanup task started")
             
         except Exception as e:
-            # 🔧 این خط رو هم اصلاح کن:
             logger.error(f"   ❌ Startup background tasks error: {e}")
     else:
-        print("   ⚠️ Background tasks skipped - debug system not available")
+        print("   ⚠️ Debug background tasks skipped")
 
 # ثبت روت‌ها
 app.include_router(health_router)
@@ -723,6 +723,51 @@ app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
+
+def activate_complete_background_system():
+    """فعال‌سازی تمام کامپوننت‌های Background Worker"""
+    
+    print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM...")
+    
+    # ۱. فعال‌سازی کارگر اصلی
+    from background_worker import background_worker
+    background_worker.start()
+    print("✅ IntelligentBackgroundWorker STARTED")
+    
+    # ۲. فعال‌سازی مدیریت منابع
+    from resource_manager import resource_guardian
+    resource_guardian.start_monitoring()
+    print("✅ ResourceGuardian MONITORING STARTED")
+    
+    # ۳. فعال‌سازی زمان‌بندی هوشمند
+    from time_scheduler import time_scheduler
+    time_scheduler.start_scheduling()
+    print("✅ TimeAwareScheduler STARTED")
+    
+    # ۴. فعال‌سازی سیستم بازیابی
+    from recovery_system import recovery_manager
+    recovery_manager.start_monitoring()
+    print("✅ RecoveryManager MONITORING STARTED")
+    
+    # ۵. فعال‌سازی دشبورد مانیتورینگ
+    from monitoring_dashboard import monitoring_dashboard
+    monitoring_dashboard.start_monitoring()
+    print("✅ MonitoringDashboard STARTED")
+    
+    # ۶. اتصال کامپوننت‌ها به هم
+    monitoring_dashboard.background_worker = background_worker
+    monitoring_dashboard.resource_manager = resource_guardian
+    monitoring_dashboard.time_scheduler = time_scheduler
+    monitoring_dashboard.recovery_manager = recovery_manager
+    
+    time_scheduler.resource_manager = resource_guardian
+    
+    # ۷. ثبت کارهای واقعی
+    background_worker.submit_real_tasks()
+    
+    print("🎉 BACKGROUND WORKER SYSTEM FULLY ACTIVATED WITH REAL TASKS!")
+
+
 @app.get("/api/debug/routes")
 async def debug_all_routes():
     """لیست تمام مسیرهای ثبت شده"""
