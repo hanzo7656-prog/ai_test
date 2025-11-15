@@ -246,14 +246,19 @@ class TimeAwareScheduler:
         window = task_data['execution_window']
         if not (window['start'] <= current_time <= window['end']):
             return False
-        
+            
         # بررسی منابع سیستم
         if self.resource_manager:
-            system_health = self.resource_manager._check_system_health()
-            if not system_health['healthy']:
-                logger.warning(f"⏳ Delaying {task_data['task_id']} due to system health: {system_health['message']}")
-                return False
-        
+            try:
+                system_health = self.resource_manager._check_system_health()
+                # ✅ اصلاح: استفاده از 'status' به جای 'healthy'
+                if system_health.get('status') != 'healthy':
+                    logger.warning(f"⏳ Delaying {task_data['task_id']} due to system health: {system_health.get('status', 'unknown')}")
+                    return False
+            except Exception as e:
+                logger.warning(f"⚠️ Could not check system health: {e}")
+                # در صورت خطا، ادامه بده
+                pass 
         # بررسی احتمال موفقیت
         current_probability = self._calculate_success_probability(
             task_data['task_type'], current_time
