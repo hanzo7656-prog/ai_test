@@ -2858,6 +2858,255 @@ async def ai_architecture_info():
     except Exception as e:
         logger.error(f"❌ AI architecture info failed: {e}")
         raise HTTPException(status_code=500, detail=f"AI architecture error: {e}")
+
+# 🔽 این بخش رو به routes/health.py اضافه کن
+
+@router.get("/debug/background-system")
+async def debug_background_system():
+    """بررسی وضعیت کامل سیستم Background Worker"""
+    try:
+        # تلاش برای ایمپورت از debug_system.tools
+        try:
+            from debug_system.tools.background_worker import background_worker
+            from debug_system.tools.resource_manager import resource_guardian
+            from debug_system.tools.time_scheduler import time_scheduler
+            from debug_system.tools.recovery_system import recovery_manager
+            from debug_system.tools.monitoring_dashboard import monitoring_dashboard
+            
+            source = "debug_system.tools"
+            
+        except ImportError:
+            # Fallback به ایمپورت مستقیم
+            try:
+                from background_worker import background_worker
+                from resource_manager import resource_guardian
+                from time_scheduler import time_scheduler
+                from recovery_system import recovery_manager
+                from monitoring_dashboard import monitoring_dashboard
+                source = "direct_import"
+            except ImportError as e:
+                return {
+                    "status": "error",
+                    "message": "Background worker components not found",
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                }
+        
+        # جمع‌آوری اطلاعات کامپوننت‌ها
+        components_info = {}
+        
+        # Background Worker
+        try:
+            worker_metrics = background_worker.get_detailed_metrics() if hasattr(background_worker, 'get_detailed_metrics') else {}
+            components_info["background_worker"] = {
+                "status": "active" if getattr(background_worker, 'is_running', False) else "inactive",
+                "is_running": getattr(background_worker, 'is_running', False),
+                "max_workers": getattr(background_worker, 'max_workers', 0),
+                "queue_size": background_worker.task_queue.qsize() if hasattr(background_worker, 'task_queue') else 0,
+                "active_tasks": len(getattr(background_worker, 'active_tasks', {})),
+                "completed_tasks": len(getattr(background_worker, 'completed_tasks', [])),
+                "failed_tasks": len(getattr(background_worker, 'failed_tasks', [])),
+                "metrics": worker_metrics
+            }
+        except Exception as e:
+            components_info["background_worker"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        # Resource Guardian
+        try:
+            resource_report = resource_guardian.get_detailed_resource_report() if hasattr(resource_guardian, 'get_detailed_resource_report') else {}
+            components_info["resource_guardian"] = {
+                "status": "active" if getattr(resource_guardian, 'is_monitoring', False) else "inactive",
+                "is_monitoring": getattr(resource_guardian, 'is_monitoring', False),
+                "max_cpu_percent": getattr(resource_guardian, 'max_cpu_percent', 0),
+                "adaptive_limits": getattr(resource_guardian, 'adaptive_limits', {}),
+                "report": resource_report
+            }
+        except Exception as e:
+            components_info["resource_guardian"] = {
+                "status": "error", 
+                "error": str(e)
+            }
+        
+        # Time Scheduler
+        try:
+            scheduling_analytics = time_scheduler.get_scheduling_analytics() if hasattr(time_scheduler, 'get_scheduling_analytics') else {}
+            components_info["time_scheduler"] = {
+                "status": "active" if getattr(time_scheduler, 'is_scheduling', False) else "inactive",
+                "is_scheduling": getattr(time_scheduler, 'is_scheduling', False),
+                "scheduled_tasks": len(getattr(time_scheduler, 'scheduled_tasks', {})),
+                "task_history": len(getattr(time_scheduler, 'task_history', [])),
+                "analytics": scheduling_analytics
+            }
+        except Exception as e:
+            components_info["time_scheduler"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        # Recovery Manager
+        try:
+            recovery_status = recovery_manager.get_recovery_status() if hasattr(recovery_manager, 'get_recovery_status') else {}
+            components_info["recovery_manager"] = {
+                "status": "active" if getattr(recovery_manager, 'is_monitoring', False) else "inactive",
+                "is_monitoring": getattr(recovery_manager, 'is_monitoring', False),
+                "snapshots_count": len(getattr(recovery_manager, 'snapshots_metadata', [])),
+                "recovery_queue": len(getattr(recovery_manager, 'recovery_queue', [])),
+                "status_report": recovery_status
+            }
+        except Exception as e:
+            components_info["recovery_manager"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        # Monitoring Dashboard
+        try:
+            dashboard_data = monitoring_dashboard.get_dashboard_data() if hasattr(monitoring_dashboard, 'get_dashboard_data') else {}
+            components_info["monitoring_dashboard"] = {
+                "status": "active" if getattr(monitoring_dashboard, 'is_monitoring', False) else "inactive",
+                "is_monitoring": getattr(monitoring_dashboard, 'is_monitoring', False),
+                "active_alerts": len(getattr(monitoring_dashboard, 'active_alerts', [])),
+                "dashboard_data": dashboard_data
+            }
+        except Exception as e:
+            components_info["monitoring_dashboard"] = {
+                "status": "error",
+                "error": str(e)
+            }
+        
+        # محاسبه سلامت کلی
+        active_components = sum(1 for comp in components_info.values() if comp.get("status") == "active")
+        total_components = len(components_info)
+        overall_health = "healthy" if active_components == total_components else "degraded"
+        
+        return {
+            "status": "success",
+            "overall_health": overall_health,
+            "active_components": active_components,
+            "total_components": total_components,
+            "source": source,
+            "components": components_info,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to check background system",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@router.get("/debug/background-tasks")
+async def debug_background_tasks():
+    """بررسی کارهای پس‌زمینه و تست عملکرد"""
+    try:
+        # تست سیستم Background Tasks
+        try:
+            from background_tasks import background_tasks
+            background_tasks_available = True
+            
+            # تست کارهای سبک
+            light_task_result = background_tasks.cleanup_temporary_files()
+            
+            # تست کارهای عادی  
+            normal_task_result = background_tasks.run_database_optimization()
+            
+            # تست آمار
+            analytics_result = background_tasks.get_task_analytics()
+            
+            tasks_info = {
+                "background_tasks_available": True,
+                "light_task": light_task_result,
+                "normal_task": normal_task_result,
+                "analytics": analytics_result,
+                "task_categories": background_tasks.task_categories if hasattr(background_tasks, 'task_categories') else {}
+            }
+            
+        except ImportError as e:
+            background_tasks_available = False
+            tasks_info = {
+                "background_tasks_available": False,
+                "error": str(e)
+            }
+        
+        # تست Real Tasks
+        try:
+            if background_tasks_available:
+                # تست پردازش داده‌های واقعی
+                real_data_result = background_tasks.perform_real_data_processing("coins")
+                
+                # تست گزارش عملکرد
+                performance_result = background_tasks.generate_real_performance_report(days=1)
+                
+                real_tasks_info = {
+                    "real_data_processing": real_data_result,
+                    "performance_report": performance_result
+                }
+            else:
+                real_tasks_info = {
+                    "real_data_processing": "skipped - background_tasks not available",
+                    "performance_report": "skipped - background_tasks not available"
+                }
+                
+        except Exception as e:
+            real_tasks_info = {
+                "real_data_processing": f"error: {str(e)}",
+                "performance_report": f"error: {str(e)}"
+            }
+        
+        # تست اتصال به سیستم‌های خارجی
+        external_services = {}
+        
+        try:
+            from complete_coinstats_manager import coin_stats_manager
+            external_services["coinstats"] = {
+                "status": "available",
+                "test_result": "CoinStats manager imported successfully"
+            }
+        except ImportError as e:
+            external_services["coinstats"] = {
+                "status": "unavailable", 
+                "error": str(e)
+            }
+        
+        try:
+            from redis_manager import redis_manager
+            redis_health = redis_manager.health_check() if hasattr(redis_manager, 'health_check') else {}
+            external_services["redis"] = {
+                "status": "available",
+                "health_check": redis_health
+            }
+        except ImportError as e:
+            external_services["redis"] = {
+                "status": "unavailable",
+                "error": str(e)
+            }
+        
+        return {
+            "status": "success",
+            "background_tasks": tasks_info,
+            "real_tasks_test": real_tasks_info,
+            "external_services": external_services,
+            "system_metrics": {
+                "cpu_percent": psutil.cpu_percent(interval=1),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_usage": psutil.disk_usage('/').percent,
+                "active_processes": len(psutil.pids())
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": "Failed to check background tasks",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 # ==================== INITIALIZATION ====================
 @health_router.on_event("startup")
 async def startup_event():
