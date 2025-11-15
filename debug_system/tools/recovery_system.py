@@ -233,7 +233,6 @@ class RecoveryManager:
         """ثبت وضعیت background worker"""
         try:
             # اینجا باید به worker اصلی دسترسی داشته باشیم
-            # برای نمونه، یک state ساختگی برمی‌گردانیم
             return {
                 'active_tasks': random.randint(0, 10),
                 'queue_size': random.randint(0, 20),
