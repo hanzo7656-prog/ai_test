@@ -1463,44 +1463,10 @@ async def version_info():
         "fastapi_version": "0.104.1",
         "timestamp": datetime.now().isoformat()
     }
-@health_router.get("/metrics/system")
-async def system_metrics():
-    """متریک‌های سیستم"""
-    memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
-    net_io = psutil.net_io_counters()
-    
-    return {
-        "cpu": {
-            "percent": psutil.cpu_percent(interval=1),
-            "per_core": psutil.cpu_percent(percpu=True, interval=1),
-            "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-        },
-        "memory": {
-            "percent": memory.percent,
-            "used_gb": round(memory.used / (1024**3), 2),
-            "available_gb": round(memory.available / (1024**3), 2),
-            "total_gb": round(memory.total / (1024**3), 2)
-        },
-        "disk": {
-            "usage_percent": disk.percent,
-            "used_gb": round(disk.used / (1024**3), 2),
-            "free_gb": round(disk.free / (1024**3), 2),
-            "total_gb": round(disk.total / (1024**3), 2)
-        },
-        "network": {
-            "bytes_sent": net_io.bytes_sent,
-            "bytes_recv": net_io.bytes_recv,
-            "packets_sent": net_io.packets_sent,
-            "packets_recv": net_io.packets_recv
-        },
-        "timestamp": datetime.now().isoformat()
-    }
-
 
 # 🔽 این بخش رو به routes/health.py اضافه کن
 
-@router.get("/debug/tools-system")
+@health_router.get("/debug/tools-system")
 async def debug_tools_system():
     """بررسی وضعیت کامل سیستم Tools و کامپوننت‌های Background Worker"""
     try:
@@ -1663,7 +1629,7 @@ async def debug_tools_system():
             "timestamp": datetime.now().isoformat()
         }
 
-@router.get("/debug/tools-test")
+@health_router.get("/debug/tools-test")
 async def debug_tools_test():
     """تست عملکرد و یکپارچگی سیستم Tools"""
     try:
@@ -1829,7 +1795,41 @@ async def debug_tools_test():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
-        
+@health_router.get("/metrics/system")
+async def system_metrics():
+    """متریک‌های سیستم"""
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    net_io = psutil.net_io_counters()
+    
+    return {
+        "cpu": {
+            "percent": psutil.cpu_percent(interval=1),
+            "per_core": psutil.cpu_percent(percpu=True, interval=1),
+            "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+        },
+        "memory": {
+            "percent": memory.percent,
+            "used_gb": round(memory.used / (1024**3), 2),
+            "available_gb": round(memory.available / (1024**3), 2),
+            "total_gb": round(memory.total / (1024**3), 2)
+        },
+        "disk": {
+            "usage_percent": disk.percent,
+            "used_gb": round(disk.used / (1024**3), 2),
+            "free_gb": round(disk.free / (1024**3), 2),
+            "total_gb": round(disk.total / (1024**3), 2)
+        },
+        "network": {
+            "bytes_sent": net_io.bytes_sent,
+            "bytes_recv": net_io.bytes_recv,
+            "packets_sent": net_io.packets_sent,
+            "packets_recv": net_io.packets_recv
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+
 # ==================== URGENT DISK CLEANUP (1GB SPACE) ====================
 # اضافه کردن importهای لازم در بالای فایل
 import glob
