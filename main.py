@@ -723,27 +723,18 @@ app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
-
-# 🔽 این تابع رو جایگزین تابع قبلی کن:
-
 def activate_complete_background_system():
     """فعال‌سازی تمام کامپوننت‌های Background Worker"""
     
     print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM...")
     
     try:
-        # ۱. ایمپورت کامپوننت‌ها
-        print("📦 Importing background worker components...")
+        # ۱. ایمپورت کامپوننت‌ها از مسیر صحیح
+        print("📦 Importing background worker components from debug_system.tools...")
         
-        # ایمپورت مستقیم از فایل‌های موجود
         try:
-            # روش ۱: ایمپورت از فایل‌های مستقیم
-            import sys
-            import os
-            sys.path.append(os.path.dirname(__file__))
-            
-            from background_worker import background_worker
-            print("✅ background_worker imported")
+            from debug_system.tools.background_worker import background_worker
+            print("✅ background_worker imported from debug_system.tools")
         except ImportError as e:
             print(f"❌ background_worker import failed: {e}")
             # ایجاد fallback
@@ -753,8 +744,8 @@ def activate_complete_background_system():
             background_worker = FallbackWorker()
         
         try:
-            from resource_manager import resource_guardian
-            print("✅ resource_guardian imported")
+            from debug_system.tools.resource_manager import resource_guardian
+            print("✅ resource_guardian imported from debug_system.tools")
         except ImportError as e:
             print(f"❌ resource_guardian import failed: {e}")
             class FallbackResource:
@@ -762,8 +753,8 @@ def activate_complete_background_system():
             resource_guardian = FallbackResource()
         
         try:
-            from time_scheduler import time_scheduler
-            print("✅ time_scheduler imported")
+            from debug_system.tools.time_scheduler import time_scheduler
+            print("✅ time_scheduler imported from debug_system.tools")
         except ImportError as e:
             print(f"❌ time_scheduler import failed: {e}")
             class FallbackScheduler:
@@ -771,8 +762,8 @@ def activate_complete_background_system():
             time_scheduler = FallbackScheduler()
         
         try:
-            from recovery_system import recovery_manager
-            print("✅ recovery_manager imported")
+            from debug_system.tools.recovery_system import recovery_manager
+            print("✅ recovery_manager imported from debug_system.tools")
         except ImportError as e:
             print(f"❌ recovery_manager import failed: {e}")
             class FallbackRecovery:
@@ -780,12 +771,16 @@ def activate_complete_background_system():
             recovery_manager = FallbackRecovery()
         
         try:
-            from monitoring_dashboard import monitoring_dashboard
-            print("✅ monitoring_dashboard imported")
+            from debug_system.tools.monitoring_dashboard import monitoring_dashboard
+            print("✅ monitoring_dashboard imported from debug_system.tools")
         except ImportError as e:
             print(f"❌ monitoring_dashboard import failed: {e}")
             class FallbackDashboard:
                 def start_monitoring(self): print("⚠️ Fallback dashboard started")
+                background_worker = None
+                resource_manager = None
+                time_scheduler = None
+                recovery_manager = None
             monitoring_dashboard = FallbackDashboard()
         
         # ۲. فعال‌سازی کامپوننت‌ها
@@ -809,12 +804,15 @@ def activate_complete_background_system():
         # ۳. اتصال کامپوننت‌ها به هم
         print("🔗 Connecting components...")
         
-        monitoring_dashboard.background_worker = background_worker
-        monitoring_dashboard.resource_manager = resource_guardian
-        monitoring_dashboard.time_scheduler = time_scheduler
-        monitoring_dashboard.recovery_manager = recovery_manager
+        # فقط اگر کامپوننت‌ها واقعی باشند وصل کن
+        if not isinstance(monitoring_dashboard, FallbackDashboard):
+            monitoring_dashboard.background_worker = background_worker
+            monitoring_dashboard.resource_manager = resource_guardian
+            monitoring_dashboard.time_scheduler = time_scheduler
+            monitoring_dashboard.recovery_manager = recovery_manager
         
-        time_scheduler.resource_manager = resource_guardian
+        if not isinstance(time_scheduler, FallbackScheduler):
+            time_scheduler.resource_manager = resource_guardian
         
         print("✅ Components connected")
         
@@ -831,7 +829,7 @@ def activate_complete_background_system():
         print(f"❌ ERROR in background system activation: {e}")
         import traceback
         traceback.print_exc()
-
+        
 @app.get("/api/debug/routes")
 async def debug_all_routes():
     """لیست تمام مسیرهای ثبت شده"""
