@@ -64,7 +64,47 @@ class IntelligentBackgroundWorker:
         self._start_worker_monitoring()
         
         logger.info("🎬 Background Worker started with advanced monitoring")
+
+    # 🔽 این متد رو به کلاس IntelligentBackgroundWorker اضافه کن (قبل از متد stop):
+
+    def submit_real_tasks(self):
+        """ثبت کارهای واقعی در سیستم"""
+        try:
+            from background_tasks import background_tasks
         
+            # ۱. کار پردازش داده‌های کوین‌ها
+            self.submit_task(
+                task_id="process_coins_data",
+                task_func=background_tasks.perform_real_data_processing,
+                task_type="normal",
+                priority=1,
+                data_type="coins"
+            )
+         
+            # ۲. کار پردازش اخبار
+            self.submit_task(
+                task_id="process_news_data", 
+                task_func=background_tasks.perform_real_data_processing,
+                task_type="normal",
+                priority=2,
+                data_type="news"
+            )
+        
+            # ۳. کار گزارش عملکرد
+            self.submit_task(
+                task_id="generate_performance_report",
+                task_func=background_tasks.generate_real_performance_report,
+                task_type="heavy",
+                priority=3,
+                days=1,
+                detail_level="basic"
+            )
+        
+            logger.info("📥 Real tasks submitted to background worker")
+        
+        except Exception as e:
+            logger.error(f"❌ Error submitting real tasks: {e}")
+            
     def stop(self):
         """توقف کارگر پس‌زمینه"""
         self.is_running = False
