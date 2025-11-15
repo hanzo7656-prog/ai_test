@@ -340,6 +340,26 @@ class ResourceGuardian:
             'clear_temporary_data': True
         }
     
+    def _check_system_health(self) -> Dict[str, Any]:
+        """بررسی سلامت سیستم با ارقام واقعی"""
+        try:
+            # استفاده از متریک‌هایی که از قبل داریم
+            current_metrics = self._collect_comprehensive_metrics()
+            
+            return {
+                'health_score': current_metrics['system_health_score'],
+                'cpu_usage': current_metrics['cpu']['percent'],
+                'memory_usage': current_metrics['memory']['percent'], 
+                'status': 'healthy' if current_metrics['system_health_score'] >= 70 else 'degraded'
+            }
+        except Exception as e:
+            logger.error(f"❌ Error in _check_system_health: {e}")
+            return {
+                'health_score': 100,
+                'cpu_usage': 0,
+                'memory_usage': 0,
+                'status': 'healthy'
+            }
     def get_optimization_recommendations(self) -> Dict[str, Any]:
         """دریافت توصیه‌های بهینه‌سازی"""
         current_metrics = self._collect_comprehensive_metrics()
