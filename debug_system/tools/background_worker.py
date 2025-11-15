@@ -70,7 +70,7 @@ class IntelligentBackgroundWorker:
     def submit_real_tasks(self):
         """ثبت کارهای واقعی در سیستم"""
         try:
-            from background_tasks import background_tasks
+            from debug_system.tools.background_tasks import background_tasks
         
             # ۱. کار پردازش داده‌های کوین‌ها
             self.submit_task(
