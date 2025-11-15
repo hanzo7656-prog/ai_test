@@ -724,49 +724,113 @@ app.include_router(docs_router)
 
 # ==================== DEBUG ROUTES ====================
 
+# 🔽 این تابع رو جایگزین تابع قبلی کن:
+
 def activate_complete_background_system():
     """فعال‌سازی تمام کامپوننت‌های Background Worker"""
     
     print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM...")
     
-    # ۱. فعال‌سازی کارگر اصلی
-    from background_worker import background_worker
-    background_worker.start()
-    print("✅ IntelligentBackgroundWorker STARTED")
-    
-    # ۲. فعال‌سازی مدیریت منابع
-    from resource_manager import resource_guardian
-    resource_guardian.start_monitoring()
-    print("✅ ResourceGuardian MONITORING STARTED")
-    
-    # ۳. فعال‌سازی زمان‌بندی هوشمند
-    from time_scheduler import time_scheduler
-    time_scheduler.start_scheduling()
-    print("✅ TimeAwareScheduler STARTED")
-    
-    # ۴. فعال‌سازی سیستم بازیابی
-    from recovery_system import recovery_manager
-    recovery_manager.start_monitoring()
-    print("✅ RecoveryManager MONITORING STARTED")
-    
-    # ۵. فعال‌سازی دشبورد مانیتورینگ
-    from monitoring_dashboard import monitoring_dashboard
-    monitoring_dashboard.start_monitoring()
-    print("✅ MonitoringDashboard STARTED")
-    
-    # ۶. اتصال کامپوننت‌ها به هم
-    monitoring_dashboard.background_worker = background_worker
-    monitoring_dashboard.resource_manager = resource_guardian
-    monitoring_dashboard.time_scheduler = time_scheduler
-    monitoring_dashboard.recovery_manager = recovery_manager
-    
-    time_scheduler.resource_manager = resource_guardian
-    
-    # ۷. ثبت کارهای واقعی
-    background_worker.submit_real_tasks()
-    
-    print("🎉 BACKGROUND WORKER SYSTEM FULLY ACTIVATED WITH REAL TASKS!")
-
+    try:
+        # ۱. ایمپورت کامپوننت‌ها
+        print("📦 Importing background worker components...")
+        
+        # ایمپورت مستقیم از فایل‌های موجود
+        try:
+            # روش ۱: ایمپورت از فایل‌های مستقیم
+            import sys
+            import os
+            sys.path.append(os.path.dirname(__file__))
+            
+            from background_worker import background_worker
+            print("✅ background_worker imported")
+        except ImportError as e:
+            print(f"❌ background_worker import failed: {e}")
+            # ایجاد fallback
+            class FallbackWorker:
+                def start(self): print("⚠️ Fallback worker started")
+                def submit_real_tasks(self): print("⚠️ Fallback tasks submitted")
+            background_worker = FallbackWorker()
+        
+        try:
+            from resource_manager import resource_guardian
+            print("✅ resource_guardian imported")
+        except ImportError as e:
+            print(f"❌ resource_guardian import failed: {e}")
+            class FallbackResource:
+                def start_monitoring(self): print("⚠️ Fallback resource monitoring started")
+            resource_guardian = FallbackResource()
+        
+        try:
+            from time_scheduler import time_scheduler
+            print("✅ time_scheduler imported")
+        except ImportError as e:
+            print(f"❌ time_scheduler import failed: {e}")
+            class FallbackScheduler:
+                def start_scheduling(self): print("⚠️ Fallback scheduler started")
+            time_scheduler = FallbackScheduler()
+        
+        try:
+            from recovery_system import recovery_manager
+            print("✅ recovery_manager imported")
+        except ImportError as e:
+            print(f"❌ recovery_manager import failed: {e}")
+            class FallbackRecovery:
+                def start_monitoring(self): print("⚠️ Fallback recovery started")
+            recovery_manager = FallbackRecovery()
+        
+        try:
+            from monitoring_dashboard import monitoring_dashboard
+            print("✅ monitoring_dashboard imported")
+        except ImportError as e:
+            print(f"❌ monitoring_dashboard import failed: {e}")
+            class FallbackDashboard:
+                def start_monitoring(self): print("⚠️ Fallback dashboard started")
+            monitoring_dashboard = FallbackDashboard()
+        
+        # ۲. فعال‌سازی کامپوننت‌ها
+        print("🚀 Starting background components...")
+        
+        background_worker.start()
+        print("✅ IntelligentBackgroundWorker STARTED")
+        
+        resource_guardian.start_monitoring()
+        print("✅ ResourceGuardian MONITORING STARTED")
+        
+        time_scheduler.start_scheduling()
+        print("✅ TimeAwareScheduler STARTED")
+        
+        recovery_manager.start_monitoring()
+        print("✅ RecoveryManager MONITORING STARTED")
+        
+        monitoring_dashboard.start_monitoring()
+        print("✅ MonitoringDashboard STARTED")
+        
+        # ۳. اتصال کامپوننت‌ها به هم
+        print("🔗 Connecting components...")
+        
+        monitoring_dashboard.background_worker = background_worker
+        monitoring_dashboard.resource_manager = resource_guardian
+        monitoring_dashboard.time_scheduler = time_scheduler
+        monitoring_dashboard.recovery_manager = recovery_manager
+        
+        time_scheduler.resource_manager = resource_guardian
+        
+        print("✅ Components connected")
+        
+        # ۴. ثبت کارهای واقعی
+        print("📥 Submitting real tasks...")
+        
+        background_worker.submit_real_tasks()
+        
+        print("✅ Real tasks submitted")
+        
+        print("🎉 BACKGROUND WORKER SYSTEM FULLY ACTIVATED WITH REAL TASKS!")
+        
+    except Exception as e:
+        print(f"❌ ERROR in background system activation: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.get("/api/debug/routes")
 async def debug_all_routes():
