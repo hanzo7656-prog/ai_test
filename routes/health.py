@@ -465,41 +465,38 @@ def _get_cache_details() -> Dict[str, Any]:
 
 def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, 
                                  api_status: Dict, system_metrics: Dict) -> List[str]:
-    """تولید توصیه‌های هوشمند برای معماری Hybrid"""
+    """تولید توصیه‌های هوشمند بر اساس متریک‌های واقعی"""
     recommendations = []
     
+    # استفاده از متریک‌های واقعی
+    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
     memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
     disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
     
+    # بررسی منابع واقعی
+    if cpu_usage > 90:
+        recommendations.append("🔴 CRITICAL: CPU usage critically high - Optimize background tasks")
+    elif cpu_usage > 80:
+        recommendations.append("🟡 WARNING: High CPU usage - Reduce monitoring frequency")
+    
     if memory_usage > 90:
-        recommendations.append("🔴 CRITICAL: Local memory critically high - Optimize local cache")
+        recommendations.append("🔴 CRITICAL: Memory usage critically high - Clear cache")
     elif memory_usage > 80:
-        recommendations.append("🟡 WARNING: High local memory usage - Clear temporary data")
+        recommendations.append("🟡 WARNING: High memory usage - Optimize data processing")
     
     if disk_usage > 90:
-        recommendations.append("🔴 CRITICAL: Local disk space critically low - Run urgent cleanup")
+        recommendations.append("🔴 CRITICAL: Disk space critically low - Run urgent cleanup")
     elif disk_usage > 85:
-        recommendations.append("🟡 WARNING: Local disk space running low - Schedule cleanup")
+        recommendations.append("🟡 WARNING: Disk space running low - Schedule cleanup")
     
+    # بقیه توصیه‌ها...
     connected_dbs = cache_details.get("connected_databases", 0)
     if connected_dbs < 5:
         recommendations.append(f"🔴 CRITICAL: Only {connected_dbs}/5 cloud databases connected")
-    elif connected_dbs < 5:
-        recommendations.append(f"🟡 WARNING: {connected_dbs}/5 cloud databases connected")
-    
-    for db_name, db_info in cache_details.get("database_details", {}).items():
-        if db_info.get("status") == "connected":
-            used_percent = db_info.get("used_memory_percent", 0)
-            if used_percent > 90:
-                recommendations.append(f"🔴 {db_name.upper()}: Cloud storage critically full ({used_percent}%)")
-            elif used_percent > 80:
-                recommendations.append(f"🟡 {db_name.upper()}: Cloud storage nearly full ({used_percent}%)")
     
     cache_hit_rate = cache_details.get("real_metrics", {}).get("hit_rate", 0)
     if cache_hit_rate < 50:
         recommendations.append("🎯 OPTIMIZATION: Cache hit rate very low - Review caching strategy")
-    elif cache_hit_rate < 80:
-        recommendations.append("🎯 OPTIMIZATION: Cache hit rate could be improved")
     
     if not api_status.get("available", False):
         recommendations.append("🌐 CRITICAL: External API connectivity issues")
@@ -508,33 +505,75 @@ def _get_component_recommendations(cache_details: Dict, normalization_metrics: D
     if norm_success_rate < 80:
         recommendations.append("🔄 CRITICAL: Data normalization success rate critically low")
     
+    # توصیه‌های ترکیبی
     if memory_usage > 70 and cache_hit_rate < 60:
         recommendations.append("🏗️ ARCHITECTURE: Consider moving more data to cloud storage")
     
-    if connected_dbs == 5 and memory_usage < 50:
+    if connected_dbs == 5 and memory_usage < 50 and cpu_usage < 60:
         recommendations.append("✅ ARCHITECTURE: Hybrid setup working optimally")
     
     return recommendations
 
 def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dict, 
                                api_status: Dict, system_metrics: Dict) -> int:
-    """محاسبه واقعی امتیاز سلامت"""
+    """محاسبه واقعی امتیاز سلامت - نسخه اصلاح شده"""
     
-    cache_health = _get_real_cache_health(cache_details)
+    # استفاده از متریک‌های واقعی
+    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
+    memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
+    disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
     
-    base_score = cache_health.get("health_score", 0)
+    # امتیاز پایه
+    base_score = 100
     
-    norm_success = normalization_metrics.get("success_rate", 0)
-    if norm_success < 80:
+    # جریمه برای مصرف CPU بالا
+    if cpu_usage > 90:
+        base_score -= 30
+    elif cpu_usage > 80:
+        base_score -= 20
+    elif cpu_usage > 70:
         base_score -= 10
-    elif norm_success < 90:
+    elif cpu_usage > 60:
         base_score -= 5
     
-    if not api_status.get("available", False):
+    # جریمه برای مصرف حافظه بالا
+    if memory_usage > 90:
+        base_score -= 20
+    elif memory_usage > 80:
+        base_score -= 15
+    elif memory_usage > 70:
+        base_score -= 10
+    elif memory_usage > 60:
+        base_score -= 5
+    
+    # جریمه برای مصرف دیسک بالا
+    if disk_usage > 90:
+        base_score -= 15
+    elif disk_usage > 80:
+        base_score -= 10
+    elif disk_usage > 70:
+        base_score -= 5
+    
+    # اضافه کردن امتیاز برای سرویس‌های سالم
+    cache_status = cache_details.get("overall_status", "unavailable")
+    if cache_status == "advanced":
+        base_score += 10
+    elif cache_status == "healthy":
+        base_score += 5
+    
+    if api_status.get("available", False):
+        base_score += 5
+    
+    # امتیاز برای نرمال‌سازی
+    norm_success = normalization_metrics.get("success_rate", 0)
+    if norm_success > 95:
+        base_score += 5
+    elif norm_success > 80:
+        base_score += 3
+    elif norm_success < 50:
         base_score -= 10
     
-    return max(0, min(100, base_score))
-                                   
+    return max(0, min(100, base_score))                                   
 def _get_real_cache_health(cache_details: Dict) -> Dict[str, Any]:
     """دریافت وضعیت واقعی سلامت کش"""
     
@@ -764,22 +803,66 @@ def _get_background_worker_status() -> Dict[str, Any]:
     
     return worker_status
 
-
+def _get_real_system_metrics():
+    """محاسبه واقعی متریک‌ها بر اساس محدودیت‌های Render"""
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    cpu_usage = psutil.cpu_percent(interval=0.5)
+    
+    # محدودیت‌های واقعی Render
+    RENDER_RAM_LIMIT_MB = 512
+    RENDER_DISK_LIMIT_GB = 1
+    RENDER_RAM_LIMIT_BYTES = RENDER_RAM_LIMIT_MB * 1024 * 1024
+    RENDER_DISK_LIMIT_BYTES = RENDER_DISK_LIMIT_GB * 1024 * 1024 * 1024
+    
+    # محاسبه واقعی حافظه بر اساس محدودیت Render
+    actual_memory_used_bytes = min(memory.used, RENDER_RAM_LIMIT_BYTES)
+    actual_memory_used_mb = round(actual_memory_used_bytes / (1024 * 1024), 2)
+    actual_memory_percent = min(100, (actual_memory_used_bytes / RENDER_RAM_LIMIT_BYTES) * 100)
+    actual_memory_available_mb = max(0, RENDER_RAM_LIMIT_MB - actual_memory_used_mb)
+    
+    # محاسبه واقعی دیسک بر اساس محدودیت Render
+    actual_disk_used_bytes = min(disk.used, RENDER_DISK_LIMIT_BYTES)
+    actual_disk_used_gb = round(actual_disk_used_bytes / (1024**3), 2)
+    actual_disk_percent = min(100, (actual_disk_used_bytes / RENDER_DISK_LIMIT_BYTES) * 100)
+    actual_disk_free_gb = max(0, RENDER_DISK_LIMIT_GB - actual_disk_used_gb)
+    
+    return {
+        "cpu": {
+            "usage_percent": cpu_usage,
+            "cores": psutil.cpu_count(),
+            "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+        },
+        "memory": {
+            "usage_percent": round(actual_memory_percent, 1),
+            "used_mb": actual_memory_used_mb,
+            "available_mb": round(actual_memory_available_mb, 2),
+            "total_mb": RENDER_RAM_LIMIT_MB,
+            "system_total_mb": round(memory.total / (1024 * 1024), 2),  # فقط برای دیباگ
+            "system_used_percent": memory.percent  # فقط برای دیباگ
+        },
+        "disk": {
+            "usage_percent": round(actual_disk_percent, 1),
+            "used_gb": actual_disk_used_gb,
+            "free_gb": round(actual_disk_free_gb, 2),
+            "total_gb": RENDER_DISK_LIMIT_GB,
+            "system_total_gb": round(disk.total / (1024**3), 2),  # فقط برای دیباگ
+            "system_used_percent": disk.percent  # فقط برای دیباگ
+        }
+    }
+    
 # ==================== SECTION 1: BASIC HEALTH ENDPOINTS ====================
-
 @health_router.get("/status")
 async def comprehensive_health_status():
-    """وضعیت سلامت کامل سیستم - تمام اطلاعات در یک endpoint"""
+    """وضعیت سلامت کامل سیستم - نسخه کاملاً اصلاح شده"""
     
     start_time = time.time()
     logger.info("🏥 شروع بررسی سلامت جامع سیستم...")
     
     try:
-        # مرحله 1: جمع‌آوری اطلاعات پایه
-        logger.info("📊 مرحله 1: جمع‌آوری متریک‌های سیستم")
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        cpu_usage = psutil.cpu_percent(interval=0.1)
+        # مرحله 1: جمع‌آوری اطلاعات پایه با متریک‌های واقعی
+        logger.info("📊 مرحله 1: جمع‌آوری متریک‌های واقعی سیستم")
+        real_metrics = _get_real_system_metrics()
         
         # مرحله 2: جمع‌آوری وضعیت سرویس‌ها
         logger.info("🔧 مرحله 2: بررسی سرویس‌ها")
@@ -803,16 +886,10 @@ async def comprehensive_health_status():
         except Exception as e:
             normalization_metrics = {"success_rate": 0, "total_processed": 0, "error": str(e)}
         
-        # مرحله 4: محاسبه امتیاز سلامت
-        logger.info("🎯 مرحله 4: محاسبه امتیاز سلامت")
-        system_metrics = {
-            "cpu": {"usage_percent": cpu_usage},
-            "memory": {"usage_percent": memory.percent},
-            "disk": {"usage_percent": disk.percent}
-        }
-        
+        # مرحله 4: محاسبه امتیاز سلامت واقعی
+        logger.info("🎯 مرحله 4: محاسبه امتیاز سلامت واقعی")
         health_score = _calculate_real_health_score(
-            cache_details, normalization_metrics, api_status, system_metrics
+            cache_details, normalization_metrics, api_status, real_metrics
         )
         
         # محاسبه امتیاز AI اگر موجود باشد
@@ -821,17 +898,19 @@ async def comprehensive_health_status():
             ai_health_score = _calculate_ai_health_score(ai_status)
         
         # امتیاز نهایی (ترکیب امتیاز اصلی و AI)
-        final_health_score = max(0, min(100, (health_score + ai_health_score) / 2))
+        final_health_score = health_score
+        if ai_health_score > 0:
+            final_health_score = round((health_score + ai_health_score) / 2, 1)
         
-        # تعیین وضعیت کلی
-        if final_health_score >= 85:
+        # تعیین وضعیت کلی بر اساس امتیاز واقعی
+        if final_health_score >= 80:
             overall_status = "healthy"
         elif final_health_score >= 60:
             overall_status = "degraded"
         else:
             overall_status = "unhealthy"
         
-        # ساخت پاسخ جامع
+        # ساخت پاسخ جامع با داده‌های واقعی
         response = {
             "status": overall_status,
             "health_score": round(final_health_score, 1),
@@ -848,25 +927,7 @@ async def comprehensive_health_status():
                 }
             },
             
-            "resources": {
-                "cpu": {
-                    "usage_percent": cpu_usage,
-                    "cores": psutil.cpu_count(),
-                    "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-                },
-                "memory": {
-                    "usage_percent": memory.percent,
-                    "used_mb": round(memory.used / (1024 * 1024), 2),
-                    "available_mb": round(memory.available / (1024 * 1024), 2),
-                    "total_mb": 512
-                },
-                "disk": {
-                    "usage_percent": disk.percent,
-                    "used_gb": round(disk.used / (1024**3), 2),
-                    "free_gb": round(disk.free / (1024**3), 2),
-                    "total_gb": 1
-                }
-            },
+            "resources": real_metrics,  # ✅ استفاده از متریک‌های واقعی
             
             "services": {
                 "cache_system": {
@@ -910,25 +971,37 @@ async def comprehensive_health_status():
                 "normalization_score": normalization_metrics.get("success_rate", 0),
                 "ai_score": ai_health_score,
                 "api_score": 100 if api_status.get("available", False) else 0,
-                "resources_score": 100 - max(0, memory.percent - 50, disk.percent - 50, cpu_usage - 50)
+                "resources_score": max(0, 100 - real_metrics.get("cpu", {}).get("usage_percent", 0))
             },
             
             "alerts": {
-                "count": 0,  # از سیستم هشدار واقعی پر شود
+                "count": 0,
                 "critical_alerts": 0,
                 "warning_alerts": 0
             },
             
             "recommendations": _get_component_recommendations(
-                cache_details, normalization_metrics, api_status, system_metrics
-            )
+                cache_details, normalization_metrics, api_status, real_metrics
+            ),
+            
+            # بخش دیباگ برای تأیید محاسبات
+            "debug_info": {
+                "calculation_method": "real_render_limits",
+                "render_limits_applied": True,
+                "metrics_source": "real_system_metrics"
+            }
         }
         
-        logger.info(f"✅ بررسی سلامت کامل شد - امتیاز: {final_health_score} - وضعیت: {overall_status}")
+        logger.info(f"✅ بررسی سلامت کامل شد - امتیاز واقعی: {final_health_score} - وضعیت: {overall_status}")
+        logger.info(f"📊 متریک‌های واقعی - CPU: {real_metrics['cpu']['usage_percent']}% - RAM: {real_metrics['memory']['usage_percent']}% - Disk: {real_metrics['disk']['usage_percent']}%")
+        
         return response
         
     except Exception as e:
         logger.error(f"❌ خطا در بررسی سلامت: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        
         raise HTTPException(
             status_code=500,
             detail={
