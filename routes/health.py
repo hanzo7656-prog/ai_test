@@ -804,29 +804,12 @@ def _get_background_worker_status() -> Dict[str, Any]:
     return worker_status
 
 def _get_real_system_metrics():
-    """محاسبه واقعی متریک‌ها بر اساس محدودیت‌های Render"""
+    """محاسبه متریک‌های واقعی - نسخه ساده‌شده"""
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     cpu_usage = psutil.cpu_percent(interval=0.5)
     
-    # محدودیت‌های واقعی Render
-    RENDER_RAM_LIMIT_MB = 512
-    RENDER_DISK_LIMIT_GB = 1
-    RENDER_RAM_LIMIT_BYTES = RENDER_RAM_LIMIT_MB * 1024 * 1024
-    RENDER_DISK_LIMIT_BYTES = RENDER_DISK_LIMIT_GB * 1024 * 1024 * 1024
-    
-    # محاسبه واقعی حافظه بر اساس محدودیت Render
-    actual_memory_used_bytes = min(memory.used, RENDER_RAM_LIMIT_BYTES)
-    actual_memory_used_mb = round(actual_memory_used_bytes / (1024 * 1024), 2)
-    actual_memory_percent = min(100, (actual_memory_used_bytes / RENDER_RAM_LIMIT_BYTES) * 100)
-    actual_memory_available_mb = max(0, RENDER_RAM_LIMIT_MB - actual_memory_used_mb)
-    
-    # محاسبه واقعی دیسک بر اساس محدودیت Render
-    actual_disk_used_bytes = min(disk.used, RENDER_DISK_LIMIT_BYTES)
-    actual_disk_used_gb = round(actual_disk_used_bytes / (1024**3), 2)
-    actual_disk_percent = min(100, (actual_disk_used_bytes / RENDER_DISK_LIMIT_BYTES) * 100)
-    actual_disk_free_gb = max(0, RENDER_DISK_LIMIT_GB - actual_disk_used_gb)
-    
+    # استفاده مستقیم از درصدهای سیستم اما نمایش بر اساس محدودیت‌های Render
     return {
         "cpu": {
             "usage_percent": cpu_usage,
@@ -834,20 +817,20 @@ def _get_real_system_metrics():
             "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
         },
         "memory": {
-            "usage_percent": round(actual_memory_percent, 1),
-            "used_mb": actual_memory_used_mb,
-            "available_mb": round(actual_memory_available_mb, 2),
-            "total_mb": RENDER_RAM_LIMIT_MB,
-            "system_total_mb": round(memory.total / (1024 * 1024), 2),  # فقط برای دیباگ
-            "system_used_percent": memory.percent  # فقط برای دیباگ
+            "usage_percent": memory.percent,
+            "used_mb": round((memory.percent / 100) * 512, 2),  # محاسبه بر اساس 512MB
+            "available_mb": round(((100 - memory.percent) / 100) * 512, 2),
+            "total_mb": 512,
+            "system_total_mb": round(memory.total / (1024 * 1024), 2),
+            "system_used_percent": memory.percent
         },
         "disk": {
-            "usage_percent": round(actual_disk_percent, 1),
-            "used_gb": actual_disk_used_gb,
-            "free_gb": round(actual_disk_free_gb, 2),
-            "total_gb": RENDER_DISK_LIMIT_GB,
-            "system_total_gb": round(disk.total / (1024**3), 2),  # فقط برای دیباگ
-            "system_used_percent": disk.percent  # فقط برای دیباگ
+            "usage_percent": disk.percent,
+            "used_gb": round((disk.percent / 100) * 1, 2),  # محاسبه بر اساس 1GB
+            "free_gb": round(((100 - disk.percent) / 100) * 1, 2),
+            "total_gb": 1,
+            "system_total_gb": round(disk.total / (1024**3), 2),
+            "system_used_percent": disk.percent
         }
     }
     
