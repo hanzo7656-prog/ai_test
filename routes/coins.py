@@ -40,7 +40,7 @@ async def get_coins_list(
         
         # پردازش ساده داده‌ها
         processed_coins = []
-        for coin in raw_data.get('result', []):
+        for coin in raw_data.get('data', []):
             processed_coins.append({
                 'id': coin.get('id'),
                 'name': coin.get('name'),
