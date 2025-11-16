@@ -1191,19 +1191,28 @@ async def normalization_comprehensive(action: str = Query("metrics")):
             "timestamp": datetime.now().isoformat()
         },
         "reset-metrics": lambda: {
-            "data_normalizer.reset_metrics()",
+            "status": "success",
+            "action": "reset_metrics",
             "message": "Normalization metrics reset successfully",
             "timestamp": datetime.now().isoformat()
         },
         "clear-cache": lambda: {
-            "data_normalizer.clear_cache()",
-            "message": "Normalization cache cleared successfully", 
+            "status": "success",
+            "action": "clear_cache", 
+            "message": "Normalization cache cleared successfully",
             "timestamp": datetime.now().isoformat()
         }
     }
     
     if action in actions:
         result = actions[action]()
+        
+        # اجرای عملیات برای reset و clear
+        if action == "reset-metrics":
+            data_normalizer.reset_metrics()
+        elif action == "clear-cache":
+            data_normalizer.clear_cache()
+            
         return result
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
