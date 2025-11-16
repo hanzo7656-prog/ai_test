@@ -46,10 +46,16 @@ async def get_coins_list(
                 'name': coin.get('name'),
                 'symbol': coin.get('symbol'),
                 'price': coin.get('price'),
+                'price_change_1h': coin.get('priceChange1h'),    # اضافه شود
                 'price_change_24h': coin.get('priceChange1d'),
+                'price_change_7d': coin.get('priceChange1w'),    # اضافه شود
                 'volume_24h': coin.get('volume'),
                 'market_cap': coin.get('marketCap'),
+                'available_supply': coin.get('availableSupply'), # اضافه شود
+                'total_supply': coin.get('totalSupply'),         # اضافه شود
                 'rank': coin.get('rank'),
+                'website': coin.get('websiteUrl'),               # اضافه شود
+                'twitter': coin.get('twitterUrl'),               # اضافه شود
                 'last_updated': datetime.now().isoformat()
             })
         
