@@ -30,3 +30,6 @@ wheel==0.41.2
 
 # دیتابیس Redis
 redis==5.0.1
+
+# AI
+httpx==0.25.2
