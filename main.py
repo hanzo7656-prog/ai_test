@@ -397,7 +397,7 @@ try:
     from routes.raw_data.raw_insights import raw_insights_router
     from routes.raw_data.raw_exchanges import raw_exchanges_router
     from routes.docs import docs_router
-    from routes.system_chatbot import chatbot_router
+    from ai_brain.config.vortex_brain import ai_router
     print("✅ All routers imported successfully!")
 except ImportError as e:
     print(f"❌ Router import error: {e}")
