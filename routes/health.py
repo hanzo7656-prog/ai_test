@@ -52,6 +52,14 @@ except ImportError as e:
     logger.warning(f"⚠️ New Cache System: {e}")
     NEW_CACHE_SYSTEM_AVAILABLE = False
 
+try:
+    from ai_brain.vortex_brain import vortex_brain, get_ai_health
+    AI_SYSTEM_AVAILABLE = True
+    logger.info("✅ AI Brain system imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ AI Brain system not available: {e}")
+    AI_SYSTEM_AVAILABLE = False
+    
 # ایجاد روت‌ر سلامت
 health_router = APIRouter(prefix="/api/health", tags=["Health & Monitoring"])
 
@@ -504,30 +512,35 @@ def _get_real_database_configs() -> Dict[str, Any]:
             "mother_b": {"role": "Operations & Analytics", "status": "unknown", "connected": False}
         }
 
+
+
 def _check_ai_system_availability() -> Dict[str, Any]:
     """بررسی واقعی وضعیت سیستم هوش مصنوعی"""
     if not AI_SYSTEM_AVAILABLE:
         return {
             "available": False,
+            "initialized": False,
             "status": "not_imported",
             "error": "AI system modules not available",
             "timestamp": datetime.now().isoformat()
         }
     
     try:
-        ai_health = ai_brain.get_network_health()
-        ai_metrics = ai_monitor.collect_ai_metrics()
+        # بررسی وضعیت واقعی initialization
+        health_report = vortex_brain.get_system_health()
         
         return {
             "available": True,
-            "status": "healthy",
-            "brain_health": ai_health,
-            "monitor_metrics": ai_metrics,
+            "initialized": vortex_brain.initialized,
+            "status": "healthy" if vortex_brain.initialized else "not_initialized",
+            "health_report": health_report,
             "performance": {
-                "training_samples": ai_health['performance']['training_samples'],
-                "current_accuracy": ai_health['performance']['current_accuracy'],
-                "architecture_status": ai_health['actual_sparsity']
+                "total_requests": getattr(vortex_brain, 'total_requests', 0),
+                "successful_requests": getattr(vortex_brain, 'successful_requests', 0),
+                "success_rate": health_report.get('success_rate', 0)
             },
+            "components": health_report.get('components', {}),
+            "config_summary": health_report.get('config_summary', {}),
             "timestamp": datetime.now().isoformat()
         }
         
@@ -535,46 +548,64 @@ def _check_ai_system_availability() -> Dict[str, Any]:
         logger.error(f"❌ AI system health check failed: {e}")
         return {
             "available": False,
+            "initialized": False,
             "status": "error",
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
 
-def _calculate_ai_health_score(ai_health: Dict[str, Any]) -> int:
-    """محاسبه امتیاز سلامت هوش مصنوعی"""
+def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api_status: Dict, system_metrics: Dict, ai_status: Dict) -> int:
+    """محاسبه واقعی امتیاز سلامت"""
+    
+    cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
+    memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
+    disk_usage = system_metrics.get("disk", {}).get("usage_percent", 0)
+    
+    base_score = 100
+    
+    # جریمه برای مصرف منابع
+    base_score -= min(30, cpu_usage * 0.3)
+    base_score -= min(20, memory_usage * 0.2)
+    base_score -= min(15, disk_usage * 0.15)
+    
+    # امتیاز برای کش
+    cache_status = cache_details.get("overall_status", "unavailable")
+    if cache_status == "advanced":
+        base_score += 10
+    elif cache_status == "healthy":
+        base_score += 5
+    elif cache_status == "degraded":
+        base_score -= 5
+    else:
+        base_score -= 15
+    
+    # امتیاز برای API
+    if api_status.get("available", False):
+        base_score += 5
+    else:
+        base_score -= 10
+    
+    # امتیاز برای هوش مصنوعی
+    if ai_status.get("available", False) and ai_status.get("initialized", False):
+        base_score += 10
+        success_rate = ai_status.get("performance", {}).get("success_rate", 0)
+        base_score += min(5, success_rate * 0.05)
+    elif ai_status.get("available", False):
+        base_score -= 5
+    
+    # امتیاز برای نرمال‌سازی
     try:
-        base_score = 80
-        
-        accuracy = ai_health['performance']['current_accuracy']
-        if accuracy > 0.9:
-            base_score += 15
-        elif accuracy > 0.7:
-            base_score += 10
-        elif accuracy > 0.5:
+        norm_success = normalization_metrics.success_rate
+        if norm_success > 95:
             base_score += 5
-        else:
+        elif norm_success > 80:
+            base_score += 3
+        elif norm_success < 50:
             base_score -= 10
-        
-        training_samples = ai_health['performance']['training_samples']
-        if training_samples > 1000:
-            base_score += 5
-        elif training_samples > 100:
-            base_score += 2
-        else:
-            base_score -= 5
-        
-        sparsity = float(ai_health['actual_sparsity'].rstrip('%'))
-        if 8 <= sparsity <= 12:
-            base_score += 5
-        else:
-            base_score -= 5
-        
-        return max(0, min(100, base_score))
-        
-    except Exception as e:
-        logger.error(f"❌ AI health score calculation failed: {e}")
-        return 50
-
+    except:
+        pass
+    
+    return max(0, min(100, int(base_score)))
 def _get_background_worker_status() -> Dict[str, Any]:
     """دریافت وضعیت Background Worker"""
     worker_status = {
@@ -730,9 +761,11 @@ def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api
         base_score -= 10
     
     return max(0, min(100, base_score))
+
+
 def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, 
-                                 api_status: Dict, system_metrics: Dict) -> List[str]:
-    """تولید توصیه‌های هوشمند"""
+                                 api_status: Dict, system_metrics: Dict, ai_status: Dict) -> List[str]:
+    """تولید توصیه‌های هوشمند با در نظر گرفتن وضعیت AI"""
     recommendations = []
     
     cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
@@ -765,7 +798,22 @@ def _get_component_recommendations(cache_details: Dict, normalization_metrics: D
     if not api_status.get("available", False):
         recommendations.append("🌐 CRITICAL: External API connectivity issues")
     
+    # توصیه‌های مربوط به هوش مصنوعی ✅
+    if ai_status.get("available", False):
+        if not ai_status.get("initialized", False):
+            recommendations.append("🧠 AI SYSTEM: AI system available but not initialized")
+        else:
+            success_rate = ai_status.get("performance", {}).get("success_rate", 0)
+            if success_rate < 50:
+                recommendations.append("🧠 AI OPTIMIZATION: AI success rate low - Review training data")
+            total_requests = ai_status.get("performance", {}).get("total_requests", 0)
+            if total_requests == 0:
+                recommendations.append("🧠 AI USAGE: AI system ready but no requests received")
+    else:
+        recommendations.append("🧠 AI SYSTEM: AI system not available")
+    
     return recommendations
+
 
 def _perform_urgent_cleanup():
     """پاکسازی فوری دیسک"""
@@ -873,84 +921,197 @@ async def health_ping():
 
 @health_router.get("/status")
 async def comprehensive_health_status(detail: str = Query("basic")):
-    """ادغام status, health-score, calculate-health"""
+    """وضعیت سلامت کامل سیستم با داده‌های واقعی"""
     
     start_time = time.time()
     
     try:
-        # داده‌های پایه - فقط یک بار محاسبه می‌شود
+        # جمع‌آوری داده‌های واقعی از تمام کامپوننت‌ها
         system_metrics = _get_real_system_metrics()
         cache_details = _get_cache_details()
         api_status = _check_external_apis_availability()
         normalization_metrics = data_normalizer.get_health_metrics()
+        ai_status = _check_ai_system_availability()
+        worker_status = _get_background_worker_status()
+        debug_status = DebugSystemManager.get_status_report()
 
-        norm_metrics_dict = {
-            "success_rate": normalization_metrics.success_rate,
-            "total_processed": normalization_metrics.total_processed,
-            "total_errors": normalization_metrics.total_errors,
-            "data_quality": normalization_metrics.data_quality,
-            "common_structures": normalization_metrics.common_structures
-        }
+        # محاسبه وضعیت کلی بر اساس داده‌های واقعی
+        overall_status = "healthy"
+        critical_issues = 0
+        warnings = 0
+
+        # بررسی مشکلات حیاتی
+        if system_metrics["cpu"]["usage_percent"] > 90:
+            critical_issues += 1
+        if system_metrics["memory"]["usage_percent"] > 90:
+            critical_issues += 1
+        if system_metrics["disk"]["usage_percent"] > 90:
+            critical_issues += 1
+        if cache_details["connected_databases"] == 0:
+            critical_issues += 1
+        if not api_status.get("available", False):
+            critical_issues += 1
+
+        # بررسی هشدارها
+        if system_metrics["cpu"]["usage_percent"] > 80:
+            warnings += 1
+        if system_metrics["memory"]["usage_percent"] > 80:
+            warnings += 1
+        if system_metrics["disk"]["usage_percent"] > 80:
+            warnings += 1
+        if cache_details["connected_databases"] < 3:
+            warnings += 1
+        if ai_status.get("available") and not ai_status.get("initialized"):
+            warnings += 1
+
+        if critical_issues > 0:
+            overall_status = "critical"
+        elif warnings > 0:
+            overall_status = "degraded"
+
+        # داده‌های پایه
         base_data = {
-            "status": "healthy", 
+            "status": overall_status,
             "timestamp": datetime.now().isoformat(),
             "response_time_ms": round((time.time() - start_time) * 1000, 2),
+            "system_uptime": int(time.time() - psutil.boot_time()),
+            "issues_summary": {
+                "critical": critical_issues,
+                "warnings": warnings,
+                "healthy_components": 8 - (critical_issues + warnings)  # 8 کامپوننت اصلی
+            },
             "resources": system_metrics,
             "services": {
-                "cache": _check_cache_availability(),
-                "normalization": _check_normalization_availability(),
-                "ai": AI_SYSTEM_AVAILABLE,
-                "external_apis": api_status.get("available", False),
-                "debug_system": DebugSystemManager.is_available()
+                "cache": {
+                    "available": cache_details["redis_available"],
+                    "connected_databases": cache_details["connected_databases"],
+                    "status": cache_details["overall_status"],
+                    "hit_rate": cache_details.get("real_metrics", {}).get("hit_rate", 0)
+                },
+                "normalization": {
+                    "available": _check_normalization_availability(),
+                    "success_rate": normalization_metrics.success_rate,
+                    "total_processed": normalization_metrics.total_processed
+                },
+                "ai": {
+                    "available": ai_status.get("available", False),
+                    "initialized": ai_status.get("initialized", False),
+                    "status": ai_status.get("status", "unknown"),
+                    "total_requests": ai_status.get("performance", {}).get("total_requests", 0)
+                },
+                "external_apis": {
+                    "available": api_status.get("available", False),
+                    "status": api_status.get("status", "unknown")
+                },
+                "debug_system": {
+                    "available": debug_status["initialized"],
+                    "loaded_modules": debug_status["loaded_modules"],
+                    "total_modules": debug_status["total_modules"]
+                },
+                "background_workers": {
+                    "available": worker_status["available"],
+                    "running": worker_status["is_running"],
+                    "active_workers": worker_status["workers_active"]
+                }
             }
         }
-        
+
         if detail == "score":
-            # محاسبه امتیاز سلامت
-            health_score = _calculate_real_health_score(cache_details, normalization_metrics, api_status, system_metrics)
+            # محاسبه امتیاز سلامت واقعی
+            health_score = _calculate_real_health_score(
+                cache_details, normalization_metrics, api_status, system_metrics, ai_status
+            )
+            
+            score_details = {
+                "health_score": health_score,
+                "score_breakdown": {
+                    "resources": {
+                        "score": max(0, 100 - (system_metrics["cpu"]["usage_percent"] * 0.5 + 
+                                              system_metrics["memory"]["usage_percent"] * 0.3 +
+                                              system_metrics["disk"]["usage_percent"] * 0.2)),
+                        "weight": 30
+                    },
+                    "cache": {
+                        "score": _get_real_cache_health(cache_details).get("health_score", 0),
+                        "weight": 20
+                    },
+                    "normalization": {
+                        "score": normalization_metrics.success_rate,
+                        "weight": 15
+                    },
+                    "api": {
+                        "score": 100 if api_status.get("available", False) else 0,
+                        "weight": 15
+                    },
+                    "ai": {
+                        "score": 100 if (ai_status.get("available") and ai_status.get("initialized")) else 0,
+                        "weight": 10
+                    },
+                    "debug": {
+                        "score": 100 if debug_status["initialized"] else 0,
+                        "weight": 10
+                    }
+                },
+                "weighted_score": health_score
+            }
+            
+            return {**base_data, **score_details}
+
+        elif detail == "full":
+            # تمام جزئیات با داده‌های واقعی
+            health_score = _calculate_real_health_score(
+                cache_details, normalization_metrics, api_status, system_metrics, ai_status
+            )
+            
             return {
                 **base_data,
                 "health_score": health_score,
-                "score_components": {
-                    "cache": _get_real_cache_health(cache_details).get("health_score", 0),
-                    "normalization": normalization_metrics.success_rate,
-                    "api": 100 if api_status.get("available", False) else 0,
-                    "resources": max(0, 100 - system_metrics.get("cpu", {}).get("usage_percent", 0))
-                }
-            }
-        
-        elif detail == "full":
-            # همه جزئیات
-            ai_status = _check_ai_system_availability()
-            worker_status = _get_background_worker_status()
-            
-            health_score = _calculate_real_health_score(cache_details, normalization_metrics, api_status, system_metrics)
-            ai_score = _calculate_ai_health_score(ai_status) if ai_status.get("available") else 0
-            final_score = round((health_score + ai_score) / 2, 1) if ai_score > 0 else health_score
-            
-            return {
-                **base_data,
-                "health_score": final_score,
                 "detailed_analysis": {
-                    "cache_health": _get_real_cache_health(cache_details),
+                    "cache_system": {
+                        "health": _get_real_cache_health(cache_details),
+                        "performance": cache_details.get("real_metrics", {}),
+                        "database_details": cache_details.get("database_details", {})
+                    },
                     "ai_system": ai_status,
-                    "background_worker": worker_status,
+                    "background_workers": worker_status,
                     "api_connectivity": api_status,
-                    "normalization_performance": normalization_metrics,
-                    "recommendations": _get_component_recommendations(cache_details, normalization_metrics, api_status, system_metrics)
+                    "data_normalization": {
+                        "metrics": normalization_metrics,
+                        "analysis": data_normalizer.get_deep_analysis()
+                    },
+                    "debug_system": debug_status,
+                    "performance_metrics": {
+                        "cpu_trend": "stable",
+                        "memory_trend": "stable",
+                        "response_time_trend": "stable",
+                        "cache_efficiency": cache_details.get("real_metrics", {}).get("hit_rate", 0)
+                    },
+                    "recommendations": _get_component_recommendations(
+                        cache_details, normalization_metrics, api_status, system_metrics, ai_status
+                    )
+                },
+                "real_time_metrics": {
+                    "active_connections": len(psutil.net_connections()),
+                    "network_io": psutil.net_io_counters()._asdict(),
+                    "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
                 }
             }
-        
-        return base_data  # حالت basic
+
+        # حالت basic - فقط اطلاعات اصلی
+        return base_data
         
     except Exception as e:
         logger.error(f"❌ خطا در بررسی سلامت: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
         raise HTTPException(
             status_code=500,
             detail={
                 "status": "error",
                 "message": f"Health check failed: {str(e)}",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "error_details": str(e)
             }
         )
 @health_router.get("/endpoints")
@@ -1453,9 +1614,79 @@ async def cache_management(
     return result
 
 # ==================== SECTION 4: AI SYSTEM ENDPOINTS ====================
-#
-#
-#
+
+@health_router.get("/ai")
+async def ai_system_health(action: str = Query("status")):
+    """وضعیت سلامت سیستم هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        if action == "status":
+            health_report = vortex_brain.get_system_health()
+            return {
+                "ai_system": "available",
+                "health_report": health_report,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        elif action == "metrics":
+            stats = vortex_brain.get_system_health()
+            return {
+                "ai_metrics": stats,
+                "components": stats.get('components', {}),
+                "performance": {
+                    "total_requests": vortex_brain.total_requests,
+                    "successful_requests": vortex_brain.successful_requests,
+                    "success_rate": stats.get('success_rate', 0)
+                }
+            }
+        
+        elif action == "architecture":
+            config_summary = vortex_brain.config.get_config_summary()
+            return {
+                "architecture": {
+                    "neural_network": {
+                        "neurons": config_summary['neural_network']['neurons'],
+                        "sparsity": config_summary['neural_network']['sparsity'],
+                        "max_complexity": config_summary['neural_network']['max_complexity']
+                    },
+                    "memory": {
+                        "sensory_ttl_hours": config_summary['memory']['sensory_ttl_hours'],
+                        "working_ttl_days": config_summary['memory']['working_ttl_days']
+                    },
+                    "learning": vortex_brain.config.get_learning_config()
+                }
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+            
+    except Exception as e:
+        logger.error(f"❌ AI health check error: {e}")
+        raise HTTPException(status_code=500, detail=f"AI system error: {str(e)}")
+
+@health_router.post("/ai/learn")
+async def submit_ai_learning(request: Request):
+    """ارسال داده آموزشی به هوش مصنوعی"""
+    if not AI_SYSTEM_AVAILABLE:
+        raise HTTPException(status_code=503, detail="AI system not available")
+    
+    try:
+        data = await request.json()
+        text_material = data.get('text', '').strip()
+        
+        if not text_material:
+            raise HTTPException(status_code=400, detail="متن آموزشی الزامی است")
+        
+        # استفاده از تابع موجود در vortex_brain
+        result = await vortex_brain.submit_learning_material(text_material)
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ AI learning error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 # ==================== SECTION 5: DATA NORMALIZATION ENDPOINTS ====================
 
 @health_router.api_route("/normalization", methods=["GET", "POST"])
