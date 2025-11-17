@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 import json
 from typing import Dict, List, Any
-from your_redis_manager import redis_manager  # Redis Manager تو
+from debug_system.storage.redis_manager import redis_manager  # Redis Manager تو
 
 chatbot_router = APIRouter(prefix="/api/chatbot", tags=["System Chatbot"])
 
