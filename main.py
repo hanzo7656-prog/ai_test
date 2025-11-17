@@ -410,7 +410,7 @@ except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
 try:
-    from ai_brain.vortex_brain import vortex_brain, ai_router
+    from ai_brain import vortex_brain, ai_router  # 👈 import مستقیم از پکیج
     AI_SYSTEM_AVAILABLE = True
     print("✅ AI Brain system imported successfully!")
 except ImportError as e:
