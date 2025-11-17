@@ -11,7 +11,7 @@ class APIHandler:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.base_url = config.get('base_url', 'http://localhost:8000')
+        self.base_url = config.get('base_url', 'https://ai-test-3gix.onrender.com')
         self.timeout = config.get('timeout_seconds', 30.0)
         
         # نگاشت intent به endpoint
