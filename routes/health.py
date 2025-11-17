@@ -633,28 +633,23 @@ def _get_background_worker_status() -> Dict[str, Any]:
     return worker_status
 
 def _get_real_system_metrics():
-    """محاسبه واقعی متریک‌ها بر اساس محدودیت‌های Render"""
+    """محاسبه واقعی متریک‌ها - نسخه اصلاح شده"""
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     cpu_usage = psutil.cpu_percent(interval=0.5)
     
-    # محدودیت‌های واقعی Render
+    # محاسبه واقعی بر اساس استفاده واقعی سیستم
+    memory_used_mb = round(memory.used / (1024 * 1024), 2)
+    memory_total_mb = round(memory.total / (1024 * 1024), 2)
+    memory_percent = memory.percent
+    
+    disk_used_gb = round(disk.used / (1024**3), 2)
+    disk_total_gb = round(disk.total / (1024**3), 2)
+    disk_percent = disk.percent
+    
+    # اما برای نمایش در رابط کاربری، محدودیت‌های Render رو هم نشون بدیم
     RENDER_RAM_LIMIT_MB = 512
     RENDER_DISK_LIMIT_GB = 1
-    RENDER_RAM_LIMIT_BYTES = RENDER_RAM_LIMIT_MB * 1024 * 1024
-    RENDER_DISK_LIMIT_BYTES = RENDER_DISK_LIMIT_GB * 1024 * 1024 * 1024
-    
-    # محاسبه واقعی حافظه بر اساس محدودیت Render
-    actual_memory_used_bytes = min(memory.used, RENDER_RAM_LIMIT_BYTES)
-    actual_memory_used_mb = round(actual_memory_used_bytes / (1024 * 1024), 2)
-    actual_memory_percent = min(100, (actual_memory_used_bytes / RENDER_RAM_LIMIT_BYTES) * 100)
-    actual_memory_available_mb = max(0, RENDER_RAM_LIMIT_MB - actual_memory_used_mb)
-    
-    # محاسبه واقعی دیسک بر اساس محدودیت Render
-    actual_disk_used_bytes = min(disk.used, RENDER_DISK_LIMIT_BYTES)
-    actual_disk_used_gb = round(actual_disk_used_bytes / (1024**3), 2)
-    actual_disk_percent = min(100, (actual_disk_used_bytes / RENDER_DISK_LIMIT_BYTES) * 100)
-    actual_disk_free_gb = max(0, RENDER_DISK_LIMIT_GB - actual_disk_used_gb)
     
     return {
         "cpu": {
@@ -663,22 +658,30 @@ def _get_real_system_metrics():
             "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
         },
         "memory": {
-            "usage_percent": round(actual_memory_percent, 1),
-            "used_mb": actual_memory_used_mb,
-            "available_mb": round(actual_memory_available_mb, 2),
-            "total_mb": RENDER_RAM_LIMIT_MB
+            "usage_percent": round(memory_percent, 1),  # ✅ استفاده واقعی
+            "used_mb": memory_used_mb,                  # ✅ استفاده واقعی
+            "available_mb": round(memory.available / (1024 * 1024), 2),  # ✅ استفاده واقعی
+            "total_mb": memory_total_mb,                # ✅ کل حافظه واقعی سیستم
+            "render_limit_mb": RENDER_RAM_LIMIT_MB,     # ✅ محدودیت Render
+            "render_usage_percent": min(100, (memory_used_mb / RENDER_RAM_LIMIT_MB) * 100)  # ✅ استفاده نسبی از سهم Render
         },
         "disk": {
-            "usage_percent": round(actual_disk_percent, 1),
-            "used_gb": actual_disk_used_gb,
-            "free_gb": round(actual_disk_free_gb, 2),
-            "total_gb": RENDER_DISK_LIMIT_GB
+            "usage_percent": round(disk_percent, 1),    # ✅ استفاده واقعی
+            "used_gb": disk_used_gb,                    # ✅ استفاده واقعی
+            "free_gb": round(disk.free / (1024**3), 2), # ✅ استفاده واقعی
+            "total_gb": disk_total_gb,                  # ✅ کل دیسک واقعی سیستم
+            "render_limit_gb": RENDER_DISK_LIMIT_GB,    # ✅ محدودیت Render
+            "render_usage_percent": min(100, (disk_used_gb / RENDER_DISK_LIMIT_GB) * 100)  # ✅ استفاده نسبی از سهم Render
+        },
+        "render_limits": {
+            "ram_mb": RENDER_RAM_LIMIT_MB,
+            "disk_gb": RENDER_DISK_LIMIT_GB,
+            "description": "These are Render.com plan limits, not actual system usage"
         }
     }
 
-def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dict, 
-                               api_status: Dict, system_metrics: Dict) -> int:
-    """محاسبه واقعی امتیاز سلامت"""
+def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api_status: Dict, system_metrics: Dict) -> int:
+    """محاسبه واقعی امتیاز سلامت - نسخه اصلاح شده"""
     
     cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
     memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
@@ -724,8 +727,13 @@ def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dic
     if api_status.get("available", False):
         base_score += 5
     
-    # امتیاز برای نرمال‌سازی
-    norm_success = normalization_metrics.get("success_rate", 0)
+    # امتیاز برای نرمال‌سازی - اصلاح شده
+    try:
+        # اگر normalization_metrics آبجکت باشد
+        norm_success = normalization_metrics.success_rate if hasattr(normalization_metrics, 'success_rate') else normalization_metrics.get("success_rate", 0)
+    except:
+        norm_success = 0
+    
     if norm_success > 95:
         base_score += 5
     elif norm_success > 80:
@@ -734,7 +742,6 @@ def _calculate_real_health_score(cache_details: Dict, normalization_metrics: Dic
         base_score -= 10
     
     return max(0, min(100, base_score))
-
 def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, 
                                  api_status: Dict, system_metrics: Dict) -> List[str]:
     """تولید توصیه‌های هوشمند"""
@@ -888,7 +895,14 @@ async def comprehensive_health_status(detail: str = Query("basic")):
         cache_details = _get_cache_details()
         api_status = _check_external_apis_availability()
         normalization_metrics = data_normalizer.get_health_metrics()
-        
+
+        norm_metrics_dict = {
+            "success_rate": normalization_metrics.success_rate,
+            "total_processed": normalization_metrics.total_processed,
+            "total_errors": normalization_metrics.total_errors,
+            "data_quality": normalization_metrics.data_quality,
+            "common_structures": normalization_metrics.common_structures
+        }
         base_data = {
             "status": "healthy", 
             "timestamp": datetime.now().isoformat(),
