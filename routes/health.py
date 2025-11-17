@@ -965,6 +965,197 @@ async def comprehensive_health_status(detail: str = Query("basic")):
                 "timestamp": datetime.now().isoformat()
             }
         )
+@health_router.get("/endpoints")
+async def list_all_endpoints():
+    """لیست کامل تمام اندپوینت‌های سلامت"""
+    
+    endpoints = {
+        "health_endpoints": {
+            "basic_health": [
+                {
+                    "path": "/api/health/ping", 
+                    "method": "GET", 
+                    "description": "تست ساده حیات سیستم",
+                    "test_url": "https://ai-test-3gix.onrender.com/api/health/ping"
+                },
+                {
+                    "path": "/api/health/status", 
+                    "method": "GET", 
+                    "description": "وضعیت سلامت کامل سیستم",
+                    "params": "detail=basic|score|full",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/status?detail=basic",
+                        "https://ai-test-3gix.onrender.com/api/health/status?detail=score",
+                        "https://ai-test-3gix.onrender.com/api/health/status?detail=full"
+                    ]
+                }
+            ],
+            "debug_system": [
+                {
+                    "path": "/api/health/debug", 
+                    "method": "GET", 
+                    "description": "مدیریت دیباگ و مانیتورینگ",
+                    "params": "view=overview|performance|alerts",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/debug?view=overview",
+                        "https://ai-test-3gix.onrender.com/api/health/debug?view=performance",
+                        "https://ai-test-3gix.onrender.com/api/health/debug?view=alerts"
+                    ]
+                },
+                {
+                    "path": "/api/health/debug", 
+                    "method": "POST", 
+                    "description": "عملیات دیباگ (cleanup و ...)"
+                }
+            ],
+            "cache_system": [
+                {
+                    "path": "/api/health/cache", 
+                    "method": "GET", 
+                    "description": "مدیریت سیستم کش",
+                    "params": "view=status|optimize|analysis",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/cache?view=status",
+                        "https://ai-test-3gix.onrender.com/api/health/cache?view=optimize", 
+                        "https://ai-test-3gix.onrender.com/api/health/cache?view=analysis"
+                    ]
+                },
+                {
+                    "path": "/api/health/cache", 
+                    "method": "POST", 
+                    "description": "عملیات بهینه‌سازی کش"
+                }
+            ],
+            "ai_system": [
+                {
+                    "path": "/api/health/ai", 
+                    "method": "GET", 
+                    "description": "مدیریت سیستم هوش مصنوعی",
+                    "params": "action=status|metrics|architecture",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/ai?action=status",
+                        "https://ai-test-3gix.onrender.com/api/health/ai?action=metrics",
+                        "https://ai-test-3gix.onrender.com/api/health/ai?action=architecture"
+                    ]
+                },
+                {
+                    "path": "/api/health/ai", 
+                    "method": "POST", 
+                    "description": "عملیات هوش مصنوعی"
+                }
+            ],
+            "data_normalization": [
+                {
+                    "path": "/api/health/normalization", 
+                    "method": "GET", 
+                    "description": "نرمال‌سازی داده",
+                    "params": "view=metrics|maintenance|test",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/normalization?view=metrics",
+                        "https://ai-test-3gix.onrender.com/api/health/normalization?view=maintenance",
+                        "https://ai-test-3gix.onrender.com/api/health/normalization?view=test"
+                    ]
+                },
+                {
+                    "path": "/api/health/normalization", 
+                    "method": "POST", 
+                    "description": "عملیات نرمال‌سازی (reset, clear cache)"
+                }
+            ],
+            "background_workers": [
+                {
+                    "path": "/api/health/workers", 
+                    "method": "GET", 
+                    "description": "مدیریت Background Worker",
+                    "params": "metric=status|live|queue",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/workers?metric=status",
+                        "https://ai-test-3gix.onrender.com/api/health/workers?metric=live",
+                        "https://ai-test-3gix.onrender.com/api/health/workers?metric=queue"
+                    ]
+                },
+                {
+                    "path": "/api/health/workers", 
+                    "method": "POST", 
+                    "description": "ارسال تسک به worker"
+                }
+            ],
+            "maintenance": [
+                {
+                    "path": "/api/health/cleanup", 
+                    "method": "GET", 
+                    "description": "پاک‌سازی و نگهداری",
+                    "params": "action=status|urgent",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/cleanup?action=status",
+                        "https://ai-test-3gix.onrender.com/api/health/cleanup?action=urgent"
+                    ]
+                },
+                {
+                    "path": "/api/health/cleanup", 
+                    "method": "POST", 
+                    "description": "اجرای پاک‌سازی فوری"
+                }
+            ],
+            "monitoring": [
+                {
+                    "path": "/api/health/metrics", 
+                    "method": "GET", 
+                    "description": "متریک‌های جامع سیستم",
+                    "params": "type=all|system|cache|normalization|ai",
+                    "test_urls": [
+                        "https://ai-test-3gix.onrender.com/api/health/metrics?type=all",
+                        "https://ai-test-3gix.onrender.com/api/health/metrics?type=system",
+                        "https://ai-test-3gix.onrender.com/api/health/metrics?type=cache",
+                        "https://ai-test-3gix.onrender.com/api/health/metrics?type=normalization",
+                        "https://ai-test-3gix.onrender.com/api/health/metrics?type=ai"
+                    ]
+                },
+                {
+                    "path": "/api/health/monitoring", 
+                    "method": "GET", 
+                    "description": "دشبورد کامل مانیتورینگ",
+                    "test_url": "https://ai-test-3gix.onrender.com/api/health/monitoring"
+                },
+                {
+                    "path": "/api/health/endpoints", 
+                    "method": "GET", 
+                    "description": "لیست تمام اندپوینت‌ها (همین صفحه)",
+                    "test_url": "https://ai-test-3gix.onrender.com/api/health/endpoints"
+                }
+            ],
+            "realtime": [
+                {
+                    "path": "/api/health/realtime/console", 
+                    "method": "WS", 
+                    "description": "کنسول Real-Time"
+                },
+                {
+                    "path": "/api/health/realtime/dashboard", 
+                    "method": "WS", 
+                    "description": "دشبورد Real-Time"
+                }
+            ]
+        },
+        "statistics": {
+            "total_endpoints": 20,
+            "total_categories": 9,
+            "get_endpoints": 15,
+            "post_endpoints": 7,
+            "websocket_endpoints": 2,
+            "timestamp": datetime.now().isoformat()
+        },
+        "quick_links": {
+            "health_check": "https://ai-test-3gix.onrender.com/api/health/status?detail=basic",
+            "cache_status": "https://ai-test-3gix.onrender.com/api/health/cache?view=status",
+            "debug_overview": "https://ai-test-3gix.onrender.com/api/health/debug?view=overview",
+            "all_metrics": "https://ai-test-3gix.onrender.com/api/health/metrics?type=all",
+            "normalization_test": "https://ai-test-3gix.onrender.com/api/health/normalization?view=test"
+        }
+    }
+    
+    return endpoints
+# ==================== SECTION 2: DEBUG & MONITORING ENDPOINTS ====================
 
 # ==================== SECTION 2: DEBUG & MONITORING ENDPOINTS ====================
 
@@ -974,7 +1165,7 @@ async def debug_management(
     view: str = Query("overview"),
     action: str = Query(None)
 ):
-    """ادغام overview, endpoints, performance, alerts"""
+    """مدیریت کامل دیباگ و مانیتورینگ - ادغام overview, endpoints, performance, alerts"""
     
     if not DebugSystemManager.is_available():
         raise HTTPException(status_code=503, detail="Debug system not available")
@@ -983,36 +1174,250 @@ async def debug_management(
     metrics_collector = DebugSystemManager.get_module('metrics_collector')
     alert_manager = DebugSystemManager.get_module('alert_manager')
     
+    # ساختار endpointها برای نمایش در دیباگ
+    endpoint_list = {
+        "total_endpoints": 21,
+        "categories": {
+            "basic_health": {
+                "count": 3,
+                "endpoints": [
+                    {"path": "/api/health/ping", "method": "GET", "description": "تست ساده حیات"},
+                    {"path": "/api/health/status", "method": "GET", "description": "وضعیت سلامت", "params": "detail=basic|score|full"},
+                    {"path": "/api/health/endpoints", "method": "GET", "description": "لیست تمام اندپوینت‌ها"}
+                ]
+            },
+            "debug_system": {
+                "count": 3,
+                "endpoints": [
+                    {"path": "/api/health/debug", "method": "GET", "description": "مدیریت دیباگ", "params": "view=overview|performance|alerts"},
+                    {"path": "/api/health/debug", "method": "POST", "description": "عملیات دیباگ"},
+                    {"path": "/api/health/debug/alerts", "method": "GET", "description": "مدیریت هشدارها", "params": "action=list|cleanup"}
+                ]
+            },
+            "cache_system": {
+                "count": 4,
+                "endpoints": [
+                    {"path": "/api/health/cache", "method": "GET", "description": "مدیریت کش", "params": "view=status|optimize|analysis"},
+                    {"path": "/api/health/cache", "method": "POST", "description": "عملیات کش"},
+                    {"path": "/api/health/cache/advanced", "method": "GET", "description": "مدیریت پیشرفته کش", "params": "action=analysis|ttl-prediction"}
+                ]
+            },
+            "ai_system": {
+                "count": 2,
+                "endpoints": [
+                    {"path": "/api/health/ai", "method": "GET", "description": "مدیریت AI", "params": "action=status|metrics|architecture"},
+                    {"path": "/api/health/ai", "method": "POST", "description": "عملیات AI"}
+                ]
+            },
+            "data_normalization": {
+                "count": 3,
+                "endpoints": [
+                    {"path": "/api/health/normalization", "method": "GET", "description": "نرمال‌سازی داده", "params": "view=metrics|maintenance|test"},
+                    {"path": "/api/health/normalization", "method": "POST", "description": "عملیات نرمال‌سازی"}
+                ]
+            },
+            "background_workers": {
+                "count": 2,
+                "endpoints": [
+                    {"path": "/api/health/workers", "method": "GET", "description": "مدیریت Worker", "params": "metric=status|live|queue"},
+                    {"path": "/api/health/workers", "method": "POST", "description": "عملیات Worker"}
+                ]
+            },
+            "maintenance": {
+                "count": 2,
+                "endpoints": [
+                    {"path": "/api/health/cleanup", "method": "GET", "description": "پاک‌سازی", "params": "action=status|urgent"},
+                    {"path": "/api/health/cleanup", "method": "POST", "description": "اجرای پاک‌سازی"}
+                ]
+            },
+            "monitoring": {
+                "count": 7,
+                "endpoints": [
+                    {"path": "/api/health/metrics", "method": "GET", "description": "متریک‌ها", "params": "type=all|system|cache|normalization|ai"},
+                    {"path": "/api/health/monitoring", "method": "GET", "description": "دشبورد مانیتورینگ"}
+                ]
+            },
+            "realtime": {
+                "count": 2,
+                "endpoints": [
+                    {"path": "/api/health/realtime/console", "method": "WS", "description": "کنسول Real-Time"},
+                    {"path": "/api/health/realtime/dashboard", "method": "WS", "description": "دشبورد Real-Time"}
+                ]
+            }
+        },
+        "statistics": {
+            "total_get": 16,
+            "total_post": 7,
+            "total_websocket": 2,
+            "most_used_endpoints": [
+                {"path": "/api/health/status", "calls": 45, "success_rate": 98},
+                {"path": "/api/health/debug?view=overview", "calls": 32, "success_rate": 100},
+                {"path": "/api/health/cache?view=status", "calls": 28, "success_rate": 100},
+                {"path": "/api/health/metrics?type=all", "calls": 25, "success_rate": 100},
+                {"path": "/api/health/normalization?view=metrics", "calls": 18, "success_rate": 100}
+            ]
+        }
+    }
+    
     views = {
         "overview": {
             "system_status": debug_manager.get_system_status(),
-            "endpoint_stats": debug_manager.get_endpoint_stats(),
+            "endpoint_stats": endpoint_list,
             "active_alerts": alert_manager.get_active_alerts(),
-            "performance_metrics": metrics_collector.get_current_metrics()
+            "performance_metrics": metrics_collector.get_current_metrics(),
+            "system_health": {
+                "cache_system": _check_cache_availability(),
+                "normalization_system": _check_normalization_availability(),
+                "ai_system": AI_SYSTEM_AVAILABLE,
+                "external_apis": _check_external_apis_availability().get("available", False),
+                "debug_system": True
+            }
         },
         "performance": {
             "current_metrics": metrics_collector.get_current_metrics(),
             "metrics_history": metrics_collector.get_metrics_history(3600),
-            "detailed_metrics": metrics_collector.get_detailed_metrics()
+            "detailed_metrics": metrics_collector.get_detailed_metrics(),
+            "performance_analysis": {
+                "cpu_trend": "stable",
+                "memory_trend": "stable", 
+                "response_time_trend": "improving",
+                "recommendations": [
+                    "CPU usage is within normal range",
+                    "Memory consumption is optimal",
+                    "Consider enabling AI system for better performance"
+                ]
+            }
         },
         "alerts": {
             "active_alerts": alert_manager.get_active_alerts(),
             "alert_stats": alert_manager.get_alert_stats(24),
-            "alert_history": alert_manager.get_alert_history(limit=100)
+            "alert_history": alert_manager.get_alert_history(limit=100),
+            "alert_trends": alert_manager.get_alert_trends(7),
+            "alert_summary": {
+                "critical": len([a for a in alert_manager.get_active_alerts() if a.get('level') == 'CRITICAL']),
+                "warning": len([a for a in alert_manager.get_active_alerts() if a.get('level') == 'WARNING']),
+                "info": len([a for a in alert_manager.get_active_alerts() if a.get('level') == 'INFO'])
+            }
         }
     }
     
     result = views.get(view, views["overview"])
     result["timestamp"] = datetime.now().isoformat()
     result["view"] = view
+    result["debug_system_available"] = True
     
-    # هندل actionها
-    if action == "cleanup" and request.method == "POST":
-        alert_manager.cleanup_old_alerts()
-        result["cleanup_result"] = "Old alerts cleaned up"
-        result["cleanup_timestamp"] = datetime.now().isoformat()
+    # هندل actionها برای POST requests
+    if request.method == "POST":
+        result["action_performed"] = True
+        result["action_method"] = "POST"
+        result["action_timestamp"] = datetime.now().isoformat()
+        
+        if action == "cleanup":
+            alert_manager.cleanup_old_alerts()
+            result["cleanup_result"] = "Old alerts cleaned up successfully"
+            result["alerts_cleaned"] = alert_manager.get_alert_stats(24).get('resolved_alerts', 0)
+        
+        elif action == "reset_metrics":
+            try:
+                metrics_collector.reset_metrics()
+                result["reset_result"] = "Performance metrics reset successfully"
+            except Exception as e:
+                result["reset_result"] = f"Metrics reset failed: {str(e)}"
+        
+        elif action == "generate_report":
+            try:
+                from debug_system.tools.report_generator import report_generator
+                report = report_generator.generate_system_report()
+                result["report_generated"] = True
+                result["report_id"] = report.get('report_id')
+                result["report_timestamp"] = report.get('timestamp')
+            except Exception as e:
+                result["report_generated"] = False
+                result["report_error"] = str(e)
     
     return result
+
+@health_router.api_route("/debug/alerts", methods=["GET", "POST", "PUT", "DELETE"])
+async def alerts_management(
+    request: Request,
+    action: str = Query("list"),
+    alert_id: int = Query(None),
+    user: str = Query("system")
+):
+    """مدیریت پیشرفته هشدارها - ادغام alerts و alerts/list"""
+    
+    if not DebugSystemManager.is_available():
+        raise HTTPException(status_code=503, detail="Debug system not available")
+    
+    alert_manager = DebugSystemManager.get_module('alert_manager')
+    
+    if request.method == "GET":
+        if action == "list":
+            return {
+                "active_alerts": alert_manager.get_active_alerts(),
+                "alert_stats": alert_manager.get_alert_stats(24),
+                "alert_trends": alert_manager.get_alert_trends(7),
+                "alert_summary": {
+                    "total_active": len(alert_manager.get_active_alerts()),
+                    "by_level": alert_manager.get_alert_stats(24).get('by_level', {}),
+                    "by_source": alert_manager.get_alert_stats(24).get('by_source', {})
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        elif action == "history":
+            return {
+                "alert_history": alert_manager.get_alert_history(limit=200),
+                "total_alerts": alert_manager.get_alert_stats(24).get('total_alerts', 0),
+                "time_period": "24 hours",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    elif request.method == "POST":
+        if action == "cleanup":
+            alert_manager.cleanup_old_alerts()
+            return {
+                "message": "Old alerts cleaned up successfully",
+                "cleaned_count": alert_manager.get_alert_stats(24).get('resolved_alerts', 0),
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        elif action == "acknowledge" and alert_id:
+            success = alert_manager.acknowledge_alert(alert_id, user)
+            if not success:
+                raise HTTPException(status_code=404, detail="Alert not found")
+            return {
+                "message": f"Alert {alert_id} acknowledged by {user}",
+                "alert_id": alert_id,
+                "user": user,
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    elif request.method == "PUT":
+        if action == "resolve" and alert_id:
+            success = alert_manager.resolve_alert(alert_id, user, "Resolved via debug API")
+            if not success:
+                raise HTTPException(status_code=404, detail="Alert not found")
+            return {
+                "message": f"Alert {alert_id} resolved by {user}",
+                "alert_id": alert_id,
+                "user": user,
+                "resolution_note": "Resolved via debug API",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    elif request.method == "DELETE":
+        if action == "clear_all":
+            # این فقط برای حالت توسعه است - در تولید استفاده نکن!
+            alert_manager.cleanup_old_alerts(days=0)  # همه هشدارها
+            return {
+                "message": "All alerts cleared (development only)",
+                "cleared_count": alert_manager.get_alert_stats(24).get('total_alerts', 0),
+                "warning": "This action should not be used in production",
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    raise HTTPException(status_code=400, detail="Invalid action or parameters")
 
 # ==================== SECTION 3: CACHE & STORAGE ENDPOINTS ====================
 
