@@ -397,7 +397,7 @@ try:
     from routes.raw_data.raw_insights import raw_insights_router
     from routes.raw_data.raw_exchanges import raw_exchanges_router
     from routes.docs import docs_router
-    from ai_brain.vortex_brain import ai_router
+    
     print("✅ All routers imported successfully!")
 except ImportError as e:
     print(f"❌ Router import error: {e}")
@@ -409,8 +409,14 @@ try:
 except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
-
-# 🔽 سیستم کش - این بلوک رو اضافه کن
+try:
+    from ai_brain.vortex_brain import vortex_brain, ai_router
+    AI_SYSTEM_AVAILABLE = True
+    print("✅ AI Brain system imported successfully!")
+except ImportError as e:
+    print(f"❌ AI Brain import error: {e}")
+    AI_SYSTEM_AVAILABLE = False
+# سیستم کش
 try:
     from debug_system.storage import redis_manager, cache_debugger
     
@@ -692,7 +698,14 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
-    
+    try:
+        if AI_SYSTEM_AVAILABLE:
+            print("🚀 Starting AI Brain system...")
+            await vortex_brain.initialize()
+            print("✅ AI Brain system initialized successfully!")
+    except Exception as e:
+        print(f"❌ AI Brain startup error: {e}")
+
     # فعال‌سازی سیستم Background Worker
     activate_complete_background_system()
     
@@ -1021,7 +1034,6 @@ VORTEXAI_ROADMAP = {
     "project": "VortexAI API v4.0.0",
     "description": "Complete Crypto AI System with 9 Main Routes",
     "version": "4.0.0",
-    "chatbot": "/api/chatbot/ask",
     "timestamp": datetime.now().isoformat(),
     
     "🚀 MAIN ROUTES": {
@@ -1117,6 +1129,17 @@ VORTEXAI_ROADMAP = {
                     "metadata": "GET /api/raw/news/metadata - متادیتای اخبار"
                 }
             },
+
+            "🤖 AI BRAIN SYSTEM": {
+                "base_path": "/api/ai",
+                "description": "سیستم هوش مصنوعی خودآموز VortexAI",
+                "endpoints": {
+                    "query": "POST /api/ai/query - پرسش از هوش مصنوعی",
+                    "health": "GET /api/ai/health - سلامت هوش مصنوعی", 
+                    "stats": "GET /api/ai/stats - آمار هوش مصنوعی",
+                    "learn": "POST /api/ai/learn - آموزش هوش مصنوعی"
+                }
+            },
             
             "RAW_INSIGHTS": {
                 "base_path": "/api/raw/insights",
@@ -1167,7 +1190,6 @@ async def root():
         "message": "🚀 VortexAI API Server v4.0.0 - Complete Crypto AI System",
         "version": "4.0.0", 
         "status": "running",
-        "chatbot": "/api/chatbot/ask",
         "timestamp": datetime.now().isoformat(),
         "documentation": {
             "swagger": "/docs",
@@ -1187,6 +1209,8 @@ async def root():
         },
         "system_info": {
             "total_routes": len(app.routes),
+            "ai_system_available": AI_SYSTEM_AVAILABLE,
+            "ai_system_status": "active" if AI_SYSTEM_AVAILABLE else "inactive",
             "debug_system": "active" if DEBUG_SYSTEM_AVAILABLE else "inactive",
             "coinstats_available": COINSTATS_AVAILABLE,
             "cache_system": "active" if CACHE_AVAILABLE else "inactive",  # 🆕 این خط رو اضافه کن
