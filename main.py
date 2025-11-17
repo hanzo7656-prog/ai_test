@@ -698,14 +698,15 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
-    try:
-        if AI_SYSTEM_AVAILABLE:
-            print("🚀 Starting AI Brain system...")
+    
+    if AI_SYSTEM_AVAILABLE:
+        try:
+            print("🧠 Starting AI Brain system...")
             await vortex_brain.initialize()
             print("✅ AI Brain system initialized successfully!")
-    except Exception as e:
-        print(f"❌ AI Brain startup error: {e}")
-
+        except Exception as e:
+            print(f"❌ AI Brain startup error: {e}")
+    
     # فعال‌سازی سیستم Background Worker
     activate_complete_background_system()
     
@@ -723,6 +724,33 @@ async def startup_background_tasks():
             logger.error(f"   ❌ Startup background tasks error: {e}")
     else:
         print("   ⚠️ Debug background tasks skipped")
+
+
+@app.on_event("shutdown")
+async def shutdown_cleanup():
+    """پاک‌سازی و خاتمه سیستم‌ها"""
+    print("🛑 Starting system shutdown...")
+    
+    # خاموش کردن سیستم هوش مصنوعی
+    if AI_SYSTEM_AVAILABLE:
+        try:
+            print("🧠 Shutting down AI Brain system...")
+            await vortex_brain.cleanup()
+            print("✅ AI Brain system cleaned up successfully!")
+        except Exception as e:
+            print(f"❌ AI Brain shutdown error: {e}")
+    
+    # خاموش کردن سیستم دیباگ
+    if DEBUG_SYSTEM_AVAILABLE:
+        try:
+            print("🔧 Shutting down debug system...")
+            # اگر نیاز به پاک‌سازی خاصی در دیباگ سیستم دارید اینجا اضافه کنید
+            print("✅ Debug system shutdown completed!")
+        except Exception as e:
+            print(f"❌ Debug system shutdown error: {e}")
+    
+    print("🎯 All systems shutdown completed!")
+
 
 # ثبت روت‌ها
 app.include_router(health_router)
