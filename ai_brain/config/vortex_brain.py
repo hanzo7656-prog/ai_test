@@ -4,14 +4,14 @@ import logging
 import time
 import asyncio
 
-from .ai_config import AIConfig
-from .neural_network import SparseNeuralNetwork
-from .text_processor import TextProcessor
-from .learning_engine import LearningEngine
-from .memory_manager import MemoryManager
-from .knowledge_compressor import KnowledgeCompressor
-from .api_handler import APIHandler
-from .response_formatter import ResponseFormatter
+from ai_brain.config.ai_config import AIConfig
+from ai_brain.core.neural_network import SparseNeuralNetwork
+from ai_brain.core.text_processor import TextProcessor
+from ai_brain.core.learning_engine import LearningEngine
+from ai_brain.memory.memory_manager import MemoryManager
+from ai_brain.memory.knowledge_compressor import KnowledgeCompressor
+from ai_brain.integration.api_handler import APIHandler
+from ai_brain.integrationresponse_formatter import ResponseFormatter
 
 logger = logging.getLogger(__name__)
 
