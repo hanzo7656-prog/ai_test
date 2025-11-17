@@ -11,7 +11,7 @@ from ai_brain.core.learning_engine import LearningEngine
 from ai_brain.memory.memory_manager import MemoryManager
 from ai_brain.memory.knowledge_compressor import KnowledgeCompressor
 from ai_brain.integration.api_handler import APIHandler
-from ai_brain.integrationresponse_formatter import ResponseFormatter
+from ai_brain.integration.response_formatter import ResponseFormatter
 
 logger = logging.getLogger(__name__)
 
