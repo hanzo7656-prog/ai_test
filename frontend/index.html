@@ -1,400 +1,0 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexAI - سیستم تحلیل هوشمند ارزهای دیجیتال</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
-</head>
-<body>
-    <!-- محتوای اصلی -->
-    <div id="app">
-        <!-- Navigation -->
-        <nav class="navbar">
-            <div class="nav-brand">
-                <h1>🚀 VortexAI</h1>
-                <div class="status-indicator">
-                    <span id="statusDot" class="status-dot"></span>
-                    <span id="statusText">در حال اتصال...</span>
-                </div>
-            </div>
-            
-            <div class="nav-menu" id="navMenu">
-                <button class="nav-btn active" data-section="scan">
-                    <span>🔍 اسکن</span>
-                </button>
-                <button class="nav-btn" data-section="dashboard">
-                    <span>📊 داشبورد</span>
-                </button>
-                <button class="nav-btn" data-section="health">
-                    <span>❤️ سلامت</span>
-                </button>
-                <button class="nav-btn" data-section="ai">
-                    <span>🤖 هوش مصنوعی</span>
-                </button>
-                <button class="nav-btn" data-section="settings">
-                    <span>⚙️ تنظیمات</span>
-                </button>
-            </div>
-
-            <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="منو">☰</button>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Scan Section -->
-            <section id="scan-section" class="content-section active">
-                <div class="section-header">
-                    <h2>🔍 اسکن هوشمند بازار</h2>
-                    <p>تحلیل لحظه‌ای ارزهای دیجیتال با هوش مصنوعی</p>
-                </div>
-
-                <!-- Scan Controls -->
-                <div class="scan-controls">
-                    <div class="control-group">
-                        <label>حالت اسکن:</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="scanMode" value="basic" checked>
-                                <span>پایه (سریع)</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="scanMode" value="ai">
-                                <span>هوش مصنوعی (پیشرفته)</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="control-group">
-                        <label>ارزهای مورد نظر:</label>
-                        <div class="currency-input-container">
-                            <textarea 
-                                id="symbolsInput" 
-                                placeholder="هر خط یک ارز (مثال: bitcoin&#10;ethereum&#10;solana)"
-                                rows="5"
-                            ></textarea>
-                            <div class="input-info">
-                                <span id="selectedCount">0 ارز انتخاب شده</span>
-                                <div class="currency-filter">
-                                    <button id="filterToggle" class="filter-btn">
-                                        فیلتر سریع ▼
-                                    </button>
-                                    <div id="filterMenu" class="filter-menu">
-                                        <div class="filter-option" data-count="10">10 ارز برتر</div>
-                                        <div class="filter-option" data-count="25">25 ارز برتر</div>
-                                        <div class="filter-option" data-count="50">50 ارز برتر</div>
-                                        <div class="filter-option" data-count="100">100 ارز برتر</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="action-buttons">
-                        <button id="startScan" class="btn btn-primary">
-                            🚀 شروع اسکن
-                        </button>
-                        <button id="clearResults" class="btn btn-secondary">
-                            🗑️ پاکسازی
-                        </button>
-                        <button id="exportResults" class="btn btn-success">
-                            💾 ذخیره نتایج
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Results -->
-                <div class="results-section">
-                    <div class="results-header">
-                        <h3>نتایج اسکن</h3>
-                        <div class="results-info">
-                            <span id="resultsCount">0 مورد</span>
-                            <span id="scanTime"></span>
-                        </div>
-                    </div>
-                    <div id="resultsGrid" class="results-grid">
-                        <div class="empty-state">
-                            <div class="empty-icon">🔍</div>
-                            <p>هنوز اسکنی انجام نشده است</p>
-                            <small>برای شروع از دکمه بالا استفاده کنید</small>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Dashboard Section -->
-            <section id="dashboard-section" class="content-section">
-                <div class="section-header">
-                    <h2>📊 داشبورد عملکرد</h2>
-                    <p>آمار و گزارش‌های سیستم</p>
-                </div>
-                <div class="dashboard-grid">
-                    <!-- آمار سریع -->
-                    <div class="stat-cards">
-                        <div class="stat-card">
-                            <div class="stat-icon">💰</div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="totalSymbols">100</div>
-                                <div class="stat-label">ارز پشتیبانی</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">📈</div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="scanCount">0</div>
-                                <div class="stat-label">اسکن انجام شده</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">🤖</div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="aiAnalysisCount">0</div>
-                                <div class="stat-label">تحلیل AI</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon">⚡</div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="successRate">0%</div>
-                                <div class="stat-label">میزان موفقیت</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- عملکرد -->
-                    <div class="performance-section">
-                        <h3>عملکرد سیستم</h3>
-                        <div class="performance-stats">
-                            <div class="perf-item">
-                                <span>درخواست‌های کل:</span>
-                                <span id="totalRequests">0</span>
-                            </div>
-                            <div class="perf-item">
-                                <span>اسکن موفق:</span>
-                                <span id="successScans">0</span>
-                            </div>
-                            <div class="perf-item">
-                                <span>اسکن ناموفق:</span>
-                                <span id="failedScans">0</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Health Section -->
-            <section id="health-section" class="content-section">
-                <div class="section-header">
-                    <h2>❤️ سلامت سیستم</h2>
-                    <p>وضعیت سرویس‌ها و عملکرد</p>
-                </div>
-
-                <div class="health-grid">
-                    <!-- وضعیت سرویس‌ها -->
-                    <div class="health-card">
-                        <h3>وضعیت سرویس‌ها</h3>
-                        <div id="endpointsList" class="endpoints-list">
-                            <!-- توسط JavaScript پر می‌شود -->
-                        </div>
-                        <div class="health-actions">
-                            <button id="refreshHealth" class="btn btn-primary">🔄 بروزرسانی</button>
-                            <button id="testAPI" class="btn btn-secondary">🧪 تست API</button>
-                        </div>
-                    </div>
-
-                    <!-- متریک‌های سیستم -->
-                    <div class="health-card">
-                        <h3>متریک‌های سیستم</h3>
-                        <div class="system-metrics">
-                            <div class="metric">
-                                <span>مصرف CPU:</span>
-                                <span id="cpuUsage">0%</span>
-                            </div>
-                            <div class="metric">
-                                <span>مصرف RAM:</span>
-                                <span id="memoryUsage">0%</span>
-                            </div>
-                            <div class="metric">
-                                <span>مصرف دیسک:</span>
-                                <span id="diskUsage">0%</span>
-                            </div>
-                            <div class="metric">
-                                <span>زمان فعالیت:</span>
-                                <span id="uptime">0d 0h</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- وضعیت AI -->
-                    <div class="health-card">
-                        <h3>وضعیت هوش مصنوعی</h3>
-                        <div id="aiEngineStatus" class="ai-status">
-                            <!-- توسط JavaScript پر می‌شود -->
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- AI Section -->
-            <section id="ai-section" class="content-section">
-                <div class="section-header">
-                    <h2>🤖 موتور هوش مصنوعی</h2>
-                    <p>تحلیل‌های پیشرفته و پیش‌بینی‌ها</p>
-                </div>
-
-                <div class="ai-controls">
-                    <div class="ai-status-panel">
-                        <h3>وضعیت موتورها</h3>
-                        <div id="aiStatusIndicators" class="indicators-grid">
-                            <!-- توسط JavaScript پر می‌شود -->
-                        </div>
-                    </div>
-
-                    <div class="ai-actions">
-                        <button id="initAI" class="btn btn-primary">🚀 راه‌اندازی AI</button>
-                        <button id="analyzeWithAI" class="btn btn-success">🧠 تحلیل پیشرفته</button>
-                    </div>
-                </div>
-
-                <div class="ai-analysis-section">
-                    <h3>تحلیل‌های اخیر</h3>
-                    <div id="aiAnalysisResults" class="analysis-results">
-                        <div class="empty-state">
-                            <div class="empty-icon">🤖</div>
-                            <p>هنوز تحلیلی انجام نشده است</p>
-                            <small>برای شروع تحلیل از دکمه‌های بالا استفاده کنید</small>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Settings Section -->
-            <section id="settings-section" class="content-section">
-                <div class="section-header">
-                    <h2>⚙️ تنظیمات سیستم</h2>
-                    <p>تنظیمات پیشرفته و مدیریت سیستم</p>
-                </div>
-
-                <div class="settings-grid">
-                    <!-- تنظیمات اسکن -->
-                    <div class="settings-card">
-                        <h3>تنظیمات اسکن</h3>
-                        <div class="setting-item">
-                            <label for="batchSize">اندازه دسته:</label>
-                            <input type="number" id="batchSize" min="1" max="100" value="25">
-                            <small>تعداد ارزها در هر دسته اسکن</small>
-                        </div>
-                        <div class="setting-item">
-                            <label for="cacheTTL">مدت زمان کش (ثانیه):</label>
-                            <input type="number" id="cacheTTL" min="60" max="3600" value="300">
-                            <small>مدت زمان ذخیره داده‌ها در حافظه</small>
-                        </div>
-                        <div class="setting-item">
-                            <label for="resultsPerPage">نتایج در هر صفحه:</label>
-                            <input type="number" id="resultsPerPage" min="10" max="100" value="25">
-                            <small>تعداد نتایج نمایش داده شده در هر صفحه</small>
-                        </div>
-                    </div>
-
-                    <!-- تنظیمات AI -->
-                    <div class="settings-card">
-                        <h3>تنظیمات هوش مصنوعی</h3>
-                        <div class="setting-item">
-                            <label for="aiPrecision">دقت تحلیل:</label>
-                            <select id="aiPrecision">
-                                <option value="low">پایین (سریع)</option>
-                                <option value="medium" selected>متوسط</option>
-                                <option value="high">بالا (دقیق)</option>
-                            </select>
-                            <small>سطح دقت تحلیل‌های هوش مصنوعی</small>
-                        </div>
-                        <div class="setting-item">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="autoLearning" checked>
-                                <span>یادگیری خودکار</span>
-                            </label>
-                            <small>بهبود مدل با داده‌های جدید</small>
-                        </div>
-                    </div>
-
-                    <!-- مدیریت سیستم -->
-                    <div class="settings-card">
-                        <h3>مدیریت سیستم</h3>
-                        <div class="system-actions">
-                            <button id="saveSettings" class="btn btn-primary">💾 ذخیره تنظیمات</button>
-                            <button id="clearCache" class="btn btn-warning">🗑️ پاکسازی کش</button>
-                            <button id="resetSettings" class="btn btn-danger">🔄 بازنشانی</button>
-                            <button id="backupSettings" class="btn btn-success">💾 پشتیبان‌گیری</button>
-                        </div>
-                        
-                        <div class="system-info">
-                            <h4>اطلاعات سیستم</h4>
-                            <div class="info-item">
-                                <span>نسخه:</span>
-                                <span id="systemVersion">1.0.0</span>
-                            </div>
-                            <div class="info-item">
-                                <span>آخرین بروزرسانی:</span>
-                                <span id="lastUpdate">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span>حافظه استفاده شده:</span>
-                                <span id="memoryUsed">-</span>
-                            </div>
-                            <div class="info-item">
-                                <span>مدت زمان session:</span>
-                                <span id="sessionDuration">-</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-content">
-            <h3 id="loadingTitle">در حال اسکن</h3>
-            
-            <!-- Progress -->
-            <div class="progress-container">
-                <div class="progress-bar">
-                    <div id="progressFill" class="progress-fill" style="width: 0%"></div>
-                </div>
-                <div class="progress-info">
-                    <span id="progressPercent">0%</span>
-                    <span id="progressText">0/0</span>
-                </div>
-            </div>
-
-            <!-- Scanning Info -->
-            <div class="scanning-info">
-                <div>زمان: <span id="elapsedTime">0:00</span></div>
-                <div>سرعت: <span id="scanSpeed">0/دقیقه</span></div>
-            </div>
-
-            <!-- Currently Scanning -->
-            <div class="currently-scanning">
-                <h4>در حال اسکن:</h4>
-                <div id="scanningList" class="scanning-list"></div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="loading-actions">
-                <button id="cancelLoading" class="btn btn-secondary">لغو اسکن</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notifications Container -->
-    <div id="notificationsContainer"></div>
-
-    <!-- اسکریپت‌های اصلی -->
-    <script src="/static/js/utils.js"></script>
-    <script src="/static/js/ai_client.js"></script>
-    <script src="/static/js/ui_manager.js"></script>
-    <script src="/static/js/scan_session.js"></script>
-    <script src="/static/js/app.js"></script>
-</body>
-</html>
