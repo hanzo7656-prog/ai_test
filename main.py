@@ -1021,7 +1021,7 @@ VORTEXAI_ROADMAP = {
     "project": "VortexAI API v4.0.0",
     "description": "Complete Crypto AI System with 9 Main Routes",
     "version": "4.0.0",
-    "chatbot": "/api/chatbot/ask"
+    "chatbot": "/api/chatbot/ask",
     "timestamp": datetime.now().isoformat(),
     
     "🚀 MAIN ROUTES": {
@@ -1167,6 +1167,7 @@ async def root():
         "message": "🚀 VortexAI API Server v4.0.0 - Complete Crypto AI System",
         "version": "4.0.0", 
         "status": "running",
+        "chatbot": "/api/chatbot/ask",
         "timestamp": datetime.now().isoformat(),
         "documentation": {
             "swagger": "/docs",
