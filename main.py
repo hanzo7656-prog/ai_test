@@ -409,12 +409,26 @@ try:
 except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
+# به جای خطوط 164-169، این کد را قرار دهید:
 try:
-    from ai_brain import vortex_brain, ai_router  # 👈 import مستقیم از پکیج
+    print("🔍 Attempting to import AI brain...")
+    
+    # تست وجود پکیج
+    import ai_brain
+    print("✅ ai_brain package found")
+    
+    # تست محتویات پکیج
+    print(f"📦 Package contents: {dir(ai_brain)}")
+    
+    # import مستقیم
+    from ai_brain import vortex_brain, ai_router
     AI_SYSTEM_AVAILABLE = True
-    print("✅ AI Brain system imported successfully!")
+    print("🎉 AI Brain system imported successfully!")
+    
 except ImportError as e:
     print(f"❌ AI Brain import error: {e}")
+    import traceback
+    traceback.print_exc()
     AI_SYSTEM_AVAILABLE = False
 # سیستم کش
 try:
