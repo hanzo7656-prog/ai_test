@@ -397,6 +397,7 @@ try:
     from routes.raw_data.raw_insights import raw_insights_router
     from routes.raw_data.raw_exchanges import raw_exchanges_router
     from routes.docs import docs_router
+    from routes.system_chatbot import chatbot_router
     print("✅ All routers imported successfully!")
 except ImportError as e:
     print(f"❌ Router import error: {e}")
@@ -721,6 +722,7 @@ app.include_router(raw_news_router)
 app.include_router(raw_insights_router)
 app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
+app.include_router(chatbot_router)
 
 # ==================== DEBUG ROUTES ====================
 def activate_complete_background_system():
@@ -1019,6 +1021,7 @@ VORTEXAI_ROADMAP = {
     "project": "VortexAI API v4.0.0",
     "description": "Complete Crypto AI System with 9 Main Routes",
     "version": "4.0.0",
+    "chatbot": "/api/chatbot/ask"
     "timestamp": datetime.now().isoformat(),
     
     "🚀 MAIN ROUTES": {
