@@ -722,7 +722,7 @@ app.include_router(raw_news_router)
 app.include_router(raw_insights_router)
 app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
-app.include_router(chatbot_router)
+app.include_router(ai_router, prefix="/api/ai", tags=["AI Brain"])
 
 # ==================== DEBUG ROUTES ====================
 def activate_complete_background_system():
