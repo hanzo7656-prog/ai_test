@@ -39,18 +39,6 @@ except ImportError:
     coin_stats_manager = None
     logger.warning("⚠️ coin_stats_manager not available")
 
-# سیستم AI
-try:
-    from simple_ai.brain import ai_brain
-    from integrations.ai_monitor import ai_monitor
-    AI_SYSTEM_AVAILABLE = True
-    logger.info("✅ AI System imported")
-except ImportError as e:
-    logger.warning(f"⚠️ AI System: {e}")
-    AI_SYSTEM_AVAILABLE = False
-    ai_brain = None
-    ai_monitor = None
-
 # سیستم کش جدید
 try:
     from debug_system.storage.cache_decorators import (
@@ -1155,7 +1143,6 @@ async def list_all_endpoints():
     }
     
     return endpoints
-# ==================== SECTION 2: DEBUG & MONITORING ENDPOINTS ====================
 
 # ==================== SECTION 2: DEBUG & MONITORING ENDPOINTS ====================
 
@@ -1466,44 +1453,9 @@ async def cache_management(
     return result
 
 # ==================== SECTION 4: AI SYSTEM ENDPOINTS ====================
-
-@health_router.api_route("/ai", methods=["GET", "POST"])
-async def ai_system_management(action: str = Query("status")):
-    """مدیریت کامل سیستم هوش مصنوعی - بدون تغییر"""
-    
-    if not AI_SYSTEM_AVAILABLE:
-        raise HTTPException(status_code=503, detail="AI system not available")
-    
-    actions = {
-        "status": lambda: {
-            "available": True,
-            "health": _check_ai_system_availability(),
-            "score": _calculate_ai_health_score(_check_ai_system_availability()),
-            "timestamp": datetime.now().isoformat()
-        },
-        "metrics": lambda: {
-            "ai_metrics": ai_monitor.collect_ai_metrics(),
-            "brain_health": ai_brain.get_network_health(),
-            "performance": {
-                "training_samples": ai_brain.get_network_health()['performance']['training_samples'],
-                "current_accuracy": ai_brain.get_network_health()['performance']['current_accuracy']
-            }
-        },
-        "architecture": lambda: {
-            "type": "sparse_neural_network",
-            "neuron_count": ai_brain.get_network_health()['neuron_count'],
-            "connection_strategy": "sparse_connections",
-            "sparsity": ai_brain.get_network_health()['actual_sparsity'],
-            "learning_rate": ai_brain.learning_rate
-        }
-    }
-    
-    if action in actions:
-        result = actions[action]()
-        return result
-    else:
-        raise HTTPException(status_code=400, detail="Invalid action")
-
+#
+#
+#
 # ==================== SECTION 5: DATA NORMALIZATION ENDPOINTS ====================
 
 @health_router.api_route("/normalization", methods=["GET", "POST"])
