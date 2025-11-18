@@ -6,8 +6,8 @@ import logging
 import json
 import asyncio
 
-from ..config.vortex_brain import vortex_brain
-from ..memory.memory_manager import MemoryManager
+from ai_brain.config.vortex_brain import vortex_brain
+from ai_brain.memory.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
