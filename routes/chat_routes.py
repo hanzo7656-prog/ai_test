@@ -1,13 +1,25 @@
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+# routes/chat_routes.py
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Request
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import time
 import logging
 import json
 import asyncio
+import sys
+import os
 
-from ai_brain.config.vortex_brain import vortex_brain
-from ai_brain.memory.memory_manager import MemoryManager
+# اضافه کردن مسیر اصلی پروژه برای ایمپورت‌های صحیح
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# ایمپورت هوش مصنوعی
+try:
+    from ai_brain.config.vortex_brain import vortex_brain
+    AI_AVAILABLE = True
+    logger.info("✅ AI Brain imported successfully for chat routes")
+except ImportError as e:
+    logger.error(f"❌ AI Brain import failed: {e}")
+    AI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +101,18 @@ def get_or_create_session(user_id: str, session_id: Optional[str] = None) -> Cha
     return session
 
 @chat_router.post("/send")
-async def send_chat_message(
-    message: str,
-    user_id: str = "anonymous",
-    session_id: Optional[str] = None
-):
+async def send_chat_message(request: Request):
     """ارسال پیام در چت"""
     try:
-        if not message or not message.strip():
+        if not AI_AVAILABLE:
+            raise HTTPException(status_code=503, detail="سیستم هوش مصنوعی در دسترس نیست")
+        
+        data = await request.json()
+        message = data.get('message', '').strip()
+        user_id = data.get('user_id', 'anonymous')
+        session_id = data.get('session_id')
+            
+        if not message:
             raise HTTPException(status_code=400, detail="پیام نمی‌تواند خالی باشد")
         
         # دریافت یا ایجاد سشن
@@ -233,6 +249,18 @@ async def get_chat_suggestions(user_id: str = "anonymous"):
     return {
         "user_id": user_id,
         "suggestions": suggestions,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@chat_router.get("/health")
+async def chat_health():
+    """سلامت سیستم چت"""
+    return {
+        "status": "active" if AI_AVAILABLE else "inactive",
+        "ai_available": AI_AVAILABLE,
+        "ai_initialized": getattr(vortex_brain, 'initialized', False) if AI_AVAILABLE else False,
+        "active_sessions": len(chat_sessions),
+        "total_users": len(user_sessions),
         "timestamp": datetime.now().isoformat()
     }
 
