@@ -433,7 +433,7 @@ except ImportError as e:
 
 # ایمپورت روت چت
 try:
-    from ai_brain.routes.chat_routes import chat_router
+    from routes.chat_routes import chat_router
     app.include_router(chat_router, prefix="/api/ai/chat", tags=["AI Chat"])
     print("✅ Chat routes imported successfully!")
 except ImportError as e:
