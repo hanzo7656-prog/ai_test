@@ -409,7 +409,8 @@ try:
 except ImportError as e:
     print(f"❌ CoinStats import error: {e}")
     COINSTATS_AVAILABLE = False
-# به جای خطوط 164-169، این کد را قرار دهید:
+
+# سیستم هوش مصنوعی
 try:
     print("🔍 Attempting to import AI brain...")
     
@@ -431,14 +432,6 @@ except ImportError as e:
     traceback.print_exc()
     AI_SYSTEM_AVAILABLE = False
 
-# ایمپورت روت چت
-# در main.py - در بخش ثبت روت‌ها
-try:
-    from routes.chat_routes import chat_router
-    app.include_router(chat_router, prefix="/api/ai/chat", tags=["AI Chat"])
-    print("✅ Chat routes imported successfully!")
-except ImportError as e:
-    print(f"❌ Chat routes import error: {e}")
 # سیستم کش
 try:
     from debug_system.storage import redis_manager, cache_debugger
@@ -787,6 +780,20 @@ app.include_router(raw_insights_router)
 app.include_router(raw_exchanges_router)
 app.include_router(docs_router)
 app.include_router(ai_router, prefix="/api/ai", tags=["AI Brain"])
+
+# ایمپورت روت چت - با تاخیر برای جلوگیری از circular import
+def register_chat_routes():
+    try:
+        from routes.chat_routes import chat_router
+        app.include_router(chat_router, prefix="/api/ai/chat", tags=["AI Chat"])
+        print("✅ Chat routes imported successfully!")
+        return True
+    except ImportError as e:
+        print(f"❌ Chat routes import error: {e}")
+        return False
+
+# ثبت روت چت
+register_chat_routes()
 
 # ==================== DEBUG ROUTES ====================
 def activate_complete_background_system():
