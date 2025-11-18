@@ -432,13 +432,13 @@ except ImportError as e:
     AI_SYSTEM_AVAILABLE = False
 
 # ایمپورت روت چت
+# در main.py - در بخش ثبت روت‌ها
 try:
     from routes.chat_routes import chat_router
     app.include_router(chat_router, prefix="/api/ai/chat", tags=["AI Chat"])
     print("✅ Chat routes imported successfully!")
 except ImportError as e:
     print(f"❌ Chat routes import error: {e}")
-    
 # سیستم کش
 try:
     from debug_system.storage import redis_manager, cache_debugger
