@@ -1,4 +1,3 @@
-# routes/chat_routes.py
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Request
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
@@ -6,20 +5,6 @@ import time
 import logging
 import json
 import asyncio
-import sys
-import os
-
-# اضافه کردن مسیر اصلی پروژه برای ایمپورت‌های صحیح
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# ایمپورت هوش مصنوعی
-try:
-    from ai_brain.config.vortex_brain import vortex_brain
-    AI_AVAILABLE = True
-    logger.info("✅ AI Brain imported successfully for chat routes")
-except ImportError as e:
-    logger.error(f"❌ AI Brain import failed: {e}")
-    AI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +14,15 @@ chat_router = APIRouter()
 # مدیریت سشن‌های چت
 chat_sessions = {}
 user_sessions = {}
+
+# ایمپورت با تاخیر - جلوگیری از circular import
+def get_vortex_brain():
+    try:
+        from ai_brain.config.vortex_brain import vortex_brain
+        return vortex_brain
+    except ImportError as e:
+        logger.error(f"❌ Failed to import vortex_brain: {e}")
+        return None
 
 class ChatSession:
     """مدیریت سشن چت کاربر"""
@@ -104,7 +98,8 @@ def get_or_create_session(user_id: str, session_id: Optional[str] = None) -> Cha
 async def send_chat_message(request: Request):
     """ارسال پیام در چت"""
     try:
-        if not AI_AVAILABLE:
+        vortex_brain = get_vortex_brain()
+        if not vortex_brain:
             raise HTTPException(status_code=503, detail="سیستم هوش مصنوعی در دسترس نیست")
         
         data = await request.json()
@@ -255,10 +250,11 @@ async def get_chat_suggestions(user_id: str = "anonymous"):
 @chat_router.get("/health")
 async def chat_health():
     """سلامت سیستم چت"""
+    vortex_brain = get_vortex_brain()
     return {
-        "status": "active" if AI_AVAILABLE else "inactive",
-        "ai_available": AI_AVAILABLE,
-        "ai_initialized": getattr(vortex_brain, 'initialized', False) if AI_AVAILABLE else False,
+        "status": "active" if vortex_brain else "inactive",
+        "ai_available": bool(vortex_brain),
+        "ai_initialized": getattr(vortex_brain, 'initialized', False) if vortex_brain else False,
         "active_sessions": len(chat_sessions),
         "total_users": len(user_sessions),
         "timestamp": datetime.now().isoformat()
