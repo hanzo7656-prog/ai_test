@@ -1871,6 +1871,136 @@ async def monitoring_dashboard():
             "message": f"Monitoring dashboard unavailable: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
+# ==================== DIAGNOSTIC ENDPOINTS ====================
+
+@health_router.get("/debug/disk")
+async def debug_disk_usage():
+    """دیباگ دقیق فضای دیسک - پیدا کردن مشکل گزارش‌دهی"""
+    import os
+    import subprocess
+    import json
+    
+    results = {
+        "timestamp": datetime.now().isoformat(),
+        "tests": {}
+    }
+    
+    try:
+        # تست 1: دستور df (سیستم)
+        df_output = subprocess.check_output(["df", "-h", "/"], 
+                                           stderr=subprocess.STDOUT, 
+                                           text=True)
+        results["tests"]["df_command"] = df_output.strip()
+    except Exception as e:
+        results["tests"]["df_command"] = f"Error: {str(e)}"
+    
+    try:
+        # تست 2: بررسی دایرکتوری جاری
+        current_dir = os.getcwd()
+        results["tests"]["current_directory"] = current_dir
+        
+        # سایز دایرکتوری فعلی
+        du_output = subprocess.check_output(["du", "-sh", "."], 
+                                          stderr=subprocess.STDOUT, 
+                                          text=True)
+        results["tests"]["du_current_dir"] = du_output.strip()
+    except Exception as e:
+        results["tests"]["du_current_dir"] = f"Error: {str(e)}"
+    
+    try:
+        # تست 3: لیست فایل‌های بزرگ
+        find_output = subprocess.check_output(
+            ["find", ".", "-type", "f", "-size", "+10M", "-exec", "ls", "-lh", "{}", "+"],
+            stderr=subprocess.STDOUT, 
+            text=True
+        )
+        results["tests"]["large_files"] = find_output.strip() if find_output.strip() else "No files > 10MB"
+    except Exception as e:
+        results["tests"]["large_files"] = f"Error: {str(e)}"
+    
+    try:
+        # تست 4: مقایسه psutil vs shutil
+        import shutil
+        
+        psutil_usage = psutil.disk_usage('/')
+        shutil_usage = shutil.disk_usage('/')
+        
+        results["tests"]["comparison"] = {
+            "psutil": {
+                "total_gb": round(psutil_usage.total / (1024**3), 2),
+                "used_gb": round(psutil_usage.used / (1024**3), 2),
+                "free_gb": round(psutil_usage.free / (1024**3), 2),
+                "percent": psutil_usage.percent
+            },
+            "shutil": {
+                "total_gb": round(shutil_usage.total / (1024**3), 2),
+                "used_gb": round(shutil_usage.used / (1024**3), 2),
+                "free_gb": round(shutil_usage.free / (1024**3), 2),
+                "percent": round((shutil_usage.used / shutil_usage.total) * 100, 2) if shutil_usage.total > 0 else 0
+            }
+        }
+    except Exception as e:
+        results["tests"]["comparison"] = f"Error: {str(e)}"
+    
+    try:
+        # تست 5: بررسی وجود docker/cgroups
+        results["tests"]["environment"] = {
+            "is_docker": os.path.exists('/.dockerenv'),
+            "is_container": os.path.exists('/run/.containerenv'),
+            "cgroup_memory_exists": os.path.exists('/sys/fs/cgroup/memory/'),
+            "render_env": 'RENDER' in os.environ
+        }
+    except Exception as e:
+        results["tests"]["environment"] = f"Error: {str(e)}"
+    
+    try:
+        # تست 6: بررسی متغیرهای محیطی Render
+        env_vars = {}
+        for key in ['RENDER', 'RENDER_MEMORY_MB', 'RENDER_DISK_MB', 'MEMORY_LIMIT', 'STORAGE_LIMIT']:
+            env_vars[key] = os.environ.get(key, 'Not set')
+        results["tests"]["environment_vars"] = env_vars
+    except Exception as e:
+        results["tests"]["environment_vars"] = f"Error: {str(e)}"
+    
+    # جمع‌بندی
+    results["summary"] = {
+        "likely_issue": "psutil is showing physical server stats, not container limits",
+        "recommendation": "Use Render environment variables or cgroups for accurate limits"
+    }
+    
+    return results
+
+
+@health_router.get("/debug/memory")
+async def debug_memory_usage():
+    """دیباگ دقیق حافظه"""
+    import os
+    
+    mem = psutil.virtual_memory()
+    
+    # بررسی متغیرهای Render
+    render_memory_mb = os.environ.get('RENDER_MEMORY_MB', '512')
+    
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "psutil_report": {
+            "total_mb": round(mem.total / (1024*1024), 2),
+            "available_mb": round(mem.available / (1024*1024), 2),
+            "used_mb": round(mem.used / (1024*1024), 2),
+            "percent": mem.percent,
+            "free_mb": round(mem.free / (1024*1024), 2)
+        },
+        "render_limits": {
+            "memory_limit_mb": render_memory_mb,
+            "calculated_usage_percent": min(100, (mem.used / (int(render_memory_mb) * 1024 * 1024)) * 100) if render_memory_mb.isdigit() else 0
+        },
+        "explanation": {
+            "issue": "psutil shows TOTAL system memory, not your allocated portion",
+            "actual_limit": f"{render_memory_mb}MB from Render",
+            "what_you_see": f"{round(mem.total / (1024*1024), 2)}MB (full server)",
+            "reality": f"You can only use {render_memory_mb}MB"
+        }
+    }
 
 # ==================== WEB SOCKETS ====================
 
