@@ -127,11 +127,23 @@ async def get_coin_charts(coin_id: str, period: str = Query("1w")):
         if "error" in raw_data:
             raise HTTPException(status_code=500, detail=raw_data["error"])
         
+        # 🔧 اصلاح: بررسی اینکه داده list است یا dict
+        if isinstance(raw_data, list):
+            # داده‌ها به صورت مستقیم لیست هستند
+            chart_data = raw_data
+        elif isinstance(raw_data, dict):
+            # داده‌ها درون dict قرار دارند
+            chart_data = raw_data.get('data', [])
+        else:
+            chart_data = []
+        
         return {
             'status': 'success',
-            'data': raw_data,
+            'data': chart_data,
             'coin_id': coin_id,
             'period': period,
+            'data_type': type(raw_data).__name__,
+            'data_count': len(chart_data),
             'timestamp': datetime.now().isoformat()
         }
         
