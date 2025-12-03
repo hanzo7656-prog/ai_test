@@ -347,5 +347,304 @@ class SystemMonitor:
             'timestamp': datetime.now().isoformat()
         }
 
-# ایجاد نمونه گلوبال (بعداً در main.py مقداردهی می‌شود)
+class CentralMonitoringSystem:
+    """سیستم نظارت متمرکز - مرجع اصلی همه متریک‌ها"""
+    
+    def __init__(self, metrics_collector, alert_manager):
+        self.metrics_collector = metrics_collector
+        self.alert_manager = alert_manager
+        
+        # تنظیمات متمرکز
+        self.collection_interval = 30  # ثانیه - از ۵ به ۳۰ افزایش دادیم
+        self.metrics_cache = {}
+        self.cache_ttl = 30  # ثانیه
+        self.last_collection_time = None
+        self.subscribers = {}  # سیستم‌های مشترک
+        self.is_monitoring = False
+        self.monitor_thread = None
+        
+        # تاریخچه هشدارها برای جلوگیری از تکرار
+        self.alert_cooldown = {}
+        self.cooldown_period = 60  # حداقل ۱ دقیقه بین هشدارهای مشابه
+        
+        logger.info("🎯 Central Monitoring System initialized")
+    
+    def start_monitoring(self):
+        """شروع نظارت متمرکز - فقط یک حلقه در کل سیستم"""
+        if self.is_monitoring:
+            return
+            
+        self.is_monitoring = True
+        self.monitor_thread = threading.Thread(
+            target=self._central_monitoring_loop, 
+            daemon=True
+        )
+        self.monitor_thread.start()
+        logger.info("🔄 Central monitoring started (interval: 30s)")
+    
+    def stop_monitoring(self):
+        """توقف نظارت متمرکز"""
+        self.is_monitoring = False
+        logger.info("🛑 Central monitoring stopped")
+    
+    def _central_monitoring_loop(self):
+        """حلقه نظارت متمرکز - تنها حلقه فعال"""
+        while self.is_monitoring:
+            try:
+                start_time = time.time()
+                
+                # ۱. جمع‌آوری متریک‌ها (فقط یک بار)
+                metrics = self._collect_all_metrics_once()
+                
+                # ۲. ذخیره در کش
+                self.metrics_cache = metrics
+                self.last_collection_time = datetime.now()
+                
+                # ۳. بررسی هشدارها (فقط یک سیستم)
+                self._check_and_trigger_alerts(metrics)
+                
+                # ۴. اطلاع‌رسانی به مشترکین
+                self._notify_subscribers(metrics)
+                
+                execution_time = time.time() - start_time
+                
+                # لاگ‌گیری با جزئیات
+                if execution_time > 2:  # اگر جمع‌آوری بیش از ۲ ثانیه طول کشید
+                    logger.warning(f"⚠️ Metrics collection took {execution_time:.2f}s")
+                
+                # خواب هوشمند - اگر سیستم شلوغ است بیشتر صبر کن
+                sleep_time = self._calculate_smart_sleep(metrics, execution_time)
+                time.sleep(sleep_time)
+                
+            except Exception as e:
+                logger.error(f"❌ Central monitoring error: {e}")
+                time.sleep(60)  # در صورت خطا بیشتر صبر کن
+    
+    def _collect_all_metrics_once(self) -> Dict[str, Any]:
+        """جمع‌آوری یک‌باره تمام متریک‌های مورد نیاز"""
+        timestamp = datetime.now()
+        
+        # جمع‌آوری متریک‌های اصلی
+        system_metrics = self._collect_system_metrics()
+        
+        # اضافه کردن متریک‌های تخصصی (اگر سیستم‌ها در دسترس باشند)
+        specialized_metrics = self._collect_specialized_metrics()
+        
+        return {
+            'timestamp': timestamp.isoformat(),
+            'system': system_metrics,
+            'specialized': specialized_metrics,
+            'collection_time': time.time(),
+            'collection_duration': 0  # بعداً محاسبه می‌شود
+        }
+    
+    def _collect_system_metrics(self) -> Dict[str, Any]:
+        """جمع‌آوری متریک‌های سیستم"""
+        try:
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            net_io = psutil.net_io_counters()
+            
+            return {
+                'cpu': {
+                    'percent': psutil.cpu_percent(interval=0.5),  # interval را افزایش دادیم
+                    'cores': psutil.cpu_count(),
+                    'load_avg': psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+                },
+                'memory': {
+                    'percent': memory.percent,
+                    'used_gb': round(memory.used / (1024**3), 2),
+                    'available_gb': round(memory.available / (1024**3), 2),
+                    'total_gb': round(memory.total / (1024**3), 2)
+                },
+                'disk': {
+                    'usage_percent': disk.percent,
+                    'used_gb': round(disk.used / (1024**3), 2),
+                    'free_gb': round(disk.free / (1024**3), 2),
+                    'total_gb': round(disk.total / (1024**3), 2)
+                },
+                'network': {
+                    'bytes_sent_mb': round(net_io.bytes_sent / (1024**2), 2),
+                    'bytes_recv_mb': round(net_io.bytes_recv / (1024**2), 2)
+                }
+            }
+        except Exception as e:
+            logger.error(f"❌ Error collecting system metrics: {e}")
+            return self._get_fallback_metrics()
+    
+    def _collect_specialized_metrics(self) -> Dict[str, Any]:
+        """جمع‌آوری متریک‌های تخصصی از دیگر سیستم‌ها"""
+        specialized = {
+            'worker': {},
+            'scheduler': {},
+            'recovery': {},
+            'dashboard': {}
+        }
+        
+        # این بخش بعداً با اتصال سیستم‌ها پر می‌شود
+        return specialized
+    
+    def _check_and_trigger_alerts(self, metrics: Dict):
+        """بررسی و ایجاد هشدارهای متمرکز"""
+        cpu_usage = metrics['system']['cpu']['percent']
+        memory_usage = metrics['system']['memory']['percent']
+        
+        # بررسی CPU
+        self._check_cpu_alerts(cpu_usage, metrics)
+        
+        # بررسی Memory
+        self._check_memory_alerts(memory_usage, metrics)
+        
+        # بررسی Disk
+        disk_usage = metrics['system']['disk']['usage_percent']
+        if disk_usage > 90:
+            self._trigger_alert('critical', 'disk', f"Disk usage critically high: {disk_usage}%", metrics)
+    
+    def _check_cpu_alerts(self, cpu_usage: float, metrics: Dict):
+        """بررسی هشدارهای CPU با cooldown"""
+        alert_key = f"cpu_{int(cpu_usage // 10)}"  # گروه‌بندی ۱۰٪ی
+        
+        # بررسی cooldown
+        if self._is_in_cooldown(alert_key):
+            return
+        
+        # بررسی سطوح
+        if cpu_usage > 90:
+            self._trigger_alert('critical', 'cpu', f"CPU usage critically high: {cpu_usage}%", metrics)
+            self._set_cooldown(alert_key, 30)  # 30 ثانیه cooldown برای critical
+        elif cpu_usage > 80:
+            self._trigger_alert('warning', 'cpu', f"CPU usage high: {cpu_usage}%", metrics)
+            self._set_cooldown(alert_key, 60)  # 60 ثانیه cooldown برای warning
+        elif cpu_usage > 70:
+            # فقط لاگ، هشدار نمی‌دهیم
+            logger.info(f"📊 CPU usage elevated: {cpu_usage}%")
+    
+    def _check_memory_alerts(self, memory_usage: float, metrics: Dict):
+        """بررسی هشدارهای Memory"""
+        if memory_usage > 90:
+            self._trigger_alert('critical', 'memory', f"Memory usage critically high: {memory_usage}%", metrics)
+        elif memory_usage > 85:
+            self._trigger_alert('warning', 'memory', f"Memory usage high: {memory_usage}%", metrics)
+    
+    def _trigger_alert(self, level: str, category: str, message: str, metrics: Dict):
+        """ایجاد هشدار متمرکز"""
+        try:
+            # Import مستقیم Enumها
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            level_enum = AlertLevel.CRITICAL if level == 'critical' else AlertLevel.WARNING
+            
+            self.alert_manager.create_alert(
+                level=level_enum,
+                alert_type=AlertType.SYSTEM,
+                title=f"High {category.title()} Usage",
+                message=message,
+                source="central_monitor",
+                data={
+                    'usage_percent': metrics['system'][category]['percent'] if category in metrics['system'] else 0,
+                    'threshold': 90 if level == 'critical' else 80,
+                    'timestamp': metrics['timestamp']
+                }
+            )
+            logger.warning(f"🚨 {level.upper()} ALERT ({category}): {message}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error triggering alert: {e}")
+    
+    def _is_in_cooldown(self, alert_key: str) -> bool:
+        """بررسی آیا هشدار در cooldown است"""
+        last_alert = self.alert_cooldown.get(alert_key)
+        if not last_alert:
+            return False
+        
+        time_since_last = (datetime.now() - last_alert).total_seconds()
+        return time_since_last < self.cooldown_period
+    
+    def _set_cooldown(self, alert_key: str, seconds: int = 60):
+        """تنظیم cooldown برای هشدار"""
+        self.alert_cooldown[alert_key] = datetime.now()
+    
+    def _calculate_smart_sleep(self, metrics: Dict, execution_time: float) -> int:
+        """محاسبه خواب هوشمند بر اساس بار سیستم"""
+        base_interval = self.collection_interval
+        
+        cpu_usage = metrics['system']['cpu']['percent']
+        
+        # اگر CPU بالا است، interval را افزایش بده
+        if cpu_usage > 80:
+            return min(base_interval * 2, 120)  # حداکثر ۲ دقیقه
+        elif cpu_usage > 60:
+            return min(base_interval * 1.5, 90)  # حداکثر ۱.۵ دقیقه
+        
+        # اگر جمع‌آوری طول کشید، کمی بیشتر صبر کن
+        if execution_time > 5:
+            return base_interval + 10
+        
+        return base_interval
+    
+    def _notify_subscribers(self, metrics: Dict):
+        """اطلاع‌رسانی به سیستم‌های مشترک"""
+        for sub_name, callback in self.subscribers.items():
+            try:
+                callback(metrics)
+            except Exception as e:
+                logger.error(f"❌ Error notifying subscriber {sub_name}: {e}")
+    
+    def _get_fallback_metrics(self) -> Dict[str, Any]:
+        """متریک‌های جایگزین در صورت خطا"""
+        return {
+            'cpu': {'percent': 0, 'cores': 1, 'load_avg': [0, 0, 0]},
+            'memory': {'percent': 0, 'used_gb': 0, 'available_gb': 0, 'total_gb': 0},
+            'disk': {'usage_percent': 0, 'used_gb': 0, 'free_gb': 0, 'total_gb': 0},
+            'network': {'bytes_sent_mb': 0, 'bytes_recv_mb': 0}
+        }
+    
+    # 📡 API برای دیگر سیستم‌ها
+    
+    def subscribe(self, name: str, callback: Callable):
+        """عضویت سیستم در دریافت به‌روزرسانی‌ها"""
+        self.subscribers[name] = callback
+        logger.info(f"📡 {name} subscribed to central monitor")
+    
+    def unsubscribe(self, name: str):
+        """لغو عضویت"""
+        if name in self.subscribers:
+            del self.subscribers[name]
+            logger.info(f"📡 {name} unsubscribed from central monitor")
+    
+    def get_current_metrics(self) -> Dict[str, Any]:
+        """دریافت متریک‌های فعلی (برای سیستم‌های دیگر)"""
+        if not self.metrics_cache:
+            return self._get_fallback_metrics()
+        
+        # اگر داده قدیمی است، یک جمع‌آوری سریع انجام بده
+        if (self.last_collection_time and 
+            (datetime.now() - self.last_collection_time).total_seconds() > self.cache_ttl):
+            logger.debug("📊 Cache expired, collecting fresh metrics")
+            return self._collect_all_metrics_once()
+        
+        return self.metrics_cache
+    
+    def get_metrics_snapshot(self) -> Dict[str, Any]:
+        """دریافت snapshot فعلی"""
+        return {
+            'cache_age_seconds': (
+                (datetime.now() - self.last_collection_time).total_seconds() 
+                if self.last_collection_time else None
+            ),
+            'subscribers_count': len(self.subscribers),
+            'is_monitoring': self.is_monitoring,
+            'last_alert_cooldowns': self.alert_cooldown,
+            'metrics': self.get_current_metrics()
+        }
+
+
+# ایجاد نمونه گلوبال ارتقا یافته
 system_monitor = None
+central_monitor = None  # نمونه جدید متمرکز
+
+def initialize_central_monitoring(metrics_collector, alert_manager):
+    """تابع راه‌اندازی برای main.py"""
+    global central_monitor
+    central_monitor = CentralMonitoringSystem(metrics_collector, alert_manager)
+    return central_monitor
