@@ -699,8 +699,10 @@ def _get_real_system_metrics():
         }
     }
 
-def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api_status: Dict, system_metrics: Dict) -> int:
-    """محاسبه واقعی امتیاز سلامت - نسخه اصلاح شده"""
+# در بخش توابع helper پیدا کنید و این تابع را حذف/اصلاح کنید:
+
+def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api_status: Dict, system_metrics: Dict, ai_status: Dict) -> int:
+    """محاسبه واقعی امتیاز سلامت"""
     
     cpu_usage = system_metrics.get("cpu", {}).get("usage_percent", 0)
     memory_usage = system_metrics.get("memory", {}).get("usage_percent", 0)
@@ -708,60 +710,49 @@ def _calculate_real_health_score(cache_details: Dict, normalization_metrics, api
     
     base_score = 100
     
-    # جریمه برای مصرف CPU بالا
-    if cpu_usage > 90:
-        base_score -= 30
-    elif cpu_usage > 80:
-        base_score -= 20
-    elif cpu_usage > 70:
-        base_score -= 10
-    elif cpu_usage > 60:
-        base_score -= 5
+    # جریمه برای مصرف منابع
+    base_score -= min(30, cpu_usage * 0.3)
+    base_score -= min(20, memory_usage * 0.2)
+    base_score -= min(15, disk_usage * 0.15)
     
-    # جریمه برای مصرف حافظه بالا
-    if memory_usage > 90:
-        base_score -= 20
-    elif memory_usage > 80:
-        base_score -= 15
-    elif memory_usage > 70:
-        base_score -= 10
-    elif memory_usage > 60:
-        base_score -= 5
-    
-    # جریمه برای مصرف دیسک بالا
-    if disk_usage > 90:
-        base_score -= 15
-    elif disk_usage > 80:
-        base_score -= 10
-    elif disk_usage > 70:
-        base_score -= 5
-    
-    # اضافه کردن امتیاز برای سرویس‌های سالم
+    # امتیاز برای کش
     cache_status = cache_details.get("overall_status", "unavailable")
     if cache_status == "advanced":
         base_score += 10
     elif cache_status == "healthy":
         base_score += 5
+    elif cache_status == "degraded":
+        base_score -= 5
+    else:
+        base_score -= 15
     
+    # امتیاز برای API
     if api_status.get("available", False):
         base_score += 5
-    
-    # امتیاز برای نرمال‌سازی - اصلاح شده
-    try:
-        # اگر normalization_metrics آبجکت باشد
-        norm_success = normalization_metrics.success_rate if hasattr(normalization_metrics, 'success_rate') else normalization_metrics.get("success_rate", 0)
-    except:
-        norm_success = 0
-    
-    if norm_success > 95:
-        base_score += 5
-    elif norm_success > 80:
-        base_score += 3
-    elif norm_success < 50:
+    else:
         base_score -= 10
     
-    return max(0, min(100, base_score))
-
+    # امتیاز برای هوش مصنوعی
+    if ai_status.get("available", False) and ai_status.get("initialized", False):
+        base_score += 10
+        success_rate = ai_status.get("performance", {}).get("success_rate", 0)
+        base_score += min(5, success_rate * 0.05)
+    elif ai_status.get("available", False):
+        base_score -= 5
+    
+    # امتیاز برای نرمال‌سازی
+    try:
+        norm_success = normalization_metrics.success_rate
+        if norm_success > 95:
+            base_score += 5
+        elif norm_success > 80:
+            base_score += 3
+        elif norm_success < 50:
+            base_score -= 10
+    except:
+        pass
+    
+    return max(0, min(100, int(base_score)))
 
 def _get_component_recommendations(cache_details: Dict, normalization_metrics: Dict, 
                                  api_status: Dict, system_metrics: Dict, ai_status: Dict) -> List[str]:
