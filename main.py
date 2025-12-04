@@ -1,5 +1,3 @@
-[file name]: main.py
-[file content begin - PART 1/4]
 import time
 import asyncio
 import psutil
