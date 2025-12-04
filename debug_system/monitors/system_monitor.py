@@ -1,5 +1,3 @@
-[file name]: system_monitor.py
-[file content begin]
 import psutil
 import time
 import logging
@@ -771,4 +769,3 @@ def initialize_central_monitoring(metrics_collector, alert_manager):
     
     central_monitor = CentralMonitoringSystem(metrics_collector, alert_manager)
     return central_monitor
-[file content end]
