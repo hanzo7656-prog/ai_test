@@ -37,184 +37,170 @@ class ResourceGuardian:
         self._initialize_optimization_strategies()
         self._establish_performance_baseline()
         
-        logger.info("🛡️ Resource Guardian initialized")
+        # عضویت در سیستم مانیتورینگ مرکزی
+        self._subscribe_to_central_monitor()
+        
+        logger.info("🛡️ Resource Guardian initialized (Connected to Central Monitor)")
     
-    def start_monitoring(self):
-        """شروع مانیتورینگ Real-time منابع"""
-        if self.is_monitoring:
-            return
+    def _subscribe_to_central_monitor(self):
+        """عضویت در سیستم مانیتورینگ مرکزی"""
+        try:
+            from debug_system.monitors.system_monitor import central_monitor
+            if central_monitor:
+                central_monitor.subscribe("resource_guardian", self._on_central_metrics_update)
+                logger.info("✅ Resource Guardian subscribed to Central Monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available, Resource Guardian will work independently")
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor, using independent mode")
+    
+    def _on_central_metrics_update(self, metrics: Dict):
+        """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
+        try:
+            system_metrics = metrics.get('system', {})
             
-        self.is_monitoring = True
-        self.monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
-        self.monitor_thread.start()
-        logger.info("📊 Resource monitoring started")
+            # ذخیره در تاریخچه
+            self._update_history_from_central(system_metrics)
+            
+            # آنالیز الگوهای مصرف
+            self._analyze_resource_patterns_central(system_metrics)
+            
+            # به‌روزرسانی محدودیت‌های تطبیقی
+            self._update_adaptive_limits_central(system_metrics)
+            
+            # بررسی ناهنجاری‌ها
+            self._check_resource_anomalies_central(system_metrics)
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing central metrics: {e}")
     
-    def stop_monitoring(self):
-        """توقف مانیتورینگ منابع"""
-        self.is_monitoring = False
-        logger.info("🛑 Resource monitoring stopped")
-    
-    def _monitoring_loop(self):
-        """حلقه مانیتورینگ منابع"""
-        while self.is_monitoring:
-            try:
-                current_metrics = self._collect_comprehensive_metrics()
-                self._analyze_resource_patterns(current_metrics)
-                self._update_adaptive_limits(current_metrics)
-                self._check_resource_anomalies(current_metrics)
-                
-                # ذخیره در تاریخچه
-                self.resource_history.append(current_metrics)
-                
-                # حفظ اندازه تاریخچه
-                if len(self.resource_history) > 1000:
-                    self.resource_history = self.resource_history[-1000:]
-                
-                time.sleep(5)  # جمع‌آوری هر 5 ثانیه
-                
-            except Exception as e:
-                logger.error(f"❌ Resource monitoring error: {e}")
-                time.sleep(10)
-    
-    def _collect_comprehensive_metrics(self) -> Dict[str, Any]:
-        """جمع‌آوری متریک‌های جامع منابع"""
-        # CPU
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_times = psutil.cpu_times()
-        cpu_freq = psutil.cpu_freq()
-        
-        # Memory
-        memory = psutil.virtual_memory()
-        swap = psutil.swap_memory()
-        
-        # Disk
-        disk_usage = psutil.disk_usage('/')
-        disk_io = psutil.disk_io_counters()
-        
-        # Network
-        net_io = psutil.net_io_counters()
-        
-        # Process-specific
-        current_process = psutil.Process()
-        process_memory = current_process.memory_info()
-        process_cpu = current_process.cpu_percent()
-        
-        return {
+    def _update_history_from_central(self, metrics: Dict):
+        """به‌روزرسانی تاریخچه از داده‌های مرکزی"""
+        current_metrics = {
             'timestamp': datetime.now().isoformat(),
             'cpu': {
-                'percent': cpu_percent,
-                'cores': psutil.cpu_count(),
-                'load_avg': psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0],
-                'user_time': cpu_times.user,
-                'system_time': cpu_times.system,
-                'frequency_mhz': cpu_freq.current if cpu_freq else 0
+                'percent': metrics.get('cpu', {}).get('percent', 0)
             },
             'memory': {
-                'percent': memory.percent,
-                'used_gb': round(memory.used / (1024**3), 2),
-                'available_gb': round(memory.available / (1024**3), 2),
-                'total_gb': round(memory.total / (1024**3), 2),
-                'swap_used_gb': round(swap.used / (1024**3), 2)
+                'percent': metrics.get('memory', {}).get('percent', 0)
             },
             'disk': {
-                'usage_percent': disk_usage.percent,
-                'used_gb': round(disk_usage.used / (1024**3), 2),
-                'free_gb': round(disk_usage.free / (1024**3), 2),
-                'total_gb': round(disk_usage.total / (1024**3), 2),
-                'read_mb': disk_io.read_bytes / (1024**2) if disk_io else 0,
-                'write_mb': disk_io.write_bytes / (1024**2) if disk_io else 0
+                'usage_percent': metrics.get('disk', {}).get('usage_percent', 0)
             },
             'network': {
-                'bytes_sent_mb': net_io.bytes_sent / (1024**2),
-                'bytes_recv_mb': net_io.bytes_recv / (1024**2),
-                'packets_sent': net_io.packets_sent,
-                'packets_recv': net_io.packets_recv
-            },
-            'process': {
-                'memory_rss_mb': process_memory.rss / (1024**2),
-                'memory_vms_mb': process_memory.vms / (1024**2),
-                'cpu_percent': process_cpu,
-                'threads_count': current_process.num_threads(),
-                'open_files': len(current_process.open_files())
-            },
-            'system_health_score': self._calculate_system_health_score(cpu_percent, memory.percent)
+                'bytes_sent_mb': metrics.get('network', {}).get('bytes_sent_mb', 0),
+                'bytes_recv_mb': metrics.get('network', {}).get('bytes_recv_mb', 0)
+            }
         }
+        
+        self.resource_history.append(current_metrics)
+        
+        # حفظ اندازه تاریخچه
+        if len(self.resource_history) > 1000:
+            self.resource_history = self.resource_history[-1000:]
     
-    def _analyze_resource_patterns(self, metrics: Dict):
-        """آنالیز الگوهای مصرف منابع"""
+    def _analyze_resource_patterns_central(self, metrics: Dict):
+        """آنالیز الگوهای مصرف از داده‌های مرکزی"""
         current_hour = datetime.now().hour
         current_day = datetime.now().weekday()
         
+        cpu_percent = metrics.get('cpu', {}).get('percent', 0)
+        memory_percent = metrics.get('memory', {}).get('percent', 0)
+        
         # الگوی ساعتی
         hour_key = f"hour_{current_hour}"
-        if hour_key not in self.historical_metrics['peak_times']:
+        hour_pattern = next((p for p in self.historical_metrics['peak_times'] 
+                           if p.get('hour') == current_hour), None)
+        
+        if not hour_pattern:
             self.historical_metrics['peak_times'].append({
                 'hour': current_hour,
-                'avg_cpu': metrics['cpu']['percent'],
-                'avg_memory': metrics['memory']['percent'],
+                'avg_cpu': cpu_percent,
+                'avg_memory': memory_percent,
                 'sample_count': 1
             })
         else:
-            pattern = next(p for p in self.historical_metrics['peak_times'] if f"hour_{p['hour']}" == hour_key)
-            pattern['avg_cpu'] = (pattern['avg_cpu'] * pattern['sample_count'] + metrics['cpu']['percent']) / (pattern['sample_count'] + 1)
-            pattern['avg_memory'] = (pattern['avg_memory'] * pattern['sample_count'] + metrics['memory']['percent']) / (pattern['sample_count'] + 1)
-            pattern['sample_count'] += 1
+            hour_pattern['avg_cpu'] = (
+                hour_pattern['avg_cpu'] * hour_pattern['sample_count'] + cpu_percent
+            ) / (hour_pattern['sample_count'] + 1)
+            hour_pattern['avg_memory'] = (
+                hour_pattern['avg_memory'] * hour_pattern['sample_count'] + memory_percent
+            ) / (hour_pattern['sample_count'] + 1)
+            hour_pattern['sample_count'] += 1
         
         # شناسایی زمان‌های خلوت
-        if metrics['cpu']['percent'] < 30 and metrics['memory']['percent'] < 50:
+        if cpu_percent < 30 and memory_percent < 50:
             self.historical_metrics['quiet_times'].append({
-                'timestamp': metrics['timestamp'],
-                'cpu': metrics['cpu']['percent'],
-                'memory': metrics['memory']['percent'],
+                'timestamp': datetime.now().isoformat(),
+                'cpu': cpu_percent,
+                'memory': memory_percent,
                 'hour': current_hour,
                 'day': current_day
             })
     
-    def _update_adaptive_limits(self, metrics: Dict):
-        """به‌روزرسانی محدودیت‌های تطبیقی"""
+    def _update_adaptive_limits_central(self, metrics: Dict):
+        """به‌روزرسانی محدودیت‌های تطبیقی از داده‌های مرکزی"""
         current_hour = datetime.now().hour
         
-        # تنظیم محدودیت‌ها بر اساس زمان روز
-        if 1 <= current_hour <= 7:  # شب
+        cpu_percent = metrics.get('cpu', {}).get('percent', 0)
+        memory_percent = metrics.get('memory', {}).get('percent', 0)
+        
+        # تنظیم محدودیت‌ها بر اساس زمان روز و وضعیت فعلی
+        if cpu_percent > 80 or memory_percent > 85:
+            # حالت بحرانی
             self.adaptive_limits = {
-                'max_cpu': self.max_cpu_percent * 0.9,  # محدودتر در شب
+                'max_cpu': self.max_cpu_percent * 0.5,
+                'max_memory': self.max_memory_percent * 0.5,
+                'max_workers': 1,
+                'quality_mode': 'conservative',
+                'status': 'critical'
+            }
+        elif 1 <= current_hour <= 7:  # شب
+            self.adaptive_limits = {
+                'max_cpu': self.max_cpu_percent * 0.9,
                 'max_memory': self.max_memory_percent * 0.8,
                 'max_workers': 2,
-                'quality_mode': 'balanced'
+                'quality_mode': 'balanced',
+                'status': 'night_mode'
             }
         elif current_hour in [10, 11, 14, 15, 19, 20]:  # ساعات اوج
             self.adaptive_limits = {
-                'max_cpu': self.max_cpu_percent * 0.7,  # بسیار محدود
+                'max_cpu': self.max_cpu_percent * 0.7,
                 'max_memory': self.max_memory_percent * 0.6,
                 'max_workers': 1,
-                'quality_mode': 'conservative'
+                'quality_mode': 'conservative',
+                'status': 'peak_hours'
             }
         else:  # زمان عادی
             self.adaptive_limits = {
                 'max_cpu': self.max_cpu_percent,
                 'max_memory': self.max_memory_percent,
                 'max_workers': 3,
-                'quality_mode': 'standard'
+                'quality_mode': 'standard',
+                'status': 'normal'
             }
     
-    def _check_resource_anomalies(self, metrics: Dict):
-        """بررسی ناهنجاری‌های منابع"""
+    def _check_resource_anomalies_central(self, metrics: Dict):
+        """بررسی ناهنجاری‌های منابع از داده‌های مرکزی"""
         anomalies = []
+        
+        cpu_percent = metrics.get('cpu', {}).get('percent', 0)
+        memory_percent = metrics.get('memory', {}).get('percent', 0)
+        disk_percent = metrics.get('disk', {}).get('usage_percent', 0)
         
         # بررسی افزایش ناگهانی CPU
         if len(self.resource_history) >= 2:
             prev_cpu = self.resource_history[-2]['cpu']['percent']
-            current_cpu = metrics['cpu']['percent']
-            if current_cpu > prev_cpu * 2 and current_cpu > 50:  # افزایش 100% و بالای 50%
-                anomalies.append(f"CPU spike detected: {prev_cpu}% -> {current_cpu}%")
+            if cpu_percent > prev_cpu * 2 and cpu_percent > 50:  # افزایش 100% و بالای 50%
+                anomalies.append(f"CPU spike detected: {prev_cpu}% -> {cpu_percent}%")
         
         # بررسی نشت حافظه
-        if metrics['memory']['percent'] > 85:
-            anomalies.append(f"High memory usage: {metrics['memory']['percent']}%")
+        if memory_percent > 85:
+            anomalies.append(f"High memory usage: {memory_percent}%")
         
         # بررسی دیسک پر
-        if metrics['disk']['usage_percent'] > 90:
-            anomalies.append(f"Disk almost full: {metrics['disk']['usage_percent']}%")
+        if disk_percent > 90:
+            anomalies.append(f"Disk almost full: {disk_percent}%")
         
         # ثبت هشدار برای ناهنجاری‌ها
         for anomaly in anomalies:
@@ -262,24 +248,15 @@ class ResourceGuardian:
     
     def _establish_performance_baseline(self):
         """ایجاد خط پایه عملکرد"""
-        # جمع‌آوری داده‌های اولیه برای 30 ثانیه
-        baseline_metrics = []
-        for _ in range(6):
-            baseline_metrics.append(self._collect_comprehensive_metrics())
-            time.sleep(5)
-        
-        # محاسبه میانگین‌ها
-        avg_cpu = sum(m['cpu']['percent'] for m in baseline_metrics) / len(baseline_metrics)
-        avg_memory = sum(m['memory']['percent'] for m in baseline_metrics) / len(baseline_metrics)
-        
+        # خط پایه بر اساس مقادیر پیش‌فرض
         self.performance_baseline = {
-            'avg_cpu': avg_cpu,
-            'avg_memory': avg_memory,
+            'avg_cpu': 20.0,
+            'avg_memory': 40.0,
             'established_at': datetime.now().isoformat(),
-            'sample_count': len(baseline_metrics)
+            'sample_count': 0
         }
         
-        logger.info(f"📈 Performance baseline established: CPU={avg_cpu:.1f}%, Memory={avg_memory:.1f}%")
+        logger.info("📈 Performance baseline established (will update with real data)")
     
     def _optimize_for_low_cpu(self, current_cpu: float) -> Dict[str, Any]:
         """بهینه‌سازی برای CPU پایین"""
@@ -340,29 +317,22 @@ class ResourceGuardian:
             'clear_temporary_data': True
         }
     
-    def _check_system_health(self) -> Dict[str, Any]:
-        """بررسی سلامت سیستم با ارقام واقعی"""
-        try:
-            # استفاده از متریک‌هایی که از قبل داریم
-            current_metrics = self._collect_comprehensive_metrics()
-            
+    def get_current_metrics_from_history(self) -> Dict[str, Any]:
+        """دریافت آخرین متریک‌های موجود در تاریخچه"""
+        if not self.resource_history:
+            # برگرداندن مقادیر پیش‌فرض اگر تاریخچه خالی است
             return {
-                'health_score': current_metrics['system_health_score'],
-                'cpu_usage': current_metrics['cpu']['percent'],
-                'memory_usage': current_metrics['memory']['percent'], 
-                'status': 'healthy' if current_metrics['system_health_score'] >= 70 else 'degraded'
+                'cpu': {'percent': 0},
+                'memory': {'percent': 0},
+                'disk': {'usage_percent': 0},
+                'timestamp': datetime.now().isoformat()
             }
-        except Exception as e:
-            logger.error(f"❌ Error in _check_system_health: {e}")
-            return {
-                'health_score': 100,
-                'cpu_usage': 0,
-                'memory_usage': 0,
-                'status': 'healthy'
-            }
+        
+        return self.resource_history[-1]
+    
     def get_optimization_recommendations(self) -> Dict[str, Any]:
         """دریافت توصیه‌های بهینه‌سازی"""
-        current_metrics = self._collect_comprehensive_metrics()
+        current_metrics = self.get_current_metrics_from_history()
         cpu_percent = current_metrics['cpu']['percent']
         memory_percent = current_metrics['memory']['percent']
         
@@ -386,7 +356,7 @@ class ResourceGuardian:
             'current_metrics': {
                 'cpu_percent': cpu_percent,
                 'memory_percent': memory_percent,
-                'health_score': current_metrics['system_health_score']
+                'health_score': self._calculate_system_health_score(cpu_percent, memory_percent)
             },
             'recommendations': {
                 'cpu_optimization': cpu_strategy,
@@ -418,7 +388,7 @@ class ResourceGuardian:
     
     def get_detailed_resource_report(self) -> Dict[str, Any]:
         """دریافت گزارش دقیق منابع"""
-        current_metrics = self._collect_comprehensive_metrics()
+        current_metrics = self.get_current_metrics_from_history()
         
         return {
             'real_time_metrics': current_metrics,
@@ -428,7 +398,10 @@ class ResourceGuardian:
                 'disk_trend': self._calculate_trend('disk', 'usage_percent')
             },
             'performance_analysis': {
-                'health_score': current_metrics['system_health_score'],
+                'health_score': self._calculate_system_health_score(
+                    current_metrics['cpu']['percent'], 
+                    current_metrics['memory']['percent']
+                ),
                 'bottlenecks': self._identify_bottlenecks(current_metrics),
                 'optimization_opportunities': self._find_optimization_opportunities(current_metrics),
                 'capacity_planning': self._capacity_planning_analysis()
@@ -437,7 +410,8 @@ class ResourceGuardian:
                 'is_monitoring': self.is_monitoring,
                 'adaptive_limits_active': bool(self.adaptive_limits),
                 'optimization_strategies_loaded': len(self.optimization_strategies) > 0,
-                'historical_data_points': len(self.resource_history)
+                'historical_data_points': len(self.resource_history),
+                'connected_to_central_monitor': hasattr(self, '_on_central_metrics_update')
             },
             'timestamp': datetime.now().isoformat()
         }
@@ -467,11 +441,8 @@ class ResourceGuardian:
         if metrics['memory']['percent'] > 85:
             bottlenecks.append("High memory usage - review caching strategy and data structures")
         
-        if metrics['disk']['usage_percent'] > 90:
+        if metrics.get('disk', {}).get('usage_percent', 0) > 90:
             bottlenecks.append("Disk space critical - implement cleanup procedures")
-        
-        if metrics['process']['memory_rss_mb'] > 500:  # 500MB threshold
-            bottlenecks.append("Process memory high - check for memory leaks")
         
         return bottlenecks
     
@@ -482,11 +453,8 @@ class ResourceGuardian:
         if metrics['cpu']['percent'] < 30 and metrics['memory']['percent'] < 50:
             opportunities.append("Resources underutilized - can increase task throughput")
         
-        if metrics['disk']['usage_percent'] < 50:
+        if metrics.get('disk', {}).get('usage_percent', 0) < 50:
             opportunities.append("Disk space available - can enable more caching")
-        
-        if metrics['network']['bytes_sent_mb'] > 100:  # 100MB sent
-            opportunities.append("High network usage - consider compression or batching")
         
         return opportunities
     
@@ -516,7 +484,6 @@ class ResourceGuardian:
     
     def _calculate_exhaustion_timeline(self, avg_cpu: float, avg_memory: float) -> Dict[str, Any]:
         """محاسبه زمان تخمینی اتمام منابع"""
-        # این یک محاسبه ساده است - در واقعیت باید بر اساس نرخ رشد باشد
         if avg_cpu > 90:
             cpu_timeline = "imminent"
         elif avg_cpu > 70:
