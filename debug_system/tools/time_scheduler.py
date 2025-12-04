@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Callable, Tuple
 import json
 import random
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ class TimeAwareScheduler:
         self.is_scheduling = False
         self.scheduler_thread = None
         
+        # اتصال به مانیتورینگ مرکزی
+        self.central_monitor_connected = False
+        self.last_system_metrics = {}
+        
         # الگوهای زمانی
         self.time_patterns = {
             'weekend_hours': [4, 5],  # جمعه و شنبه
@@ -33,7 +38,77 @@ class TimeAwareScheduler:
         self._initialize_optimization_rules()
         self._load_learning_data()
         
-        logger.info("⏰ Time-Aware Scheduler initialized")
+        # عضویت در سیستم مانیتورینگ مرکزی
+        self._subscribe_to_central_monitor()
+        
+        logger.info("⏰ Time-Aware Scheduler initialized (Connected to Central Monitor)")
+    
+    def _subscribe_to_central_monitor(self):
+        """عضویت در سیستم مانیتورینگ مرکزی"""
+        try:
+            from debug_system.monitors.system_monitor import central_monitor
+            if central_monitor:
+                central_monitor.subscribe("time_scheduler", self._on_central_metrics_update)
+                self.central_monitor_connected = True
+                logger.info("✅ Time Scheduler subscribed to Central Monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available, scheduler will use independent mode")
+                self.central_monitor_connected = False
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import central_monitor: {e}, using independent mode")
+            self.central_monitor_connected = False
+    
+    def _on_central_metrics_update(self, metrics: Dict):
+        """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
+        try:
+            self.last_system_metrics = metrics.get('system', {})
+            
+            # استفاده از متریک‌های سیستم برای تصمیم‌گیری زمان‌بندی
+            self._update_scheduling_decisions_based_on_metrics()
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing central metrics: {e}")
+    
+    def _update_scheduling_decisions_based_on_metrics(self):
+        """به‌روزرسانی تصمیم‌های زمان‌بندی بر اساس متریک‌های سیستم"""
+        cpu_percent = self.last_system_metrics.get('cpu', {}).get('percent', 0)
+        memory_percent = self.last_system_metrics.get('memory', {}).get('percent', 0)
+        
+        # اگر سیستم تحت فشار است، زمان‌بندی‌ها را به تعویق بینداز
+        if cpu_percent > 80 or memory_percent > 85:
+            self._delay_heavy_tasks()
+        
+        # اگر سیستم خلوت است، زمان‌بندی‌ها را تسریع کن
+        elif cpu_percent < 30 and memory_percent < 50:
+            self._accelerate_pending_tasks()
+    
+    def _delay_heavy_tasks(self):
+        """به تعویق انداختن کارهای سنگین در زمان فشار سیستم"""
+        delayed_count = 0
+        for task_id, task_data in self.scheduled_tasks.items():
+            if task_data['task_type'] == 'heavy' and task_data.get('status') == 'scheduled':
+                # 30 دقیقه تأخیر
+                new_time = task_data['next_execution'] + timedelta(minutes=30)
+                task_data['next_execution'] = new_time
+                task_data['delay_reason'] = 'high_system_load'
+                delayed_count += 1
+        
+        if delayed_count > 0:
+            logger.info(f"⏳ Delayed {delayed_count} heavy tasks due to high system load")
+    
+    def _accelerate_pending_tasks(self):
+        """تسریع کارهای در انتظار در زمان خلوت سیستم"""
+        accelerated_count = 0
+        for task_id, task_data in self.scheduled_tasks.items():
+            if task_data.get('status') == 'scheduled' and task_data['next_execution'] > datetime.now() + timedelta(hours=1):
+                # تسریع به 30 دقیقه دیگر
+                new_time = datetime.now() + timedelta(minutes=30)
+                task_data['next_execution'] = new_time
+                task_data['acceleration_reason'] = 'low_system_load'
+                accelerated_count += 1
+        
+        if accelerated_count > 0:
+            logger.info(f"⚡ Accelerated {accelerated_count} pending tasks due to low system load")
     
     def start_scheduling(self):
         """شروع سیستم زمان‌بندی"""
@@ -60,8 +135,8 @@ class TimeAwareScheduler:
         if task_id in self.scheduled_tasks:
             return False, f"Task {task_id} already scheduled"
         
-        # محاسبه زمان بهینه برای اجرا
-        optimal_time = self._calculate_optimal_time(task_type, interval_seconds, preferred_times)
+        # محاسبه زمان بهینه برای اجرا با در نظر گرفتن وضعیت سیستم
+        optimal_time = self._calculate_optimal_time_with_system_health(task_type, interval_seconds, preferred_times)
         
         task_data = {
             'task_id': task_id,
@@ -80,7 +155,8 @@ class TimeAwareScheduler:
             'last_execution': None,
             'execution_count': 0,
             'success_count': 0,
-            'total_execution_time': 0
+            'total_execution_time': 0,
+            'status': 'scheduled'
         }
         
         self.scheduled_tasks[task_id] = task_data
@@ -91,52 +167,34 @@ class TimeAwareScheduler:
         logger.info(f"📅 Task {task_id} scheduled optimally for {optimal_time['next_execution']}")
         return True, f"Task scheduled optimally (Success probability: {optimal_time['success_probability']}%)"
     
-    def _scheduling_loop(self):
-        """حلقه اصلی زمان‌بندی"""
-        while self.is_scheduling:
-            try:
-                now = datetime.now()
-                tasks_to_execute = []
-                
-                # بررسی کارهای زمان‌رسیده
-                for task_id, task_data in self.scheduled_tasks.items():
-                    if task_data['next_execution'] <= now:
-                        if self._should_execute_now(task_data, now):
-                            tasks_to_execute.append(task_data)
-                
-                # اجرای کارهای واجد شرایط
-                for task_data in tasks_to_execute:
-                    self._execute_scheduled_task(task_data)
-                
-                # بهینه‌سازی زمان‌بندی‌های آینده
-                if now.minute % 30 == 0:  # هر 30 دقیقه
-                    self._optimize_future_schedules()
-                
-                time.sleep(10)  # بررسی هر 10 ثانیه
-                
-            except Exception as e:
-                logger.error(f"❌ Scheduling loop error: {e}")
-                time.sleep(30)
-    
-    def _calculate_optimal_time(self, task_type: str, interval: int, preferred_times: List[str]) -> Dict[str, Any]:
-        """محاسبه زمان بهینه برای اجرای کار"""
+    def _calculate_optimal_time_with_system_health(self, task_type: str, interval: int, preferred_times: List[str]) -> Dict[str, Any]:
+        """محاسبه زمان بهینه با در نظر گرفتن سلامت سیستم"""
         now = datetime.now()
         
         # تشخیص نوع کار و اعمال قوانین مربوطه
         scheduling_rules = self.optimization_rules.get(task_type, self.optimization_rules['default'])
         
-        # محاسبه زمان اجرای بعدی
-        if scheduling_rules['constraint'] == 'weekend_night_only':
-            next_execution = self._find_next_weekend_night_slot(now, interval)
-        elif scheduling_rules['constraint'] == 'night_only':
-            next_execution = self._find_next_night_slot(now, interval)
-        elif scheduling_rules['constraint'] == 'quiet_hours':
-            next_execution = self._find_next_quiet_hour(now, interval)
-        else:
-            next_execution = now + timedelta(seconds=interval)
+        # در نظر گرفتن وضعیت فعلی سیستم
+        system_load_factor = self._get_system_load_factor()
         
-        # محاسبه احتمال موفقیت
-        success_probability = self._calculate_success_probability(task_type, next_execution)
+        # اگر سیستم تحت فشار است، کارها را به تعویق بینداز
+        if system_load_factor > 0.8 and task_type in ['heavy', 'normal']:
+            delay_hours = 2 if system_load_factor > 0.9 else 1
+            next_execution = now + timedelta(hours=delay_hours)
+            success_probability = max(30, 100 - (system_load_factor * 100))
+        else:
+            # محاسبه زمان اجرای بعدی بر اساس قوانین
+            if scheduling_rules['constraint'] == 'weekend_night_only':
+                next_execution = self._find_next_weekend_night_slot(now, interval)
+            elif scheduling_rules['constraint'] == 'night_only':
+                next_execution = self._find_next_night_slot(now, interval)
+            elif scheduling_rules['constraint'] == 'quiet_hours':
+                next_execution = self._find_next_quiet_hour(now, interval)
+            else:
+                next_execution = now + timedelta(seconds=interval)
+            
+            # محاسبه احتمال موفقیت با در نظر گرفتن بار سیستم
+            success_probability = self._calculate_success_probability_with_system_health(task_type, next_execution, system_load_factor)
         
         # محاسبه پنجره اجرا
         execution_window = self._calculate_execution_window(next_execution, task_type)
@@ -147,8 +205,22 @@ class TimeAwareScheduler:
             'estimated_duration': scheduling_rules['estimated_duration'],
             'success_probability': success_probability,
             'scheduling_strategy': scheduling_rules['constraint'],
-            'resource_requirements': scheduling_rules['resource_requirements']
+            'resource_requirements': scheduling_rules['resource_requirements'],
+            'system_load_factor': system_load_factor
         }
+    
+    def _get_system_load_factor(self) -> float:
+        """محاسبه فاکتور بار سیستم"""
+        if self.central_monitor_connected and self.last_system_metrics:
+            # استفاده از متریک‌های مرکزی
+            cpu_percent = self.last_system_metrics.get('cpu', {}).get('percent', 0) / 100
+            memory_percent = self.last_system_metrics.get('memory', {}).get('percent', 0) / 100
+            load_factor = (cpu_percent * 0.7 + memory_percent * 0.3)
+        else:
+            # حالت fallback
+            load_factor = random.uniform(0.2, 0.6)  # فرض بار متوسط
+        
+        return min(1.0, load_factor)
     
     def _find_next_weekend_night_slot(self, from_time: datetime, interval: int) -> datetime:
         """پیدا کردن زمان بعدی در آخر هفته یا شب"""
@@ -192,8 +264,8 @@ class TimeAwareScheduler:
         
         return from_time + timedelta(seconds=interval)
     
-    def _calculate_success_probability(self, task_type: str, execution_time: datetime) -> float:
-        """محاسبه احتمال موفقیت اجرای کار"""
+    def _calculate_success_probability_with_system_health(self, task_type: str, execution_time: datetime, system_load_factor: float) -> float:
+        """محاسبه احتمال موفقیت با در نظر گرفتن سلامت سیستم"""
         base_probability = 85.0  # احتمال پایه
         
         # تنظیم بر اساس نوع کار
@@ -216,6 +288,10 @@ class TimeAwareScheduler:
         # تنظیم بر اساس روز هفته
         if execution_time.weekday() in self.time_patterns['weekend_hours']:
             base_probability += 25.0
+        
+        # تنظیم بر اساس بار سیستم
+        system_penalty = system_load_factor * 30  # جریمه 0-30% بر اساس بار سیستم
+        base_probability -= system_penalty
         
         # اعمال اصلاحات
         probability = base_probability + type_modifiers.get(task_type, 0.0)
@@ -240,6 +316,33 @@ class TimeAwareScheduler:
             'duration_hours': window_hours
         }
     
+    def _scheduling_loop(self):
+        """حلقه اصلی زمان‌بندی"""
+        while self.is_scheduling:
+            try:
+                now = datetime.now()
+                tasks_to_execute = []
+                
+                # بررسی کارهای زمان‌رسیده
+                for task_id, task_data in self.scheduled_tasks.items():
+                    if task_data['next_execution'] <= now:
+                        if self._should_execute_now(task_data, now):
+                            tasks_to_execute.append(task_data)
+                
+                # اجرای کارهای واجد شرایط
+                for task_data in tasks_to_execute:
+                    self._execute_scheduled_task(task_data)
+                
+                # بهینه‌سازی زمان‌بندی‌های آینده
+                if now.minute % 30 == 0:  # هر 30 دقیقه
+                    self._optimize_future_schedules()
+                
+                time.sleep(10)  # بررسی هر 10 ثانیه
+                
+            except Exception as e:
+                logger.error(f"❌ Scheduling loop error: {e}")
+                time.sleep(30)
+    
     def _should_execute_now(self, task_data: Dict, current_time: datetime) -> bool:
         """بررسی آیا کار باید همین حالا اجرا شود"""
         # بررسی پنجره اجرا
@@ -248,20 +351,18 @@ class TimeAwareScheduler:
             return False
             
         # بررسی منابع سیستم
-        if self.resource_manager:
-            try:
-                system_health = self.resource_manager._check_system_health()
-                # ✅ اصلاح: استفاده از 'status' به جای 'healthy'
-                if system_health.get('status') != 'healthy':
-                    logger.warning(f"⏳ Delaying {task_data['task_id']} due to system health: {system_health.get('status', 'unknown')}")
-                    return False
-            except Exception as e:
-                logger.warning(f"⚠️ Could not check system health: {e}")
-                # در صورت خطا، ادامه بده
-                pass 
+        system_load_factor = self._get_system_load_factor()
+        
+        # اگر سیستم تحت فشار است، کارهای غیرضروری را به تعویق بینداز
+        if system_load_factor > 0.8 and task_data['priority'] < 2:
+            logger.warning(f"⏳ Delaying {task_data['task_id']} due to high system load ({system_load_factor:.1%})")
+            # تأخیر 30 دقیقه‌ای
+            task_data['next_execution'] = current_time + timedelta(minutes=30)
+            return False
+        
         # بررسی احتمال موفقیت
-        current_probability = self._calculate_success_probability(
-            task_data['task_type'], current_time
+        current_probability = self._calculate_success_probability_with_system_health(
+            task_data['task_type'], current_time, system_load_factor
         )
         
         if current_probability < 50:  # حداقل 50% احتمال موفقیت
@@ -333,6 +434,8 @@ class TimeAwareScheduler:
     
     def _record_task_execution(self, task_data: Dict, execution_time: float, success: bool, result: Any):
         """ثبت اجرای کار در تاریخچه"""
+        system_metrics = self._get_current_system_metrics_for_history()
+        
         execution_record = {
             'task_id': task_data['task_id'],
             'task_type': task_data['task_type'],
@@ -343,7 +446,7 @@ class TimeAwareScheduler:
             'scheduled_time': task_data['next_execution'].isoformat(),
             'actual_time': datetime.now().isoformat(),
             'delay_seconds': (datetime.now() - task_data['next_execution']).total_seconds(),
-            'resource_usage': self._get_current_resource_usage()
+            'system_metrics_at_execution': system_metrics
         }
         
         self.task_history.append(execution_record)
@@ -352,24 +455,23 @@ class TimeAwareScheduler:
         if len(self.task_history) > 10000:
             self.task_history = self.task_history[-10000:]
     
-    def _get_current_resource_usage(self) -> Dict[str, float]:
-        """دریافت استفاده فعلی منابع"""
-        try:
-            if self.resource_manager:
-                metrics = self.resource_manager._collect_comprehensive_metrics()
-                return {
-                    'cpu_percent': metrics['cpu']['percent'],
-                    'memory_percent': metrics['memory']['percent'],
-                    'disk_percent': metrics['disk']['usage_percent']
-                }
-        except:
-            pass
-        
-        return {
-            'cpu_percent': psutil.cpu_percent(interval=0.1),
-            'memory_percent': psutil.virtual_memory().percent,
-            'disk_percent': psutil.disk_usage('/').percent
-        }
+    def _get_current_system_metrics_for_history(self) -> Dict[str, float]:
+        """دریافت متریک‌های سیستم برای تاریخچه"""
+        if self.central_monitor_connected and self.last_system_metrics:
+            return {
+                'cpu_percent': self.last_system_metrics.get('cpu', {}).get('percent', 0),
+                'memory_percent': self.last_system_metrics.get('memory', {}).get('percent', 0),
+                'disk_percent': self.last_system_metrics.get('disk', {}).get('usage_percent', 0),
+                'source': 'central_monitor'
+            }
+        else:
+            # حالت fallback
+            return {
+                'cpu_percent': psutil.cpu_percent(interval=0.1),
+                'memory_percent': psutil.virtual_memory().percent,
+                'disk_percent': psutil.disk_usage('/').percent,
+                'source': 'fallback'
+            }
     
     def _learn_scheduling_pattern(self, task_data: Dict, optimal_time: Dict):
         """یادگیری الگوهای زمان‌بندی"""
@@ -406,7 +508,7 @@ class TimeAwareScheduler:
             analysis = self._analyze_task_pattern(task_id)
             
             if analysis['needs_optimization']:
-                new_optimal_time = self._calculate_optimal_time(
+                new_optimal_time = self._calculate_optimal_time_with_system_health(
                     task_data['task_type'],
                     task_data['interval_seconds'],
                     task_data['preferred_times']
@@ -529,7 +631,9 @@ class TimeAwareScheduler:
                 'active_tasks': len(self.scheduled_tasks),
                 'upcoming_tasks': len(upcoming_tasks),
                 'total_executions': len(self.task_history),
-                'is_scheduling_active': self.is_scheduling
+                'is_scheduling_active': self.is_scheduling,
+                'connected_to_central_monitor': self.central_monitor_connected,
+                'system_load_factor': self._get_system_load_factor()
             },
             'upcoming_schedule': sorted(upcoming_tasks, key=lambda x: x['scheduled_time'])[:10],  # 10 کار بعدی
             'performance_analysis': performance_analysis,
@@ -671,11 +775,13 @@ class TimeAwareScheduler:
     
     def _forecast_resource_availability(self) -> Dict[str, Any]:
         """پیش‌بینی دسترسی به منابع"""
+        system_load = self._get_system_load_factor()
+        
         return {
             'next_24_hours': {
-                'cpu_availability': 'high' if datetime.now().hour in self.time_patterns['night_hours'] else 'medium',
+                'cpu_availability': 'high' if system_load < 0.5 else 'medium',
                 'memory_availability': 'high',
-                'recommended_task_types': ['heavy', 'normal', 'light'] if datetime.now().hour in self.time_patterns['night_hours'] else ['light', 'normal']
+                'recommended_task_types': ['heavy', 'normal', 'light'] if system_load < 0.4 else ['light', 'normal']
             },
             'next_week': {
                 'optimal_days': ['Friday', 'Saturday'],
