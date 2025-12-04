@@ -497,7 +497,7 @@ live_dashboard_manager = None
 console_stream_manager = None
 
 try:
-    from debug_system.core import core_system, debug_manager, metrics_collector, alert_manager
+    from debug_system.core import core_system, metrics_collector, alert_manager
     from debug_system.monitors import monitors_system, endpoint_monitor, system_monitor, performance_monitor, security_monitor
     from debug_system.storage import history_manager, log_manager, cache_debugger
     from debug_system.realtime import websocket_manager, console_stream
@@ -684,9 +684,16 @@ if DEBUG_SYSTEM_AVAILABLE:
             current_metrics = metrics_collector.get_current_metrics()
             print(f"   ✅ Metrics collector: {len(current_metrics)} metrics collected")
             
+        try:
+        # اول سعی کن از system debug_manager استفاده کنی
+            from debug_system.core import debug_manager as system_debug_manager
+            endpoint_stats = system_debug_manager.get_endpoint_stats()
+            print(f"   ✅ System debug manager: {len(endpoint_stats.get('endpoints', {}))} endpoints monitored")
+        except (ImportError, AttributeError):
+            # اگر system debug_manager نبود یا متد را نداشت، از custom استفاده کن
             endpoint_stats = debug_manager.get_endpoint_stats()
             total_endpoints = len(endpoint_stats.get('endpoints', {}))
-            print(f"   ✅ Debug manager: {total_endpoints} endpoints monitored")
+            print(f"   ✅ Custom debug manager: {total_endpoints} endpoints monitored")
             
             active_alerts = alert_manager.get_active_alerts()
             print(f"   ✅ Alert manager: {len(active_alerts)} active alerts")
@@ -745,9 +752,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# بعد از خط 595 (قبل از startup_background_tasks)
-from debug_system.monitors.system_monitor import initialize_central_monitoring
-
 @app.on_event("startup")
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
@@ -756,20 +760,16 @@ async def startup_background_tasks():
     try:
         print("🎯 Initializing Central Monitoring System...")
         
-        # اول مطمئن شو metrics_collector و alert_manager وجود دارند
-        if DEBUG_SYSTEM_AVAILABLE:
-            # استفاده از سیستم‌های موجود از debug_system
-            from debug_system.core import metrics_collector, alert_manager
-            
-            # ایجاد سیستم متمرکز
-            central_monitor = initialize_central_monitoring(metrics_collector, alert_manager)
-            central_monitor.start_monitoring()
-            
-            print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
-        else:
-            # اگر debug_system موجود نیست، از fallback استفاده کن
-            print("⚠️ Debug system not available, using simplified monitoring")
-            
+        # استفاده از metrics_collector و alert_manager از debug_system
+        from debug_system.core import metrics_collector, alert_manager
+        
+        # ایجاد سیستم متمرکز
+        from debug_system.monitors.system_monitor import initialize_central_monitoring
+        central_monitor = initialize_central_monitoring(metrics_collector, alert_manager)
+        central_monitor.start_monitoring()
+        
+        print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
+        
     except Exception as e:
         print(f"❌ Central monitoring initialization failed: {e}")
     
@@ -1001,26 +1001,30 @@ def activate_complete_background_system():
         except ImportError as e:
             print(f"❌ debug_system.tools monitoring_dashboard import failed: {e}")
             monitoring_dashboard = FallbackDashboard()
-            try:
-                from debug_system.monitors.system_monitor import central_monitor
+            def activate_complete_background_system():
+                
+        try:
+            from debug_system.monitors.system_monitor import central_monitor
+        
+            if central_monitor and hasattr(central_monitor, 'subscribe'):
+                # اتصال background_worker
+                if hasattr(background_worker, '_on_metrics_update'):
+                    central_monitor.subscribe("background_worker", background_worker._on_metrics_update)
             
-                if central_monitor:
-                    # اتصال background_worker
-                    if hasattr(background_worker, '_on_metrics_update'):
-                        central_monitor.subscribe("background_worker", background_worker._on_metrics_update)
-                
-                    # اتصال resource_guardian  
-                    if hasattr(resource_guardian, '_on_metrics_update'):
-                        central_monitor.subscribe("resource_guardian", resource_guardian._on_metrics_update)
-                
-                    # اتصال monitoring_dashboard
-                    if hasattr(monitoring_dashboard, '_on_metrics_update'):
-                        central_monitor.subscribe("monitoring_dashboard", monitoring_dashboard._on_metrics_update)
-                
-                    print("✅ All components subscribed to central_monitor")
-            except Exception as e:
-                print(f"⚠️ Could not connect to central_monitor: {e}")
-                
+                # اتصال resource_guardian  
+                if hasattr(resource_guardian, '_on_metrics_update'):
+                    central_monitor.subscribe("resource_guardian", resource_guardian._on_metrics_update)
+            
+                # اتصال monitoring_dashboard
+                if hasattr(monitoring_dashboard, '_on_metrics_update'):
+                    central_monitor.subscribe("monitoring_dashboard", monitoring_dashboard._on_metrics_update)
+            
+                print("✅ All components subscribed to central_monitor")
+            else:
+                print("⚠️ Central monitor not available for subscription")
+            
+        except Exception as e:
+            print(f"⚠️ Could not connect to central_monitor: {e}")
         # ۲. فعال‌سازی کامپوننت‌ها
         print("🚀 Starting background components from debug_system.tools...")
         
