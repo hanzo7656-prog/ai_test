@@ -67,7 +67,41 @@ class DebugManager:
             'memory_critical': 95.0
         }
         
-        self._start_background_monitoring()
+        self._connect_to_central_monitor()
+        
+    def _connect_to_central_monitor(self):
+        """اتصال به سیستم مانیتورینگ متمرکز"""
+        try:
+            from debug_system.monitors.system_monitor import central_monitor
+            
+            if central_monitor:
+                central_monitor.subscribe("debug_manager", self._on_metrics_update)
+                logger.info("✅ DebugManager connected to central_monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available, DebugManager will use cached data")
+                
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not connect to central_monitor: {e}")
+    
+    def _on_metrics_update(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌ها از سیستم متمرکز"""
+        # اینجا می‌توانی متریک‌ها را در تاریخچه DebugManager ذخیره کنی
+        system_metrics = metrics.get('system', {})
+        
+        # تبدیل به فرمت SystemMetrics قدیمی
+        sys_metric = SystemMetrics(
+            timestamp=datetime.fromisoformat(metrics['timestamp']),
+            cpu_percent=system_metrics.get('cpu', {}).get('percent', 0),
+            memory_percent=system_metrics.get('memory', {}).get('percent', 0),
+            disk_usage=system_metrics.get('disk', {}).get('usage_percent', 0),
+            network_io={
+                'bytes_sent': system_metrics.get('network', {}).get('bytes_sent_mb', 0) * 1024 * 1024,
+                'bytes_recv': system_metrics.get('network', {}).get('bytes_recv_mb', 0) * 1024 * 1024
+            },
+            active_connections=0  # اگر در متریک‌های جدید موجود نیست
+        )
+        
+        self.system_metrics_history.append(sys_metric)
         
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
@@ -711,9 +745,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# بعد از خط 595 (قبل از startup_background_tasks)
+from debug_system.monitors.system_monitor import initialize_central_monitoring
+
 @app.on_event("startup")
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
+    
+    # 🎯 بخش جدید: فعال‌سازی سیستم مانیتورینگ متمرکز
+    try:
+        print("🎯 Initializing Central Monitoring System...")
+        
+        # اول مطمئن شو metrics_collector و alert_manager وجود دارند
+        if DEBUG_SYSTEM_AVAILABLE:
+            # استفاده از سیستم‌های موجود از debug_system
+            from debug_system.core import metrics_collector, alert_manager
+            
+            # ایجاد سیستم متمرکز
+            central_monitor = initialize_central_monitoring(metrics_collector, alert_manager)
+            central_monitor.start_monitoring()
+            
+            print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
+        else:
+            # اگر debug_system موجود نیست، از fallback استفاده کن
+            print("⚠️ Debug system not available, using simplified monitoring")
+            
+    except Exception as e:
+        print(f"❌ Central monitoring initialization failed: {e}")
     
     if AI_SYSTEM_AVAILABLE:
         try:
@@ -943,7 +1001,26 @@ def activate_complete_background_system():
         except ImportError as e:
             print(f"❌ debug_system.tools monitoring_dashboard import failed: {e}")
             monitoring_dashboard = FallbackDashboard()
-        
+            try:
+                from debug_system.monitors.system_monitor import central_monitor
+            
+                if central_monitor:
+                    # اتصال background_worker
+                    if hasattr(background_worker, '_on_metrics_update'):
+                        central_monitor.subscribe("background_worker", background_worker._on_metrics_update)
+                
+                    # اتصال resource_guardian  
+                    if hasattr(resource_guardian, '_on_metrics_update'):
+                        central_monitor.subscribe("resource_guardian", resource_guardian._on_metrics_update)
+                
+                    # اتصال monitoring_dashboard
+                    if hasattr(monitoring_dashboard, '_on_metrics_update'):
+                        central_monitor.subscribe("monitoring_dashboard", monitoring_dashboard._on_metrics_update)
+                
+                    print("✅ All components subscribed to central_monitor")
+            except Exception as e:
+                print(f"⚠️ Could not connect to central_monitor: {e}")
+                
         # ۲. فعال‌سازی کامپوننت‌ها
         print("🚀 Starting background components from debug_system.tools...")
         
@@ -1355,6 +1432,44 @@ async def count_endpoints():
         },
         "sample_routes": routes_info[:10]
     }
+
+@app.get("/api/monitoring/status")
+async def get_monitoring_status():
+    """بررسی وضعیت سیستم‌های مانیتورینگ"""
+    try:
+        from debug_system.monitors.system_monitor import central_monitor
+        
+        if central_monitor:
+            return {
+                "central_monitoring": {
+                    "status": "active" if central_monitor.is_monitoring else "inactive",
+                    "subscribers": len(central_monitor.subscribers),
+                    "subscriber_names": list(central_monitor.subscribers.keys()),
+                    "collection_interval": central_monitor.collection_interval,
+                    "last_collection": central_monitor.last_collection_time.isoformat() if central_monitor.last_collection_time else None,
+                    "metrics_cache_age": round((datetime.now() - central_monitor.last_collection_time).total_seconds(), 1) if central_monitor.last_collection_time else None
+                },
+                "legacy_systems": {
+                    "debug_manager_active": False,  # چون غیرفعال کردیم
+                    "background_worker_monitoring": hasattr(background_worker, '_monitor_loop') if 'background_worker' in locals() else False
+                },
+                "recommendation": "✅ Central monitoring is active, legacy systems are disabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "inactive",
+                "message": "Central monitoring system not initialized",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error checking monitoring status: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
 
 @app.get("/api/system/info")
 async def system_info():
