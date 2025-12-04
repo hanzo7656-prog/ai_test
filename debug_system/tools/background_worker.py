@@ -9,6 +9,7 @@ from queue import Queue, Empty
 import psutil
 import os
 import json
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,10 @@ class IntelligentBackgroundWorker:
         self.is_running = False
         self.monitor_thread = None
         self.alert_handlers = []
+        
+        # سیستم مانیتورینگ مرکزی
+        self.central_monitor_connected = False
+        self.last_central_metrics = None
         
         # آمار عملکرد
         self.performance_stats = {
@@ -49,6 +54,9 @@ class IntelligentBackgroundWorker:
             'task_timeout': 300  # 5 دقیقه
         }
         
+        # عضویت در سیستم مانیتورینگ مرکزی
+        self._subscribe_to_central_monitor()
+        
         logger.info("🎯 Intelligent Background Worker initialized")
         
     def start(self):
@@ -57,16 +65,127 @@ class IntelligentBackgroundWorker:
             return
             
         self.is_running = True
-        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
-        self.monitor_thread.start()
         
+        # شروع مانیتورینگ (حالت fallback اگر مرکز در دسترس نباشد)
+        if not self.central_monitor_connected:
+            self.monitor_thread = threading.Thread(target=self._fallback_monitor_loop, daemon=True)
+            self.monitor_thread.start()
+            logger.info("🎬 Background Worker started with fallback monitoring")
+        else:
+            logger.info("🎬 Background Worker started (connected to Central Monitor)")
+            
         # شروع مانیتورینگ کارگران
         self._start_worker_monitoring()
         
-        logger.info("🎬 Background Worker started with advanced monitoring")
+        # ثبت کارهای واقعی
+        self.submit_real_tasks()
 
-    # 🔽 این متد رو به کلاس IntelligentBackgroundWorker اضافه کن (قبل از متد stop):
-
+    def _subscribe_to_central_monitor(self):
+        """عضویت در سیستم مانیتورینگ مرکزی"""
+        try:
+            from debug_system.monitors.system_monitor import central_monitor
+            if central_monitor:
+                central_monitor.subscribe("background_worker", self._on_central_metrics_update)
+                self.central_monitor_connected = True
+                logger.info("✅ Background Worker subscribed to Central Monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available, using fallback monitoring")
+                self.central_monitor_connected = False
+        except ImportError as e:
+            logger.warning(f"⚠️ Could not import central_monitor: {e}, using fallback monitoring")
+            self.central_monitor_connected = False
+    
+    def _on_central_metrics_update(self, metrics: Dict):
+        """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
+        try:
+            self.last_central_metrics = metrics
+            
+            # پردازش متریک‌های سیستم
+            system_metrics = metrics.get('system', {})
+            
+            # بررسی هشدارها بر اساس متریک‌های مرکزی
+            self._check_alerts_from_central(system_metrics)
+            
+            # به‌روزرسانی آمار داخلی
+            self._update_internal_stats_from_central(system_metrics)
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing central metrics: {e}")
+    
+    def _check_alerts_from_central(self, system_metrics: Dict):
+        """بررسی هشدارها بر اساس متریک‌های مرکزی"""
+        cpu_percent = system_metrics.get('cpu', {}).get('percent', 0)
+        memory_percent = system_metrics.get('memory', {}).get('percent', 0)
+        
+        alerts = []
+        
+        if cpu_percent > self.alert_thresholds['cpu_critical']:
+            alerts.append(('critical', 'cpu', f"CPU critical: {cpu_percent}%"))
+        elif cpu_percent > self.alert_thresholds['cpu_warning']:
+            alerts.append(('warning', 'cpu', f"CPU warning: {cpu_percent}%"))
+            
+        if memory_percent > self.alert_thresholds['memory_critical']:
+            alerts.append(('critical', 'memory', f"Memory critical: {memory_percent}%"))
+        elif memory_percent > self.alert_thresholds['memory_warning']:
+            alerts.append(('warning', 'memory', f"Memory warning: {memory_percent}%"))
+            
+        # فعال کردن هشدارها
+        for level, category, message in alerts:
+            self._trigger_alert(level, category, message, system_metrics)
+    
+    def _update_internal_stats_from_central(self, system_metrics: Dict):
+        """به‌روزرسانی آمار داخلی از متریک‌های مرکزی"""
+        # اینجا می‌توانیم آمار داخلی را به‌روز کنیم
+        # فعلاً فقط لاگ می‌کنیم
+        cpu_percent = system_metrics.get('cpu', {}).get('percent', 0)
+        if cpu_percent > 80:
+            logger.debug(f"📊 Central metrics: CPU at {cpu_percent}%")
+    
+    def _fallback_monitor_loop(self):
+        """حلقه نظارت fallback (فقط وقتی مرکز در دسترس نیست)"""
+        logger.info("🔄 Starting fallback monitoring loop")
+        
+        while self.is_running and not self.central_monitor_connected:
+            try:
+                # جمع‌آوری متریک‌های سیستم به صورت مستقل
+                system_metrics = self._collect_system_metrics_fallback()
+                
+                # بررسی هشدارها
+                self._check_alerts(system_metrics)
+                
+                # اجرای کارها اگر شرایط مناسب باشد
+                if (system_metrics['cpu_percent'] < self.max_cpu_percent and 
+                    system_metrics['memory_percent'] < 85 and
+                    not self.task_queue.empty()):
+                    
+                    try:
+                        task_data = self.task_queue.get(timeout=1)
+                        self._execute_task_with_monitoring(task_data)
+                    except Empty:
+                        continue
+                else:
+                    # بهینه‌سازی مصرف منابع در زمان شلوغی
+                    time.sleep(self._calculate_optimal_sleep_time(system_metrics))
+                    
+            except Exception as e:
+                logger.error(f"❌ Fallback monitor loop error: {e}")
+                time.sleep(5)
+    
+    def _collect_system_metrics_fallback(self) -> Dict[str, Any]:
+        """جمع‌آوری متریک‌های سیستم به صورت fallback"""
+        memory = psutil.virtual_memory()
+        
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'cpu_percent': psutil.cpu_percent(interval=0.1),
+            'memory_percent': memory.percent,
+            'memory_used_gb': memory.used / (1024**3),
+            'memory_available_gb': memory.available / (1024**3),
+            'queue_size': self.task_queue.qsize(),
+            'active_tasks_count': len(self.active_tasks),
+            'active_workers': len([w for w in self.worker_metrics.values() if w.get('status') == 'active'])
+        }
+        
     def submit_real_tasks(self):
         """ثبت کارهای واقعی در سیستم"""
         try:
@@ -108,9 +227,15 @@ class IntelligentBackgroundWorker:
     def get_real_metrics(self):
         """تولید متریک‌های REAL بر اساس فعالیت واقعی سیستم"""
     
-        # محاسبه utilization واقعی بر اساس CPU و فعالیت
-        cpu_usage = psutil.cpu_percent(interval=0.1)
-        memory_usage = psutil.virtual_memory().percent
+        # تلاش برای استفاده از متریک‌های مرکزی
+        if self.last_central_metrics:
+            system_metrics = self.last_central_metrics.get('system', {})
+            cpu_usage = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = system_metrics.get('memory', {}).get('percent', 0)
+        else:
+            # حالت fallback
+            cpu_usage = psutil.cpu_percent(interval=0.1)
+            memory_usage = psutil.virtual_memory().percent
     
         # شبیه‌سازی فعالیت واقعی
         real_queue_size = random.randint(1, 15)  # صف واقعی
@@ -148,7 +273,8 @@ class IntelligentBackgroundWorker:
             'current_metrics': {
                 'timestamp': datetime.now().isoformat(),
                 'system_load': real_queue_size,
-                'efficiency_score': round(random.uniform(85.0, 98.0), 1)
+                'efficiency_score': round(random.uniform(85.0, 98.0), 1),
+                'monitoring_source': 'central' if self.central_monitor_connected else 'fallback'
             }
         }
 
@@ -195,33 +321,111 @@ class IntelligentBackgroundWorker:
         logger.info(f"📥 Task {task_id} submitted (Type: {task_type}, Priority: {priority})")
         return True, "Task submitted successfully"
         
-    def _monitor_loop(self):
-        """حلقه نظارت پیشرفته بر اجرای کارها"""
-        while self.is_running:
+    def _check_system_health(self) -> Dict[str, Any]:
+        """بررسی سلامت سیستم"""
+        if self.central_monitor_connected and self.last_central_metrics:
+            # استفاده از متریک‌های مرکزی
+            system_metrics = self.last_central_metrics.get('system', {})
+            cpu_percent = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_percent = system_metrics.get('memory', {}).get('percent', 0)
+        else:
+            # حالت fallback
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory_percent = psutil.virtual_memory().percent
+            
+        health_issues = []
+        
+        if cpu_percent > self.alert_thresholds['cpu_critical']:
+            health_issues.append("CPU usage critically high")
+        elif cpu_percent > self.alert_thresholds['cpu_warning']:
+            health_issues.append("CPU usage high")
+            
+        if memory_percent > self.alert_thresholds['memory_critical']:
+            health_issues.append("Memory usage critically high")
+        elif memory_percent > self.alert_thresholds['memory_warning']:
+            health_issues.append("Memory usage high")
+            
+        if self.task_queue.qsize() > self.alert_thresholds['queue_critical']:
+            health_issues.append("Task queue critically long")
+        elif self.task_queue.qsize() > self.alert_thresholds['queue_warning']:
+            health_issues.append("Task queue long")
+            
+        return {
+            'healthy': len(health_issues) == 0,
+            'message': "; ".join(health_issues) if health_issues else "System healthy",
+            'cpu_percent': cpu_percent,
+            'memory_percent': memory_percent,
+            'queue_size': self.task_queue.qsize(),
+            'source': 'central' if self.central_monitor_connected else 'fallback'
+        }
+            
+    def _check_alerts(self, metrics: Dict):
+        """بررسی و فعال کردن هشدارها (fallback)"""
+        alerts = []
+        
+        if metrics['cpu_percent'] > self.alert_thresholds['cpu_critical']:
+            alerts.append(('critical', 'cpu', f"CPU critical: {metrics['cpu_percent']}%"))
+        elif metrics['cpu_percent'] > self.alert_thresholds['cpu_warning']:
+            alerts.append(('warning', 'cpu', f"CPU warning: {metrics['cpu_percent']}%"))
+            
+        if metrics['memory_percent'] > self.alert_thresholds['memory_critical']:
+            alerts.append(('critical', 'memory', f"Memory critical: {metrics['memory_percent']}%"))
+        elif metrics['memory_percent'] > self.alert_thresholds['memory_warning']:
+            alerts.append(('warning', 'memory', f"Memory warning: {metrics['memory_percent']}%"))
+            
+        # فعال کردن هشدارها
+        for level, category, message in alerts:
+            self._trigger_alert(level, category, message, metrics)
+            
+    def _trigger_alert(self, level: str, category: str, message: str, data: Dict = None):
+        """فعال کردن هشدار"""
+        alert = {
+            'level': level,
+            'category': category,
+            'message': message,
+            'timestamp': datetime.now().isoformat(),
+            'data': data
+        }
+        
+        logger.warning(f"🚨 ALERT {level.upper()}: {message}")
+        
+        # ارسال به هندلرهای هشدار
+        for handler in self.alert_handlers:
             try:
-                # جمع‌آوری متریک‌های سیستم
-                system_metrics = self._collect_system_metrics()
-                
-                # بررسی هشدارها
-                self._check_alerts(system_metrics)
-                
-                # اجرای کارها اگر شرایط مناسب باشد
-                if (system_metrics['cpu_percent'] < self.max_cpu_percent and 
-                    system_metrics['memory_percent'] < 85 and
-                    not self.task_queue.empty()):
-                    
-                    task_data = self.task_queue.get(timeout=1)
-                    self._execute_task_with_monitoring(task_data)
-                else:
-                    # بهینه‌سازی مصرف منابع در زمان شلوغی
-                    time.sleep(self._calculate_optimal_sleep_time(system_metrics))
-                    
-            except Empty:
-                continue
+                handler(alert)
             except Exception as e:
-                logger.error(f"❌ Monitor loop error: {e}")
-                time.sleep(5)
+                logger.error(f"❌ Alert handler error: {e}")
                 
+    def _can_run_heavy_task(self) -> bool:
+        """بررسی امکان اجرای کارهای سنگین"""
+        now = datetime.now()
+        
+        # آخر هفته (جمعه و شنبه)
+        if now.weekday() in [4, 5]:  # Friday, Saturday
+            return True
+            
+        # شب‌ها از ۱ تا ۷ صبح
+        if 1 <= now.hour <= 7:
+            return True
+            
+        return False
+        
+    def _calculate_optimal_sleep_time(self, metrics: Dict) -> float:
+        """محاسبه زمان خواب بهینه بر اساس بار سیستم"""
+        base_sleep = 2.0
+        
+        if metrics['cpu_percent'] > 80:
+            return base_sleep * 3  # خواب بیشتر هنگام شلوغی
+        elif metrics['cpu_percent'] < 30:
+            return base_sleep * 0.5  # خواب کمتر هنگام خلوت
+            
+        return base_sleep
+        
+    def _start_worker_monitoring(self):
+        """شروع مانیتورینگ کارگران"""
+        # پیاده‌سازی در فایل‌های بعدی تکمیل می‌شود
+        pass
+        
     def _execute_task_with_monitoring(self, task_data: Dict):
         """اجرای کار با مانیتورینگ کامل"""
         task_id = task_data['task_id']
@@ -288,136 +492,7 @@ class IntelligentBackgroundWorker:
             logger.error(f"❌ Task {task_id} failed after {task_data['max_retries']} retries: {error}")
             self.failed_tasks.append(task_data.copy())
             self._trigger_alert('task_failed', f"Task {task_id} failed permanently", task_data)
-            
-    def _check_system_health(self) -> Dict[str, Any]:
-        """بررسی سلامت سیستم"""
-        metrics = self._collect_system_metrics()
-        
-        health_issues = []
-        
-        if metrics['cpu_percent'] > self.alert_thresholds['cpu_critical']:
-            health_issues.append("CPU usage critically high")
-        elif metrics['cpu_percent'] > self.alert_thresholds['cpu_warning']:
-            health_issues.append("CPU usage high")
-            
-        if metrics['memory_percent'] > self.alert_thresholds['memory_critical']:
-            health_issues.append("Memory usage critically high")
-        elif metrics['memory_percent'] > self.alert_thresholds['memory_warning']:
-            health_issues.append("Memory usage high")
-            
-        if self.task_queue.qsize() > self.alert_thresholds['queue_critical']:
-            health_issues.append("Task queue critically long")
-        elif self.task_queue.qsize() > self.alert_thresholds['queue_warning']:
-            health_issues.append("Task queue long")
-            
-        return {
-            'healthy': len(health_issues) == 0,
-            'message': "; ".join(health_issues) if health_issues else "System healthy",
-            'metrics': metrics
-        }
-        
-    def _collect_system_metrics(self) -> Dict[str, Any]:
-        """جمع‌آوری متریک‌های سیستم"""
-        memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
-        
-        return {
-            'timestamp': datetime.now().isoformat(),
-            'cpu_percent': psutil.cpu_percent(interval=0.1),
-            'memory_percent': memory.percent,
-            'memory_used_gb': memory.used / (1024**3),
-            'memory_available_gb': memory.available / (1024**3),
-            'disk_percent': disk.percent,
-            'queue_size': self.task_queue.qsize(),
-            'active_tasks_count': len(self.active_tasks),
-            'active_workers': len([w for w in self.worker_metrics.values() if w.get('status') == 'active'])
-        }
-        
-    def _check_alerts(self, metrics: Dict):
-        """بررسی و فعال کردن هشدارها"""
-        alerts = []
-        
-        if metrics['cpu_percent'] > self.alert_thresholds['cpu_critical']:
-            alerts.append(('critical', 'cpu', f"CPU critical: {metrics['cpu_percent']}%"))
-        elif metrics['cpu_percent'] > self.alert_thresholds['cpu_warning']:
-            alerts.append(('warning', 'cpu', f"CPU warning: {metrics['cpu_percent']}%"))
-            
-        if metrics['memory_percent'] > self.alert_thresholds['memory_critical']:
-            alerts.append(('critical', 'memory', f"Memory critical: {metrics['memory_percent']}%"))
-        elif metrics['memory_percent'] > self.alert_thresholds['memory_warning']:
-            alerts.append(('warning', 'memory', f"Memory warning: {metrics['memory_percent']}%"))
-            
-        # فعال کردن هشدارها
-        for level, category, message in alerts:
-            self._trigger_alert(level, category, message, metrics)
-            
-    def _trigger_alert(self, level: str, category: str, message: str, data: Dict = None):
-        """فعال کردن هشدار"""
-        alert = {
-            'level': level,
-            'category': category,
-            'message': message,
-            'timestamp': datetime.now().isoformat(),
-            'data': data
-        }
-        
-        logger.warning(f"🚨 ALERT {level.upper()}: {message}")
-        
-        # ارسال به هندلرهای هشدار
-        for handler in self.alert_handlers:
-            try:
-                handler(alert)
-            except Exception as e:
-                logger.error(f"❌ Alert handler error: {e}")
-                
-    def _can_run_heavy_task(self) -> bool:
-        """بررسی امکان اجرای کارهای سنگین"""
-        now = datetime.now()
-        
-        # آخر هفته (جمعه و شنبه)
-        if now.weekday() in [4, 5]:  # Friday, Saturday
-            return True
-            
-        # شب‌ها از ۱ تا ۷ صبح
-        if 1 <= now.hour <= 7:
-            return True
-            
-        return False
-        
-    def _calculate_optimal_sleep_time(self, metrics: Dict) -> float:
-        """محاسبه زمان خواب بهینه بر اساس بار سیستم"""
-        base_sleep = 2.0
-        
-        if metrics['cpu_percent'] > 80:
-            return base_sleep * 3  # خواب بیشتر هنگام شلوغی
-        elif metrics['cpu_percent'] < 30:
-            return base_sleep * 0.5  # خواب کمتر هنگام خلوت
-            
-        return base_sleep
-        
-    def _start_worker_monitoring(self):
-        """شروع مانیتورینگ کارگران"""
-        # پیاده‌سازی در فایل‌های بعدی تکمیل می‌شود
-        pass
-        
-    def _start_worker_monitoring_task(self, worker_id: int, task_id: str):
-        """شروع مانیتورینگ یک کارگر خاص"""
-        self.worker_metrics[worker_id] = {
-            'worker_id': worker_id,
-            'task_id': task_id,
-            'status': 'active',
-            'start_time': datetime.now(),
-            'cpu_usage': 0,
-            'memory_usage': 0,
-            'task_start_time': datetime.now()
-        }
-        
-    def _stop_worker_monitoring_task(self, worker_id: int):
-        """توقف مانیتورینگ یک کارگر"""
-        if worker_id in self.worker_metrics:
-            self.worker_metrics[worker_id]['status'] = 'idle'
-            self.worker_metrics[worker_id]['end_time'] = datetime.now()
-            
+    
     def _update_worker_metrics(self, worker_id: int, status: str, execution_time: float):
         """به‌روزرسانی متریک‌های کارگر"""
         if worker_id in self.worker_metrics:
@@ -452,16 +527,32 @@ class IntelligentBackgroundWorker:
         if hour not in self.performance_stats['hourly_pattern']:
             self.performance_stats['hourly_pattern'][hour] = 0
         self.performance_stats['hourly_pattern'][hour] += 1
+    
+    def _start_worker_monitoring_task(self, worker_id: int, task_id: str):
+        """شروع مانیتورینگ یک کارگر خاص"""
+        self.worker_metrics[worker_id] = {
+            'worker_id': worker_id,
+            'task_id': task_id,
+            'status': 'active',
+            'start_time': datetime.now(),
+            'cpu_usage': 0,
+            'memory_usage': 0,
+            'task_start_time': datetime.now()
+        }
         
+    def _stop_worker_monitoring_task(self, worker_id: int):
+        """توقف مانیتورینگ یک کارگر"""
+        if worker_id in self.worker_metrics:
+            self.worker_metrics[worker_id]['status'] = 'idle'
+            self.worker_metrics[worker_id]['end_time'] = datetime.now()
+            
     def get_detailed_metrics(self) -> Dict[str, Any]:
         """دریافت متریک‌های دقیق سیستم"""
-        system_metrics = self._collect_system_metrics()
-        health_status = self._check_system_health()
+        system_health = self._check_system_health()
         
         return {
-            'system_health': health_status,
+            'system_health': system_health,
             'performance_stats': self.performance_stats,
-            'current_metrics': system_metrics,
             'worker_status': {
                 'total_workers': self.max_workers,
                 'active_workers': len([w for w in self.worker_metrics.values() if w.get('status') == 'active']),
@@ -475,7 +566,8 @@ class IntelligentBackgroundWorker:
                 'failed_tasks': len(self.failed_tasks)
             },
             'task_breakdown': self.performance_stats['tasks_by_type'],
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'monitoring_mode': 'central' if self.central_monitor_connected else 'fallback'
         }
         
     def add_alert_handler(self, handler: Callable):
