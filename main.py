@@ -394,10 +394,7 @@ class DebugManager:
 
 # ایجاد نمونه گلوبال
 debug_manager = DebugManager()
-[file content end - PART 1/4]
 
-[file name]: main.py
-[file content begin - PART 2/4]
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, WebSocket
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -731,10 +728,6 @@ else:
     print("❌ Debug system is not available")
     live_dashboard_manager = None
     console_stream_manager = None
-[file content end - PART 2/4]
-
-[file name]: main.py
-[file content begin - PART 3/4]
 # تنظیمات
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1029,10 +1022,7 @@ def activate_complete_background_system():
                 
         except Exception as e:
             print(f"⚠️ Could not connect to central_monitor: {e}")
-[file content end - PART 3/4]
-
-[file name]: main.py
-[file content begin - PART 4/4]
+            
         # ۲. فعال‌سازی کامپوننت‌ها
         print("🚀 Starting background components from debug_system.tools...")
         
@@ -1572,4 +1562,3 @@ if __name__ == "__main__":
     print("🚀" * 50)
     
     uvicorn.run(app, host="0.0.0.0", port=port, access_log=True)
-[file content end - PART 4/4]
