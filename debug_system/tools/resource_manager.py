@@ -44,16 +44,28 @@ class ResourceGuardian:
     
     def _subscribe_to_central_monitor(self):
         """عضویت در سیستم مانیتورینگ مرکزی"""
-        try:
-            from debug_system.monitors.system_monitor import central_monitor
-            if central_monitor:
-                central_monitor.subscribe("resource_guardian", self._on_central_metrics_update)
-                logger.info("✅ Resource Guardian subscribed to Central Monitor")
-            else:
-                logger.warning("⚠️ Central monitor not available, Resource Guardian will work independently")
-        except ImportError:
-            logger.warning("⚠️ Could not import central_monitor, using independent mode")
+        import time
     
+        logger.info("🔌 Resource Guardian connecting to Central Monitor...")
+    
+        max_attempts = 10
+        for attempt in range(max_attempts):
+            try:
+                from debug_system.monitors.system_monitor import central_monitor
+                if central_monitor and hasattr(central_monitor, 'subscribe'):
+                    central_monitor.subscribe("resource_guardian", self._on_central_metrics_update)
+                    logger.info(f"✅✅ Resource Guardian SUCCESSFULLY subscribed to Central Monitor (attempt {attempt + 1})")
+                    return
+                else:
+                    logger.debug(f"⏳ Central monitor not ready for Resource Guardian (attempt {attempt + 1}/{max_attempts})")
+            except ImportError:
+                logger.debug(f"⏳ Waiting for central_monitor module (attempt {attempt + 1}/{max_attempts})")
+        
+            time.sleep(3)  # افزایش زمان انتظار
+    
+        logger.warning("⚠️ Resource Guardian could not connect to Central Monitor after waiting")
+        logger.info("🔄 Resource Guardian will work in independent mode")
+        
     def _on_central_metrics_update(self, metrics: Dict):
         """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
         try:
