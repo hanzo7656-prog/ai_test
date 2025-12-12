@@ -773,8 +773,7 @@ async def startup_background_tasks():
         await asyncio.sleep(5)
         
         # سپس مانیتورینگ را شروع کن
-        central_monitor.start_monitoring():
-        central_monitor.collection_interval = 60  # از ۳۰ به ۶۰ ثانیه افزایش دهید
+        central_monitor.start_monitoring()
         
         print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
         
