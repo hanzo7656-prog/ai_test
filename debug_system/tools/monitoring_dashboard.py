@@ -951,6 +951,18 @@ class WorkerMonitoringDashboard:
                 'Consider increasing worker capacity during peak hours'
             ]
         }
+    # در کلاس WorkerMonitoringDashboard:
+    def start_monitoring(self):
+        """شروع مانیتورینگ دشبورد"""
+        if not self.is_monitoring:
+            self.is_monitoring = True
+            logger.info("📊 Dashboard monitoring started")
+        return self.is_monitoring
 
+    def stop_monitoring(self):
+        """توقف مانیتورینگ"""
+        self.is_monitoring = False
+        logger.info("📊 Dashboard monitoring stopped")
+        return True
 # نمونه گلوبال
 monitoring_dashboard = WorkerMonitoringDashboard()
