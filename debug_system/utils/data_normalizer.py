@@ -1,5 +1,5 @@
 """
-🤖 Data Normalizer v2.1 - با سیستم ذخیره‌سازی فایل و مدیریت عمر داده
+🤖 Data Normalizer v2.2 - با سیستم ذخیره‌سازی فایل و مدیریت عمر داده
 ویژگی‌های جدید:
 - ذخیره‌سازی تمام داده‌ها در پوشه کش
 - مدیریت خودکار عمر داده (10 روز)
@@ -143,7 +143,7 @@ class DataNormalizer:
         # راه‌اندازی پاک‌ساز خودکار
         self._start_auto_cleanup()
         
-        logger.info("🚀 Data Normalizer v2.1 Initialized - File Storage Enabled")
+        logger.info("🚀 Data Normalizer v2.2 Initialized - File Storage Enabled")
 
     def _setup_logging(self):
         """تنظیمات لاگ‌گیری"""
