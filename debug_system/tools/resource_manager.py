@@ -515,6 +515,19 @@ class ResourceGuardian:
             'memory': memory_timeline,
             'overall': memory_timeline if memory_timeline == "imminent" else cpu_timeline
         }
+        
+    def start_monitoring(self):
+        """شروع مانیتورینگ منابع (پیاده‌سازی ساده)"""
+        if not self.is_monitoring:
+            self.is_monitoring = True
+            logger.info("🛡️ Resource Guardian monitoring started")
+        return self.is_monitoring
+
+    def stop_monitoring(self):
+        """توقف مانیتورینگ"""
+        self.is_monitoring = False
+        logger.info("🛡️ Resource Guardian monitoring stopped")
+        return True
 
 # نمونه گلوبال
 resource_guardian = ResourceGuardian(max_cpu_percent=70.0, max_memory_percent=80.0)
