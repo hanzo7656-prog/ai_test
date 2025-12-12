@@ -753,7 +753,11 @@ app.add_middleware(
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
     
-    # 🎯 بخش جدید: فعال‌سازی سیستم مانیتورینگ متمرکز
+    # 🎯 بخش جدید: **اول تأخیر، سپس فعال‌سازی** سیستم مانیتورینگ متمرکز
+    print("🎯 STARTUP: Waiting 10 seconds for system stability before activating monitors...")
+    import time
+    await asyncio.sleep(10)  # تأخیر ۱۰ ثانیه‌ای async
+    
     try:
         print("🎯 Initializing Central Monitoring System...")
         
@@ -763,12 +767,41 @@ async def startup_background_tasks():
         # ایجاد سیستم متمرکز
         from debug_system.monitors.system_monitor import initialize_central_monitoring
         central_monitor = initialize_central_monitoring(metrics_collector, alert_manager)
+        
+        # 🎯 **تأخیر اضافه**: صبر کن تا سایر کامپوننت‌ها متصل شوند
+        print("⏳ Waiting 5 seconds for other components to connect...")
+        await asyncio.sleep(5)
+        
+        # سپس مانیتورینگ را شروع کن
         central_monitor.start_monitoring()
         
         print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
         
+        # 🎯 ثبت سیستم‌هایی که باید متصل شوند
+        expected_subscribers = [
+            "debug_manager",
+            "background_worker", 
+            "resource_guardian",
+            "monitoring_dashboard",
+            "time_scheduler"
+        ]
+        
+        actual_subscribers = list(central_monitor.subscribers.keys())
+        missing = [sub for sub in expected_subscribers if sub not in actual_subscribers]
+        
+        if missing:
+            print(f"⚠️ Some systems not yet connected: {missing}")
+        else:
+            print("🎉 All expected systems connected to central monitor!")
+        
     except Exception as e:
         print(f"❌ Central monitoring initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 🎯 **تأخیر**: قبل از فعال‌سازی AI Brain صبر کن
+    print("⏳ Waiting 5 seconds before starting AI Brain...")
+    await asyncio.sleep(5)
     
     if AI_SYSTEM_AVAILABLE:
         try:
@@ -778,24 +811,31 @@ async def startup_background_tasks():
         except Exception as e:
             print(f"❌ AI Brain startup error: {e}")
     
+    # 🎯 **تأخیر**: قبل از فعال‌سازی Background Worker صبر کن
+    print("⏳ Waiting 8 seconds before activating background workers...")
+    await asyncio.sleep(8)
+    
     # فعال‌سازی سیستم Background Worker
     activate_complete_background_system()
     
     # فعال‌سازی سیستم دیباگ (اگر موجود باشد)
     if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
         try:
-            print("   🚀 Starting debug background tasks...")
+            print("🎯 Starting debug background tasks...")
+            await asyncio.sleep(3)  # تأخیر ۳ ثانیه‌ای
+            
             asyncio.create_task(start_dashboard_broadcast())
-            print("   ✅ Dashboard broadcast task started")
+            print("✅ Dashboard broadcast task started")
             
             asyncio.create_task(periodic_cleanup())
-            print("   ✅ Periodic cleanup task started")
+            print("✅ Periodic cleanup task started")
             
         except Exception as e:
-            logger.error(f"   ❌ Startup background tasks error: {e}")
+            logger.error(f"❌ Startup background tasks error: {e}")
     else:
-        print("   ⚠️ Debug background tasks skipped")
-
+        print("⚠️ Debug background tasks skipped")
+    
+    print("🎉 System startup completed with optimized delay sequence!")
 
 @app.on_event("shutdown")
 async def shutdown_cleanup():
@@ -855,6 +895,21 @@ def activate_complete_background_system():
     """فعال‌سازی تمام کامپوننت‌های Background Worker از مسیر debug_system.tools"""
     
     print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM FROM debug_system.tools...")
+    
+    # 🎯 **تأخیر مهم**: منتظر بمان تا central_monitor کاملاً فعال شود
+    print("⏳ Waiting 15 seconds for central_monitor to be fully ready...")
+    import time
+    time.sleep(15)
+    
+    # 🎯 بررسی وجود central_monitor قبل از ادامه
+    try:
+        from debug_system.monitors.system_monitor import central_monitor
+        if not central_monitor:
+            print("⚠️ Central monitor still not available, waiting 10 more seconds...")
+            time.sleep(10)
+    except ImportError:
+        print("⚠️ Cannot import central_monitor, proceeding with caution...")
+        time.sleep(10)
     
     try:
         # ۱. ایمپورت کامپوننت‌ها از مسیر debug_system.tools
@@ -1532,7 +1587,38 @@ async def not_found_exception_handler(request, exc):
         }
     )
 
-if __name__ == "__main__":
+# 🎯 **تأخیر اصلی سیستم**: این کد قبل از شروع سرور اجرا می‌شود
+print("=" * 60)
+print("🎯 VORTEXAI - CPU OPTIMIZATION MODE ACTIVATED")
+print("=" * 60)
+
+# تأخیر ۲۰ ثانیه‌ای برای پایدار شدن سیستم
+print("⏳ SYSTEM STABILIZATION: Waiting 20 seconds before server start...")
+import time
+time.sleep(20)
+
+print("✅ System stabilization complete - Starting server now")
+print("=" * 60)
+
+# 🔥 اصلاح برای جلوگیری از CPU بالا - اضافه کردن تأخیر هوشمند
+if __name__ != "__main__":  # فقط در حالت import اجرا شود
+    # 🎯 تأخیر ۱۵ ثانیه‌ای قبل از فعال شدن central_monitor
+    print("⏳ Starting 15-second stabilization period before activating monitoring systems...")
+    import time
+    time.sleep(15)
+    
+    # 🎯 فعال‌سازی central_monitor با تأخیر
+    print("🎯 Delayed initialization of Central Monitoring System...")
+    try:
+        from debug_system.monitors.system_monitor import central_monitor
+        
+        if central_monitor:
+            central_monitor.start_monitoring()
+            print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
+        else:
+            print("⚠️ Central monitor not available in main.py")
+    except Exception as e:
+        print(f"⚠️ Central monitor activation in main.py failed: {e}")
     import uvicorn
     port = int(os.getenv("PORT", 10000))
     
