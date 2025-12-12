@@ -753,6 +753,12 @@ app.add_middleware(
 async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
     
+    # خواندن تأخیر از env
+    stabilization_delay = int(os.getenv("STARTUP_STABILIZATION_DELAY", "10"))
+    print(f"🎯 STARTUP: Waiting {stabilization_delay} seconds for system stability...")
+    await asyncio.sleep(stabilization_delay)
+    
+    # بقیه کد...
     # 🎯 بخش جدید: **اول تأخیر، سپس فعال‌سازی** سیستم مانیتورینگ متمرکز
     print("🎯 STARTUP: Waiting 15 seconds for system stability before activating monitors...")
     import time
@@ -778,13 +784,10 @@ async def startup_background_tasks():
         print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
         
         # 🎯 ثبت سیستم‌هایی که باید متصل شوند
-        expected_subscribers = [
-            "debug_manager",
-            "background_worker", 
-            "resource_guardian",
-            "monitoring_dashboard",
-            "time_scheduler"
-        ]
+        # خواندن از env یا config
+        expected_subscribers_str = os.getenv("EXPECTED_SUBSCRIBERS", 
+            "debug_manager,background_worker,resource_guardian,monitoring_dashboard,time_scheduler")
+        expected_subscribers = [s.strip() for s in expected_subscribers_str.split(",")]
         
         actual_subscribers = list(central_monitor.subscribers.keys())
         missing = [sub for sub in expected_subscribers if sub not in actual_subscribers]
@@ -1492,11 +1495,15 @@ async def count_endpoints():
 
 @app.get("/api/monitoring/status")
 async def get_monitoring_status():
-    """بررسی وضعیت سیستم‌های مانیتورینگ"""
+    """بررسی وضعیت سیستم‌های مانیتورینگ - Dynamic"""
     try:
         from debug_system.monitors.system_monitor import central_monitor
         
         if central_monitor:
+            # Dynamic checking
+            background_worker_connected = "background_worker" in central_monitor.subscribers
+            resource_guardian_connected = "resource_guardian" in central_monitor.subscribers
+            
             return {
                 "central_monitoring": {
                     "status": "active" if central_monitor.is_monitoring else "inactive",
@@ -1506,12 +1513,11 @@ async def get_monitoring_status():
                     "last_collection": central_monitor.last_collection_time.isoformat() if central_monitor.last_collection_time else None,
                     "metrics_cache_age": round((datetime.now() - central_monitor.last_collection_time).total_seconds(), 1) if central_monitor.last_collection_time else None
                 },
-                "legacy_systems": {
-                    "debug_manager_active": True,
-                    "background_worker_monitoring": False,  # چون حلقه‌هایش غیرفعال شده
-                    "central_monitor_connected": True
+                "component_status": {
+                    "background_worker": "connected" if background_worker_connected else "disconnected",
+                    "resource_guardian": "connected" if resource_guardian_connected else "disconnected",
+                    "debug_manager": "connected" if "debug_manager" in central_monitor.subscribers else "disconnected"
                 },
-                "recommendation": "✅ Central monitoring is active, all systems connected",
                 "timestamp": datetime.now().isoformat()
             }
         else:
@@ -1527,7 +1533,6 @@ async def get_monitoring_status():
             "message": f"Error checking monitoring status: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
-
 
 @app.get("/api/system/info")
 async def system_info():
