@@ -70,7 +70,7 @@ class WorkerMonitoringDashboard:
     
         logger.warning("⚠️ Monitoring Dashboard could not connect to Central Monitor")
         logger.info("🔄 Dashboard will use independent mode")
-        self._start_independent_monitoring()()
+        self._start_independent_monitoring()
     
     def _on_central_metrics_update(self, metrics: Dict):
         """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
