@@ -49,17 +49,28 @@ class WorkerMonitoringDashboard:
     
     def _subscribe_to_central_monitor(self):
         """عضویت در سیستم مانیتورینگ مرکزی"""
-        try:
-            from debug_system.monitors.system_monitor import central_monitor
-            if central_monitor:
-                central_monitor.subscribe("monitoring_dashboard", self._on_central_metrics_update)
-                logger.info("✅ Monitoring Dashboard subscribed to Central Monitor")
-            else:
-                logger.warning("⚠️ Central monitor not available, Dashboard will use independent mode")
-                self._start_independent_monitoring()
-        except ImportError as e:
-            logger.warning(f"⚠️ Could not import central_monitor: {e}, using independent mode")
-            self._start_independent_monitoring()
+        import time
+    
+        logger.info("🔌 Monitoring Dashboard connecting to Central Monitor...")
+    
+        max_attempts = 8
+        for attempt in range(max_attempts):
+            try:
+                from debug_system.monitors.system_monitor import central_monitor
+                if central_monitor and hasattr(central_monitor, 'subscribe'):
+                    central_monitor.subscribe("monitoring_dashboard", self._on_central_metrics_update)
+                    logger.info(f"✅✅ Monitoring Dashboard SUCCESSFULLY subscribed to Central Monitor (attempt {attempt + 1})")
+                    return
+                else:
+                    logger.debug(f"⏳ Central monitor not ready for Dashboard (attempt {attempt + 1}/{max_attempts})")
+            except ImportError:
+                logger.debug(f"⏳ Waiting for central_monitor module (attempt {attempt + 1}/{max_attempts})")
+        
+            time.sleep(4)  # افزایش زمان انتظار
+    
+        logger.warning("⚠️ Monitoring Dashboard could not connect to Central Monitor")
+        logger.info("🔄 Dashboard will use independent mode")
+        self._start_independent_monitoring()()
     
     def _on_central_metrics_update(self, metrics: Dict):
         """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
