@@ -754,9 +754,9 @@ async def startup_background_tasks():
     """شروع تسک‌های background بعد از راه‌اندازی سرور"""
     
     # 🎯 بخش جدید: **اول تأخیر، سپس فعال‌سازی** سیستم مانیتورینگ متمرکز
-    print("🎯 STARTUP: Waiting 10 seconds for system stability before activating monitors...")
+    print("🎯 STARTUP: Waiting 15 seconds for system stability before activating monitors...")
     import time
-    await asyncio.sleep(10)  # تأخیر ۱۰ ثانیه‌ای async
+    await asyncio.sleep(15)  
     
     try:
         print("🎯 Initializing Central Monitoring System...")
@@ -773,7 +773,8 @@ async def startup_background_tasks():
         await asyncio.sleep(5)
         
         # سپس مانیتورینگ را شروع کن
-        central_monitor.start_monitoring()
+        central_monitor.start_monitoring():
+        central_monitor.collection_interval = 60  # از ۳۰ به ۶۰ ثانیه افزایش دهید
         
         print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
         
@@ -812,8 +813,8 @@ async def startup_background_tasks():
             print(f"❌ AI Brain startup error: {e}")
     
     # 🎯 **تأخیر**: قبل از فعال‌سازی Background Worker صبر کن
-    print("⏳ Waiting 8 seconds before activating background workers...")
-    await asyncio.sleep(8)
+    print("⏳ Waiting 10 seconds before activating background workers...")
+    await asyncio.sleep(10)
     
     # فعال‌سازی سیستم Background Worker
     activate_complete_background_system()
@@ -822,7 +823,7 @@ async def startup_background_tasks():
     if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
         try:
             print("🎯 Starting debug background tasks...")
-            await asyncio.sleep(3)  # تأخیر ۳ ثانیه‌ای
+            await asyncio.sleep(5)  # تأخیر 5 ثانیه‌ای
             
             asyncio.create_task(start_dashboard_broadcast())
             print("✅ Dashboard broadcast task started")
@@ -897,9 +898,9 @@ def activate_complete_background_system():
     print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM FROM debug_system.tools...")
     
     # 🎯 **تأخیر مهم**: منتظر بمان تا central_monitor کاملاً فعال شود
-    print("⏳ Waiting 15 seconds for central_monitor to be fully ready...")
+    print("⏳ Waiting 20 seconds for central_monitor to be fully ready...")
     import time
-    time.sleep(15)
+    time.sleep(20)
     
     # 🎯 بررسی وجود central_monitor قبل از ادامه
     try:
