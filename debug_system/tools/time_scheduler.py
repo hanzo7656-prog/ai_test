@@ -45,19 +45,29 @@ class TimeAwareScheduler:
     
     def _subscribe_to_central_monitor(self):
         """عضویت در سیستم مانیتورینگ مرکزی"""
-        try:
-            from debug_system.monitors.system_monitor import central_monitor
-            if central_monitor:
-                central_monitor.subscribe("time_scheduler", self._on_central_metrics_update)
-                self.central_monitor_connected = True
-                logger.info("✅ Time Scheduler subscribed to Central Monitor")
-            else:
-                logger.warning("⚠️ Central monitor not available, scheduler will use independent mode")
-                self.central_monitor_connected = False
-        except ImportError as e:
-            logger.warning(f"⚠️ Could not import central_monitor: {e}, using independent mode")
-            self.central_monitor_connected = False
+        import time
     
+        logger.info("🔌 Time Scheduler connecting to Central Monitor...")
+    
+        max_attempts = 6
+        for attempt in range(max_attempts):
+            try:
+                from debug_system.monitors.system_monitor import central_monitor
+                if central_monitor and hasattr(central_monitor, 'subscribe'):
+                    central_monitor.subscribe("time_scheduler", self._on_central_metrics_update)
+                    self.central_monitor_connected = True
+                    logger.info(f"✅✅ Time Scheduler SUCCESSFULLY subscribed to Central Monitor (attempt {attempt + 1})")
+                    return
+                else:
+                    logger.debug(f"⏳ Central monitor not ready for Scheduler (attempt {attempt + 1}/{max_attempts})")
+            except ImportError as e:
+                logger.debug(f"⏳ Waiting for central_monitor module (attempt {attempt + 1}/{max_attempts}): {e}")
+        
+            time.sleep(5)  # افزایش زمان انتظار
+    
+        logger.warning("⚠️ Time Scheduler could not connect to Central Monitor")
+        self.central_monitor_connected = False
+        
     def _on_central_metrics_update(self, metrics: Dict):
         """دریافت به‌روزرسانی متریک از سیستم مرکزی"""
         try:
