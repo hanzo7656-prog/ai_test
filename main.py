@@ -647,6 +647,9 @@ class CompleteDebugManager:
         
         # آستانه‌های دینامیک
         self.adaptive_thresholds = self._calculate_initial_thresholds()
+
+        # اضافه کن:
+        self._last_metrics_collection = datetime.now()
         
         logger.info("🚀 Complete Debug Manager Initialized")
     
@@ -718,20 +721,21 @@ class CompleteDebugManager:
         while True:
             try:
                 current_time = datetime.now()
+            
+                # بررسی فاصله زمانی - اصلاح شده
+                time_diff = (current_time - self._last_metrics_collection).total_seconds()
+                if time_diff >= self.metrics_collection_interval:
                 
-                # بررسی فاصله زمانی
-                if (current_time - self._last_metrics_collection).total_seconds() >= self.metrics_collection_interval:
-                    
                     # بررسی CPU قبل از جمع‌آوری
                     cpu_before = psutil.cpu_percent(interval=0)
                     if cpu_before > 85:  # اگر CPU خیلی بالا است، صبر کن
                         await asyncio.sleep(10)
                         continue
-                    
+                
                     # جمع‌آوری متریک‌ها
                     metrics = await self._collect_comprehensive_metrics()
                     self.system_metrics_history.append(metrics)
-                    
+                
                     # ذخیره متریک عملکرد
                     self.performance_metrics.append({
                         'timestamp': metrics.timestamp.isoformat(),
@@ -739,23 +743,24 @@ class CompleteDebugManager:
                         'memory': metrics.memory_percent,
                         'response_time': self._calculate_avg_response_time()
                     })
-                    
+                
                     # باطل کردن کش
                     self._invalidate_cache('system_health')
                     self._invalidate_cache('performance_report')
-                    
+                
                     # بررسی هشدارهای سیستم
                     await self._check_system_health_alerts(metrics)
-                    
+                
                     # بروزرسانی آستانه‌های دینامیک
                     self._update_adaptive_thresholds()
-                    
-                    self._last_metrics_collection = current_time
                 
+                    # بروزرسانی زمان آخرین جمع‌آوری - این خط اضافه شد
+                    self._last_metrics_collection = current_time
+            
                 # انتظار تطبیقی
                 sleep_time = self._calculate_adaptive_sleep()
                 await asyncio.sleep(sleep_time)
-                
+            
             except Exception as e:
                 logger.error(f"❌ Metrics collection error: {e}")
                 await asyncio.sleep(30)
@@ -2033,6 +2038,7 @@ async def startup_event():
         # Step 2: راه‌اندازی Debug Manager
         step_start = time.time()
         debug_manager = get_debug_manager()
+        debug_manager.initialize()
         await debug_manager.initialize(event_bus)
         startup_steps.append({
             'step': 'Debug Manager',
