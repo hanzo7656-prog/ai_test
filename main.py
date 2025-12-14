@@ -43,8 +43,13 @@ class SystemMetrics:
 
 class DebugManager:
     def __init__(self):
-        self.endpoint_calls = deque(maxlen=10000)
-        self.system_metrics_history = deque(maxlen=1000)
+        # خواندن محدوده ذخیره تاریخچه از متغیرهای محیطی
+        endpoint_calls_maxlen = int(os.getenv("ENDPOINT_CALLS_MAXLEN", "10000"))
+        system_metrics_maxlen = int(os.getenv("SYSTEM_METRICS_MAXLEN", "1000"))
+        
+        self.endpoint_calls = deque(maxlen=endpoint_calls_maxlen)
+        self.system_metrics_history = deque(maxlen=system_metrics_maxlen)
+        
         self.endpoint_stats = defaultdict(lambda: {
             'total_calls': 0,
             'successful_calls': 0,
@@ -58,13 +63,14 @@ class DebugManager:
         })
         
         self.alerts = []
+        # خواندن تمام آستانه‌ها از متغیرهای محیطی
         self.performance_thresholds = {
-            'response_time_warning': 1.0,
-            'response_time_critical': 3.0,
-            'cpu_warning': 80.0,
-            'cpu_critical': 95.0,
-            'memory_warning': 85.0,
-            'memory_critical': 95.0
+            'response_time_warning': float(os.getenv("RESPONSE_TIME_WARNING", "1.0")),
+            'response_time_critical': float(os.getenv("RESPONSE_TIME_CRITICAL", "3.0")),
+            'cpu_warning': float(os.getenv("CPU_WARNING", "80.0")),
+            'cpu_critical': float(os.getenv("CPU_CRITICAL", "95.0")),
+            'memory_warning': float(os.getenv("MEMORY_WARNING", "85.0")),
+            'memory_critical': float(os.getenv("MEMORY_CRITICAL", "95.0"))
         }
         
         self._connect_to_central_monitor()
@@ -376,22 +382,27 @@ class DebugManager:
                 alert['acknowledged'] = True
                 break
     
-    def clear_old_data(self, days: int = 7):
+    def clear_old_data(self, days: int = None):
         """پاک کردن داده‌های قدیمی"""
+        # استفاده از مقدار پیش‌فرض از env اگر روز مشخص نشده
+        if days is None:
+            days = int(os.getenv("CLEANUP_OLD_DATA_DAYS", "7"))
+    
         cutoff_time = datetime.now() - timedelta(days=days)
-        
+    
+        # پاک‌سازی endpoint_calls
         self.endpoint_calls = deque(
             [call for call in self.endpoint_calls if call.timestamp > cutoff_time],
-            maxlen=10000
+            maxlen=int(os.getenv("ENDPOINT_CALLS_MAXLEN", "10000"))
         )
-        
+    
+        # پاک‌سازی system_metrics_history
         self.system_metrics_history = deque(
             [metrics for metrics in self.system_metrics_history if metrics.timestamp > cutoff_time],
-            maxlen=1000
+            maxlen=int(os.getenv("SYSTEM_METRICS_MAXLEN", "1000"))
         )
-        
+    
         logger.info(f"🧹 Cleared data older than {days} days")
-
 # ایجاد نمونه گلوبال
 debug_manager = DebugManager()
 
@@ -909,20 +920,24 @@ def activate_complete_background_system():
     
     print("🎯 ACTIVATING COMPLETE BACKGROUND WORKER SYSTEM FROM debug_system.tools...")
     
-    # 🎯 **تأخیر مهم**: منتظر بمان تا central_monitor کاملاً فعال شود
-    print("⏳ Waiting 20 seconds for central_monitor to be fully ready...")
+    # 🎯 **تأخیر مهم**: خواندن زمان انتظار از env
+    CENTRAL_MONITOR_WAIT = int(os.getenv("CENTRAL_MONITOR_WAIT", "10"))
+    print(f"⏳ Waiting {CENTRAL_MONITOR_WAIT} seconds for central_monitor to be fully ready...")
     import time
-    time.sleep(20)
+    time.sleep(CENTRAL_MONITOR_WAIT)
     
     # 🎯 بررسی وجود central_monitor قبل از ادامه
     try:
         from debug_system.monitors.system_monitor import central_monitor
         if not central_monitor:
-            print("⚠️ Central monitor still not available, waiting 10 more seconds...")
-            time.sleep(10)
+            # اگر هنوز موجود نیست، کمی بیشتر صبر کنیم
+            EXTRA_WAIT = int(os.getenv("EXTRA_MONITOR_WAIT", "5"))
+            print(f"⚠️ Central monitor still not available, waiting {EXTRA_WAIT} more seconds...")
+            time.sleep(EXTRA_WAIT)
     except ImportError:
-        print("⚠️ Cannot import central_monitor, proceeding with caution...")
-        time.sleep(10)
+        NO_MONITOR_WAIT = int(os.getenv("NO_MONITOR_WAIT", "3"))
+        print(f"⚠️ Cannot import central_monitor, proceeding with caution after {NO_MONITOR_WAIT} seconds...")
+        time.sleep(NO_MONITOR_WAIT)
     
     try:
         # ۱. ایمپورت کامپوننت‌ها از مسیر debug_system.tools
@@ -1607,20 +1622,22 @@ print("=" * 60)
 print("🎯 VORTEXAI - CPU OPTIMIZATION MODE ACTIVATED")
 print("=" * 60)
 
-# تأخیر ۲۰ ثانیه‌ای برای پایدار شدن سیستم
-print("⏳ SYSTEM STABILIZATION: Waiting 20 seconds before server start...")
+# خواندن تأخیر پایدارسازی از env
+FINAL_STABILIZATION_DELAY = int(os.getenv("FINAL_STABILIZATION_DELAY", "10"))
+print(f"⏳ SYSTEM STABILIZATION: Waiting {FINAL_STABILIZATION_DELAY} seconds before server start...")
 import time
-time.sleep(20)
+time.sleep(FINAL_STABILIZATION_DELAY)
 
 print("✅ System stabilization complete - Starting server now")
 print("=" * 60)
 
 # 🔥 اصلاح برای جلوگیری از CPU بالا - اضافه کردن تأخیر هوشمند
 if __name__ != "__main__":  # فقط در حالت import اجرا شود
-    # 🎯 تأخیر ۱۵ ثانیه‌ای قبل از فعال شدن central_monitor
-    print("⏳ Starting 15-second stabilization period before activating monitoring systems...")
+    # 🎯 تأخیر قبل از فعال شدن central_monitor
+    PRE_MONITOR_DELAY = int(os.getenv("PRE_MONITOR_DELAY", "8"))
+    print(f"⏳ Starting {PRE_MONITOR_DELAY}-second stabilization period before activating monitoring systems...")
     import time
-    time.sleep(15)
+    time.sleep(PRE_MONITOR_DELAY)
     
     # 🎯 فعال‌سازی central_monitor با تأخیر
     print("🎯 Delayed initialization of Central Monitoring System...")
@@ -1634,6 +1651,8 @@ if __name__ != "__main__":  # فقط در حالت import اجرا شود
             print("⚠️ Central monitor not available in main.py")
     except Exception as e:
         print(f"⚠️ Central monitor activation in main.py failed: {e}")
+
+
     import uvicorn
     port = int(os.getenv("PORT", 10000))
     
