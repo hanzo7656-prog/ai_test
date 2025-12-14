@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: vortexai-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: INITIAL_STABILIZATION_DELAY
+        value: 3
+      - key: MONITOR_ACTIVATION_DELAY
+        value: 3
+      - key: COMPONENT_CONNECTION_DELAY
+        value: 2
+      - key: AI_STARTUP_DELAY
+        value: 3
+      - key: BACKGROUND_WORKER_DELAY
+        value: 3
+      - key: DEBUG_STARTUP_DELAY
+        value: 2
+      # اختیاری - اگر می‌خواهید کامپوننت‌های خاصی را چک کنید
+      - key: EXPECTED_SUBSCRIBERS
+        value: debug_manager,background_worker,resource_guardian,monitoring_dashboard
