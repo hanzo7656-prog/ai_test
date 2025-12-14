@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - VortexAI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+        .card { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; }
+        .btn:hover { background: #5a67d8; }
+        .links { margin-top: 30px; }
+        .status { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 12px; }
+        .status-running { background: #10b981; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 {{ title }}</h1>
+            <p>Version: {{ version }} | Status: <span class="status status-running">{{ status }}</span></p>
+        </div>
+        
+        <div class="card">
+            <h2>📊 System Information</h2>
+            <p><strong>Total Routes:</strong> {{ total_routes }}</p>
+            <p><strong>Timestamp:</strong> {{ timestamp }}</p>
+        </div>
+        
+        <div class="links">
+            <h2>🔗 Quick Links</h2>
+            <a class="btn" href="/docs" target="_blank">📚 API Documentation</a>
+            <a class="btn" href="/api/health" target="_blank">⚡ Health Check</a>
+            <a class="btn" href="/debug/dashboard" target="_blank">📊 Debug Dashboard</a>
+            <a class="btn" href="/api" target="_blank">🌐 API Root</a>
+        </div>
+        
+        <div class="card">
+            <h3>📞 API Endpoints</h3>
+            <p><code>GET /api</code> - API Root</p>
+            <p><code>GET /api/health</code> - System Health</p>
+            <p><code>GET /api/debug</code> - Debug Information</p>
+            <p><code>GET /api/health/performance</code> - Performance Metrics</p>
+        </div>
+    </div>
+</body>
+</html>
