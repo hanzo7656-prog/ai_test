@@ -1,7 +1,9 @@
+# render.yaml - در ریشه پروژه
 services:
   - type: web
     name: vortexai-api
-    env: python
+    runtime: python
+    region: frankfurt  # یا نزدیک‌ترین به شما
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
@@ -33,14 +35,44 @@ services:
       
       # محدوده داده‌ها
       - key: ENDPOINT_CALLS_MAXLEN
-        value: 10000
+        value: 5000  # کاهش برای Render
       - key: SYSTEM_METRICS_MAXLEN
-        value: 1000
+        value: 500   # کاهش برای Render
       
       # پاک‌سازی
       - key: CLEANUP_OLD_DATA_DAYS
-        value: 7
+        value: 3  # کاهش برای Render
       
-      # پورت (ضروری)
+      # Event Bus تنظیمات
+      - key: EVENT_BUS_QUEUE_SIZE
+        value: 500
+      - key: EVENT_BUS_CPU_THRESHOLD
+        value: 75
+      
+      # Intervalها
+      - key: METRICS_COLLECTION_INTERVAL
+        value: 60
+      - key: CENTRAL_MONITOR_INTERVAL
+        value: 120
+      
+      # پورت (ضروری برای Render)
       - key: PORT
         value: 10000
+      - key: HOST
+        value: 0.0.0.0
+    
+    # منابع سخت‌افزاری
+    plan: free  # یا starter/pro
+    numInstances: 1
+    
+    # تنظیمات advanced
+    healthCheckPath: /api/health
+    autoDeploy: true
+    
+    # Build تنظیمات
+    buildFilter:
+      paths:
+        - src/**
+      ignoredPaths:
+        - tests/**
+        - docs/**
