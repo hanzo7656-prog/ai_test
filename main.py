@@ -750,7 +750,106 @@ app.add_middleware(
 )
 
 
-
+@app.on_event("startup")
+async def startup_background_tasks():
+    """شروع تسک‌های background بعد از راه‌اندازی سرور"""
+    
+    # خواندن تأخیرها از environment variables
+    INITIAL_STABILIZATION_DELAY = int(os.getenv("INITIAL_STABILIZATION_DELAY", "3"))
+    MONITOR_ACTIVATION_DELAY = int(os.getenv("MONITOR_ACTIVATION_DELAY", "3"))
+    COMPONENT_CONNECTION_DELAY = int(os.getenv("COMPONENT_CONNECTION_DELAY", "2"))
+    AI_STARTUP_DELAY = int(os.getenv("AI_STARTUP_DELAY", "3"))
+    BACKGROUND_WORKER_DELAY = int(os.getenv("BACKGROUND_WORKER_DELAY", "3"))
+    
+    print(f"🎯 STARTUP: Waiting {INITIAL_STABILIZATION_DELAY} seconds for initial stability...")
+    await asyncio.sleep(INITIAL_STABILIZATION_DELAY)
+    
+    try:
+        print("🎯 Initializing Central Monitoring System...")
+        
+        # استفاده از metrics_collector و alert_manager از debug_system
+        from debug_system.core import metrics_collector, alert_manager
+        
+        # ایجاد سیستم متمرکز
+        from debug_system.monitors.system_monitor import initialize_central_monitoring
+        central_monitor = initialize_central_monitoring(metrics_collector, alert_manager)
+        
+        # تأخیر قبل از فعال‌سازی مانیتورها
+        print(f"⏳ Waiting {MONITOR_ACTIVATION_DELAY} seconds before activating monitors...")
+        await asyncio.sleep(MONITOR_ACTIVATION_DELAY)
+        
+        # سپس مانیتورینگ را شروع کن
+        central_monitor.start_monitoring()
+        
+        print(f"✅ Central Monitoring System activated with {len(central_monitor.subscribers)} subscribers")
+        
+        # تأخیر برای اتصال کامپوننت‌ها
+        print(f"⏳ Waiting {COMPONENT_CONNECTION_DELAY} seconds for component connections...")
+        await asyncio.sleep(COMPONENT_CONNECTION_DELAY)
+        
+        # تشخیص پویای کامپوننت‌های متصل شده
+        actual_subscribers = list(central_monitor.subscribers.keys())
+        print(f"📊 Actual connected subscribers: {actual_subscribers}")
+        
+        # خواندن لیست expected از env (اختیاری)
+        expected_subscribers_str = os.getenv("EXPECTED_SUBSCRIBERS", "")
+        if expected_subscribers_str:
+            expected_subscribers = [s.strip() for s in expected_subscribers_str.split(",") if s.strip()]
+            missing = [sub for sub in expected_subscribers if sub not in actual_subscribers]
+            
+            if missing:
+                print(f"⚠️ Some expected systems not connected: {missing}")
+            else:
+                print(f"✅ All {len(expected_subscribers)} expected systems connected to central monitor!")
+        else:
+            print("ℹ️ No expected subscribers list configured - using dynamic discovery")
+        
+    except Exception as e:
+        print(f"❌ Central monitoring initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # فعال‌سازی AI Brain با تأخیر پویا
+    print(f"⏳ Waiting {AI_STARTUP_DELAY} seconds before starting AI Brain...")
+    await asyncio.sleep(AI_STARTUP_DELAY)
+    
+    if AI_SYSTEM_AVAILABLE:
+        try:
+            print("🧠 Starting AI Brain system...")
+            await vortex_brain.initialize()
+            print("✅ AI Brain system initialized successfully!")
+        except Exception as e:
+            print(f"❌ AI Brain startup error: {e}")
+    
+    # فعال‌سازی Background Worker با تأخیر پویا
+    print(f"⏳ Waiting {BACKGROUND_WORKER_DELAY} seconds before activating background workers...")
+    await asyncio.sleep(BACKGROUND_WORKER_DELAY)
+    
+    # فعال‌سازی سیستم Background Worker
+    activate_complete_background_system()
+    
+    # فعال‌سازی سیستم دیباگ (اگر موجود باشد)
+    if DEBUG_SYSTEM_AVAILABLE and live_dashboard_manager:
+        try:
+            print("🎯 Starting debug background tasks...")
+            
+            # تأخیر پویا برای دیباگ سیستم
+            DEBUG_STARTUP_DELAY = int(os.getenv("DEBUG_STARTUP_DELAY", "3"))
+            await asyncio.sleep(DEBUG_STARTUP_DELAY)
+            
+            asyncio.create_task(start_dashboard_broadcast())
+            print("✅ Dashboard broadcast task started")
+            
+            asyncio.create_task(periodic_cleanup())
+            print("✅ Periodic cleanup task started")
+            
+        except Exception as e:
+            logger.error(f"❌ Startup background tasks error: {e}")
+    else:
+        print("⚠️ Debug background tasks skipped")
+    
+    print("🎉 System startup completed with optimized delay sequence!")
+    
 @app.on_event("shutdown")
 async def shutdown_cleanup():
     """پاک‌سازی و خاتمه سیستم‌ها"""
