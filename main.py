@@ -2038,7 +2038,6 @@ async def startup_event():
         # Step 2: راه‌اندازی Debug Manager
         step_start = time.time()
         debug_manager = get_debug_manager()
-        debug_manager.initialize()
         await debug_manager.initialize(event_bus)
         startup_steps.append({
             'step': 'Debug Manager',
