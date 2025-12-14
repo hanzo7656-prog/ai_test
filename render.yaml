@@ -5,8 +5,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     envVars:
-      - key: PORT
-        value: 10000
+      # تأخیرهای Startup
       - key: INITIAL_STABILIZATION_DELAY
         value: 3
       - key: MONITOR_ACTIVATION_DELAY
@@ -17,8 +16,31 @@ services:
         value: 3
       - key: BACKGROUND_WORKER_DELAY
         value: 3
-      - key: DEBUG_STARTUP_DELAY
-        value: 2
-      # اختیاری - اگر می‌خواهید کامپوننت‌های خاصی را چک کنید
-      - key: EXPECTED_SUBSCRIBERS
-        value: debug_manager,background_worker,resource_guardian,monitoring_dashboard
+      
+      # آستانه‌های عملکرد
+      - key: RESPONSE_TIME_WARNING
+        value: 1.0
+      - key: RESPONSE_TIME_CRITICAL
+        value: 3.0
+      - key: CPU_WARNING
+        value: 80.0
+      - key: CPU_CRITICAL
+        value: 95.0
+      - key: MEMORY_WARNING
+        value: 85.0
+      - key: MEMORY_CRITICAL
+        value: 95.0
+      
+      # محدوده داده‌ها
+      - key: ENDPOINT_CALLS_MAXLEN
+        value: 10000
+      - key: SYSTEM_METRICS_MAXLEN
+        value: 1000
+      
+      # پاک‌سازی
+      - key: CLEANUP_OLD_DATA_DAYS
+        value: 7
+      
+      # پورت (ضروری)
+      - key: PORT
+        value: 10000
