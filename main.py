@@ -1638,7 +1638,6 @@ if __name__ != "__main__":  # فقط در حالت import اجرا شود
     PRE_MONITOR_DELAY = int(os.getenv("PRE_MONITOR_DELAY", "8"))
     print(f"⏳ Starting {PRE_MONITOR_DELAY}-second stabilization period before activating monitoring systems...")
     import time
-    time.sleep(PRE_MONITOR_DELAY)
     
     # 🎯 فعال‌سازی central_monitor با تأخیر
     print("🎯 Delayed initialization of Central Monitoring System...")
