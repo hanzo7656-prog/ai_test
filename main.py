@@ -1846,13 +1846,13 @@ class PerformanceMiddleware:
         async def send_wrapper(response):
             if response["type"] == "http.response.start":
                 process_time = time.time() - start_time
-                
-                # افزودن headers
-                headers = dict(response.get("headers", []))
+        
+                # درست: headers را به عنوان لیست نگه دار
+                headers = list(response.get("headers", []))  # لیست بماند!
                 headers.append((b"x-process-time", str(process_time).encode()))
                 headers.append((b"x-request-id", request_id.encode()))
-                
-                response["headers"] = headers
+        
+                response["headers"] = headers  # حالا درست است
                 
                 # ثبت در Debug Manager
                 try:
