@@ -27,35 +27,17 @@ class SystemMonitor:
             'temperature_critical': 90.0
         }
         
-        # 🚨 غیرفعال کردن حلقه تکراری - استفاده از سیستم متمرکز
-        self.health_check_running = False
-        # self._start_system_health_check()  # کامنت شده - استفاده از central_monitor
-        
-        # ثبت در سیستم متمرکز
+        # عضویت در central_monitor
         global central_monitor
         if central_monitor:
             central_monitor.subscribe("system_monitor", self._on_metrics_update)
             logger.info("✅ SystemMonitor subscribed to central_monitor")
         else:
-            logger.warning("⚠️ Central monitor not available, starting fallback monitoring")
-            self._start_fallback_monitoring()
-
-    def _start_fallback_monitoring(self):
-        """فقط به عنوان fallback اگر central_monitor موجود نباشد"""
-        def health_check_loop():
-            self.health_check_running = True
-            while self.health_check_running:
-                try:
-                    metrics = self.metrics_collector.get_current_metrics()
-                    self._perform_health_check_with_metrics(metrics)
-                    time.sleep(60)  # هر 60 ثانیه در حالت fallback
-                except Exception as e:
-                    logger.error(f"❌ Fallback health check error: {e}")
-                    time.sleep(60)
+            logger.warning("⚠️ Central monitor not available - system monitor will be passive")
         
-        monitor_thread = threading.Thread(target=health_check_loop, daemon=True)
-        monitor_thread.start()
-        logger.info("🔄 System fallback monitoring started (60s interval)")
+        # کش برای جلوگیری از duplicate alerts
+        self.alert_cache = {}
+        self.cache_ttl = 60  # 60 seconds
 
     def _on_metrics_update(self, metrics: Dict[str, Any]):
         """دریافت متریک‌ها از سیستم مرکزی"""
@@ -72,79 +54,153 @@ class SystemMonitor:
     def _perform_health_check_with_metrics(self, metrics: Dict[str, Any]):
         """انجام چک سلامت با متریک‌های داده شده"""
         try:
-            # Import مستقیم Enumها برای جلوگیری از circular import
+            # Import مستقیم Enumها
             from debug_system.core.alert_manager import AlertLevel, AlertType
             
             # بررسی CPU
             cpu_usage = metrics.get('cpu', {}).get('percent', 0)
-            if cpu_usage > self.system_thresholds['cpu_critical']:
-                self._create_alert_sync(
-                    level=AlertLevel.CRITICAL,
-                    alert_type=AlertType.SYSTEM,
-                    title="High CPU Usage",
-                    message=f"CPU usage is critically high: {cpu_usage}%",
-                    source="system_monitor",
-                    data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
-                )
-            elif cpu_usage > self.system_thresholds['cpu_warning']:
-                self._create_alert_sync(
-                    level=AlertLevel.WARNING,
-                    alert_type=AlertType.SYSTEM,
-                    title="High CPU Usage",
-                    message=f"CPU usage is high: {cpu_usage}%",
-                    source="system_monitor",
-                    data={'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_warning']}
-                )
-
+            self._check_cpu_health(cpu_usage, metrics)
+            
             # بررسی حافظه
             memory_usage = metrics.get('memory', {}).get('percent', 0)
-            if memory_usage > self.system_thresholds['memory_critical']:
-                self._create_alert_sync(
-                    level=AlertLevel.CRITICAL,
-                    alert_type=AlertType.SYSTEM,
-                    title="High Memory Usage",
-                    message=f"Memory usage is critically high: {memory_usage}%",
-                    source="system_monitor",
-                    data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
-                )
-            elif memory_usage > self.system_thresholds['memory_warning']:
-                self._create_alert_sync(
-                    level=AlertLevel.WARNING,
-                    alert_type=AlertType.SYSTEM,
-                    title="High Memory Usage", 
-                    message=f"Memory usage is high: {memory_usage}%",
-                    source="system_monitor",
-                    data={'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_warning']}
-                )
-
+            self._check_memory_health(memory_usage, metrics)
+            
             # بررسی دیسک
             disk_usage = metrics.get('disk', {}).get('usage_percent', 0)
-            if disk_usage > self.system_thresholds['disk_critical']:
-                self._create_alert_sync(
-                    level=AlertLevel.CRITICAL,
-                    alert_type=AlertType.SYSTEM,
-                    title="High Disk Usage",
-                    message=f"Disk usage is critically high: {disk_usage}%",
-                    source="system_monitor", 
-                    data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
-                )
-            elif disk_usage > self.system_thresholds['disk_warning']:
-                self._create_alert_sync(
-                    level=AlertLevel.WARNING,
-                    alert_type=AlertType.SYSTEM,
-                    title="High Disk Usage",
-                    message=f"Disk usage is high: {disk_usage}%",
-                    source="system_monitor",
-                    data={'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_warning']}
-                )
-
+            self._check_disk_health(disk_usage, metrics)
+            
+            # بررسی دما (اگر موجود باشد)
+            temperature = metrics.get('system', {}).get('temperature')
+            if temperature:
+                self._check_temperature(temperature, metrics)
+                
         except Exception as e:
             logger.error(f"❌ Error in system health check: {e}")
 
+    def _check_cpu_health(self, cpu_usage: float, metrics: Dict):
+        """بررسی سلامت CPU با cache"""
+        alert_key = f"cpu_{int(cpu_usage // 10)}"
+        
+        # بررسی cache برای جلوگیری از duplicate alerts
+        if self._is_cached_alert(alert_key):
+            return
+        
+        if cpu_usage > self.system_thresholds['cpu_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical CPU Usage",
+                f"CPU usage is critically high: {cpu_usage:.1f}%",
+                "system_monitor",
+                {'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
+            )
+        elif cpu_usage > self.system_thresholds['cpu_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High CPU Usage",
+                f"CPU usage is high: {cpu_usage:.1f}%",
+                "system_monitor",
+                {'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_warning']}
+            )
+
+    def _check_memory_health(self, memory_usage: float, metrics: Dict):
+        """بررسی سلامت Memory با cache"""
+        alert_key = f"memory_{int(memory_usage // 10)}"
+        
+        if self._is_cached_alert(alert_key):
+            return
+            
+        if memory_usage > self.system_thresholds['memory_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical Memory Usage",
+                f"Memory usage is critically high: {memory_usage:.1f}%",
+                "system_monitor",
+                {'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
+            )
+        elif memory_usage > self.system_thresholds['memory_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High Memory Usage", 
+                f"Memory usage is high: {memory_usage:.1f}%",
+                "system_monitor",
+                {'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_warning']}
+            )
+
+    def _check_disk_health(self, disk_usage: float, metrics: Dict):
+        """بررسی سلامت Disk با cache"""
+        alert_key = f"disk_{int(disk_usage // 10)}"
+        
+        if self._is_cached_alert(alert_key):
+            return
+        
+        if disk_usage > self.system_thresholds['disk_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical Disk Usage",
+                f"Disk usage is critically high: {disk_usage:.1f}%",
+                "system_monitor", 
+                {'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
+            )
+        elif disk_usage > self.system_thresholds['disk_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High Disk Usage",
+                f"Disk usage is high: {disk_usage:.1f}%",
+                "system_monitor",
+                {'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_warning']}
+            )
+
+    def _check_temperature(self, temperature: Dict, metrics: Dict):
+        """بررسی دمای سیستم"""
+        current_temp = temperature.get('current', 0)
+        
+        if current_temp > self.system_thresholds['temperature_critical']:
+            self._create_alert_sync(
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical Temperature",
+                f"System temperature critically high: {current_temp:.1f}°C",
+                "system_monitor",
+                {'temperature': current_temp, 'threshold': self.system_thresholds['temperature_critical']}
+            )
+        elif current_temp > self.system_thresholds['temperature_warning']:
+            self._create_alert_sync(
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High Temperature",
+                f"System temperature high: {current_temp:.1f}°C",
+                "system_monitor",
+                {'temperature': current_temp, 'threshold': self.system_thresholds['temperature_warning']}
+            )
+
+    def _is_cached_alert(self, alert_key: str) -> bool:
+        """بررسی آیا alert در cache است"""
+        if alert_key in self.alert_cache:
+            cache_time = self.alert_cache[alert_key]
+            if (datetime.now() - cache_time).total_seconds() < self.cache_ttl:
+                return True
+        return False
+
+    def _create_cached_alert(self, alert_key: str, level, alert_type, title, message, source, data):
+        """ایجاد alert با cache"""
+        self.alert_cache[alert_key] = datetime.now()
+        self._create_alert_sync(level, alert_type, title, message, source, data)
+
     def _create_alert_sync(self, level, alert_type, title, message, source, data):
-        """ایجاد هشدار به صورت کاملاً synchronous"""
+        """ایجاد هشدار به صورت synchronous"""
         try:
-            # ایجاد هشدار به صورت مستقیم
             alert_result = self.alert_manager.create_alert(
                 level=level,
                 alert_type=alert_type,
@@ -155,17 +211,12 @@ class SystemMonitor:
             )
             
             if alert_result:
-                logger.info(f"🚨 Alert created: {title}")
+                logger.info(f"🚨 System alert created: {title}")
             else:
-                logger.debug(f"⚠️ Alert was not created (might be in cooldown): {title}")
+                logger.debug(f"⚠️ System alert was not created (might be in cooldown): {title}")
                 
         except Exception as e:
-            logger.error(f"❌ Error creating alert: {e}")
-
-    def stop_health_check(self):
-        """توقف چک سلامت سیستم"""
-        self.health_check_running = False
-        logger.info("🛑 System health monitoring stopped")
+            logger.error(f"❌ Error creating system alert: {e}")
 
     def get_system_health(self) -> Dict[str, Any]:
         """دریافت سلامت کلی سیستم"""
