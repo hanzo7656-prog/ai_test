@@ -23,6 +23,47 @@ class WebSocketManager:
         self.message_handlers = {}
         self._initialize_handlers()
         
+        # بهینه‌سازی: connection groups
+        self.connection_groups = defaultdict(list)
+        
+        # اتصال به central_monitor
+        self._connect_to_central_monitor()
+        
+        logger.info("✅ WebSocket Manager Initialized - Optimized")
+    
+    def _connect_to_central_monitor(self):
+        """اتصال به central_monitor برای broadcast messages"""
+        try:
+            from ..core.system_monitor import central_monitor
+            
+            if central_monitor:
+                # عضویت برای دریافت broadcast messages
+                central_monitor.subscribe("websocket_manager", self._on_broadcast_message)
+                logger.info("✅ WebSocketManager subscribed to central_monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available - WebSocket will work independently")
+                
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor - WebSocket will work independently")
+        except Exception as e:
+            logger.error(f"❌ Error connecting to central_monitor: {e}")
+    
+    def _on_broadcast_message(self, message_data: Dict[str, Any]):
+        """دریافت broadcast message از central_monitor"""
+        try:
+            message_type = message_data.get('type', 'broadcast')
+            
+            # ارسال به group مناسب
+            if message_type == 'system_metrics':
+                await self.broadcast_message(message_data, client_type='dashboard')
+            elif message_type == 'alert':
+                await self.broadcast_message(message_data)
+            elif message_type == 'debug_log':
+                await self.broadcast_message(message_data, client_type='debug_console')
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing broadcast message: {e}")
+    
     def _initialize_handlers(self):
         """مقداردهی اولیه هندلرهای پیام"""
         self.message_handlers = {
@@ -42,6 +83,9 @@ class WebSocketManager:
             'last_activity': datetime.now().isoformat()
         }
         
+        # اضافه به group
+        self.connection_groups[client_type].append(client_id)
+        
         logger.info(f"🔌 WebSocket client connected: {client_id} ({client_type})")
         
         # ارسال پیام خوش‌آمدگویی
@@ -58,7 +102,13 @@ class WebSocketManager:
         """قطع ارتباط کلاینت"""
         if client_id in self.connection_pool:
             client_info = self.connection_pool.pop(client_id)
-            logger.info(f"🔌 WebSocket client disconnected: {client_id} ({client_info['client_type']})")
+            client_type = client_info['client_type']
+            
+            # حذف از group
+            if client_id in self.connection_groups[client_type]:
+                self.connection_groups[client_type].remove(client_id)
+            
+            logger.info(f"🔌 WebSocket client disconnected: {client_id} ({client_type})")
     
     async def handle_messages(self, client_id: str):
         """مدیریت پیام‌های دریافتی از کلاینت"""
@@ -148,19 +198,37 @@ class WebSocketManager:
         """ارسال پیام به تمام کلاینت‌ها یا نوع خاصی از کلاینت‌ها"""
         message['timestamp'] = datetime.now().isoformat()
         
+        # تعیین target clients
+        target_clients = []
+        
+        if client_type:
+            # فقط clients از type خاص
+            target_clients = self.connection_groups.get(client_type, [])
+        else:
+            # تمام clients
+            target_clients = list(self.connection_pool.keys())
+        
+        if not target_clients:
+            return
+        
+        # ارسال به groups
+        await self._send_to_clients(target_clients, message)
+    
+    async def _send_to_clients(self, client_ids: List[str], message: Dict[str, Any]):
+        """ارسال پیام به لیستی از clients"""
+        message_json = json.dumps(message)
         disconnected_clients = []
         
-        for client_id, client_info in self.connection_pool.items():
-            if client_type and client_info['client_type'] != client_type:
-                continue
-            
-            try:
-                await self.send_message(client_id, message)
-            except Exception as e:
-                logger.error(f"❌ Broadcast error for {client_id}: {e}")
-                disconnected_clients.append(client_id)
+        for client_id in client_ids:
+            if client_id in self.connection_pool:
+                try:
+                    websocket = self.connection_pool[client_id]['websocket']
+                    await websocket.send_text(message_json)
+                except Exception as e:
+                    logger.error(f"❌ Broadcast error for {client_id}: {e}")
+                    disconnected_clients.append(client_id)
         
-        # حذف کلاینت‌های قطع شده
+        # حذف clients قطع شده
         for client_id in disconnected_clients:
             self.disconnect(client_id)
     
@@ -209,6 +277,7 @@ class WebSocketManager:
         return {
             'total_connections': len(self.connection_pool),
             'connections_by_type': dict(client_types),
+            'connection_groups': {k: len(v) for k, v in self.connection_groups.items()},
             'timestamp': datetime.now().isoformat()
         }
     
