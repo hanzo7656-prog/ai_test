@@ -41,6 +41,97 @@ class SecurityMonitor:
             'api': {'limit': 1000, 'window': 300}     # 1000 API calls per 5 minutes
         }
 
+        # اتصال به central_monitor برای دریافت alerts
+        self._connect_to_central_monitor()
+        
+        logger.info("✅ Security Monitor Initialized - Central Monitor Connected")
+
+    def _connect_to_central_monitor(self):
+        """اتصال به central_monitor برای دریافت security alerts"""
+        try:
+            from .system_monitor import central_monitor
+            
+            if central_monitor:
+                # عضویت برای دریافت security-related metrics
+                central_monitor.subscribe("security_monitor", self._on_security_metrics_received)
+                logger.info("✅ SecurityMonitor subscribed to central_monitor")
+                
+                # عضویت برای security alerts
+                central_monitor.subscribe("security_monitor_alerts", self._on_security_alert_received)
+                logger.info("✅ SecurityMonitor subscribed to security alerts")
+            else:
+                logger.warning("⚠️ Central monitor not available - security monitor will work independently")
+                
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor - security monitor will work independently")
+        except Exception as e:
+            logger.error(f"❌ Error connecting to central_monitor: {e}")
+
+    def _on_security_metrics_received(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌های مرتبط با امنیت"""
+        try:
+            # می‌توانیم network metrics را برای تحلیل امنیتی استفاده کنیم
+            network_metrics = metrics.get('system', {}).get('network', {})
+            connections = network_metrics.get('connections', 0)
+            
+            # اگر connections غیرعادی زیاد باشد
+            if connections > 1000:
+                self._check_ddos_potential(connections, metrics)
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing security metrics: {e}")
+
+    def _on_security_alert_received(self, alert_data: Dict[str, Any]):
+        """دریافت security alerts از central_monitor"""
+        try:
+            # فقط لاگ کن
+            logger.info(f"🛡️ Received security alert: {alert_data.get('title', 'No title')}")
+            
+            # اگر alert مربوط به IP blocking باشد
+            if 'ip_address' in alert_data.get('data', {}):
+                ip = alert_data['data']['ip_address']
+                if alert_data.get('level') == 'CRITICAL':
+                    self.add_to_blacklist(ip)
+                    
+        except Exception as e:
+            logger.error(f"❌ Error processing security alert: {e}")
+
+    def _check_ddos_potential(self, connections: int, metrics: Dict):
+        """بررسی potential DDoS attack"""
+        try:
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            if connections > 5000:
+                self.alert_manager.create_alert(
+                    level=AlertLevel.CRITICAL,
+                    alert_type=AlertType.SECURITY,
+                    title="Potential DDoS Attack Detected",
+                    message=f"异常大量的连接数: {connections} - 可能遭受DDoS攻击",
+                    source="security_monitor",
+                    data={
+                        'connections': connections,
+                        'threshold': 5000,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                )
+            elif connections > 2000:
+                self.alert_manager.create_alert(
+                    level=AlertLevel.WARNING,
+                    alert_type=AlertType.SECURITY,
+                    title="High Connection Count",
+                    message=f"连接数异常高: {connections} - 请监控系统活动",
+                    source="security_monitor",
+                    data={
+                        'connections': connections,
+                        'threshold': 2000,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking DDoS potential: {e}")
+
+    # بقیه متدها بدون تغییر (مثل قبل)
     def analyze_request(self, request_data: Dict) -> Dict[str, Any]:
         """آنالیز امنیتی درخواست"""
         security_analysis = {
