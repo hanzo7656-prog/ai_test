@@ -21,7 +21,125 @@ class PerformanceMonitor:
         }
         
         self.performance_history = deque(maxlen=1000)
-
+        
+        # اتصال به central_monitor
+        self._connect_to_central_monitor()
+        
+        logger.info("✅ Performance Monitor Initialized - Central Monitor Connected")
+    
+    def _connect_to_central_monitor(self):
+        """اتصال به central_monitor برای دریافت متریک‌های real-time"""
+        try:
+            from .system_monitor import central_monitor
+            
+            if central_monitor:
+                # عضویت برای دریافت متریک‌های سیستم
+                central_monitor.subscribe("performance_monitor", self._on_system_metrics_received)
+                logger.info("✅ PerformanceMonitor subscribed to central_monitor")
+                
+                # عضویت برای آلرت‌های performance
+                central_monitor.subscribe("performance_monitor_alerts", self._on_performance_alert)
+                logger.info("✅ PerformanceMonitor subscribed to performance alerts")
+            else:
+                logger.warning("⚠️ Central monitor not available - using debug_manager only")
+                
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor - using debug_manager only")
+        except Exception as e:
+            logger.error(f"❌ Error connecting to central_monitor: {e}")
+    
+    def _on_system_metrics_received(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌های سیستم از central_monitor"""
+        try:
+            system_metrics = metrics.get('system', {})
+            cpu_usage = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = system_metrics.get('memory', {}).get('percent', 0)
+            
+            # بررسی performance thresholds
+            self._check_system_performance(cpu_usage, memory_usage)
+            
+            # ذخیره در تاریخچه
+            self.performance_history.append({
+                'timestamp': datetime.now(),
+                'cpu_usage': cpu_usage,
+                'memory_usage': memory_usage,
+                'source': 'central_monitor'
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing system metrics: {e}")
+    
+    def _on_performance_alert(self, alert_data: Dict[str, Any]):
+        """دریافت آلرت‌های performance"""
+        try:
+            # فقط لاگ کن، آلرت تکراری ایجاد نکن
+            logger.info(f"📨 Received performance alert: {alert_data.get('title', 'No title')}")
+        except Exception as e:
+            logger.error(f"❌ Error processing performance alert: {e}")
+    
+    def _check_system_performance(self, cpu_usage: float, memory_usage: float):
+        """بررسی performance سیستم"""
+        try:
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            # بررسی CPU
+            if cpu_usage > 90:
+                self._create_performance_alert(
+                    AlertLevel.CRITICAL,
+                    "Critical CPU Performance",
+                    f"CPU usage critically high: {cpu_usage:.1f}% - System performance degraded",
+                    "performance_monitor",
+                    {'cpu_usage': cpu_usage, 'threshold': 90}
+                )
+            elif cpu_usage > 80:
+                self._create_performance_alert(
+                    AlertLevel.WARNING,
+                    "High CPU Usage",
+                    f"CPU usage high: {cpu_usage:.1f}% - Monitor system performance",
+                    "performance_monitor",
+                    {'cpu_usage': cpu_usage, 'threshold': 80}
+                )
+            
+            # بررسی Memory
+            if memory_usage > 90:
+                self._create_performance_alert(
+                    AlertLevel.CRITICAL,
+                    "Critical Memory Performance",
+                    f"Memory usage critically high: {memory_usage:.1f}% - System performance degraded",
+                    "performance_monitor",
+                    {'memory_usage': memory_usage, 'threshold': 90}
+                )
+            elif memory_usage > 85:
+                self._create_performance_alert(
+                    AlertLevel.WARNING,
+                    "High Memory Usage",
+                    f"Memory usage high: {memory_usage:.1f}% - Monitor system performance",
+                    "performance_monitor",
+                    {'memory_usage': memory_usage, 'threshold': 85}
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking system performance: {e}")
+    
+    def _create_performance_alert(self, level, title, message, source, data):
+        """ایجاد آلرت performance"""
+        try:
+            alert_result = self.alert_manager.create_alert(
+                level=level,
+                alert_type='PERFORMANCE',
+                title=title,
+                message=message,
+                source=source,
+                data=data
+            )
+            
+            if alert_result:
+                logger.info(f"⚡ Performance alert created: {title}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating performance alert: {e}")
+    
+    # بقیه متدها بدون تغییر (مثل قبل)
     def analyze_endpoint_performance(self, endpoint: str = None) -> Dict[str, Any]:
         """آنالیز عملکرد اندپوینت"""
         try:
@@ -225,7 +343,7 @@ class PerformanceMonitor:
             if norm_success_rate < 90:
                 bottlenecks.append({
                     'type': 'normalization_reliability',
-                    'severity': 'high' if norm_success_rate < 80 else 'medium',
+                    'severity': 'high' if norm_success_rate < 80 else 'medium,
                     'message': f'Normalization success rate {norm_success_rate:.1f}% is low',
                     'suggestion': 'Review data normalization rules and error handling'
                 })
