@@ -34,8 +34,64 @@ class EndpointMonitor:
             'last_check': None
         })
         
-        logger.info("✅ Endpoint Monitor Initialized - With Data Quality Tracking")
+        # اتصال به central_monitor برای دریافت metrics
+        self._connect_to_central_monitor()
         
+        logger.info("✅ Endpoint Monitor Initialized - Central Monitor Connected")
+        
+    def _connect_to_central_monitor(self):
+        """اتصال به central_monitor برای دریافت متریک‌های endpoint"""
+        try:
+            from .system_monitor import central_monitor
+            
+            if central_monitor:
+                # عضویت برای دریافت متریک‌های سیستم (برای context)
+                central_monitor.subscribe("endpoint_monitor", self._on_system_metrics_received)
+                logger.info("✅ EndpointMonitor subscribed to central_monitor")
+            else:
+                logger.warning("⚠️ Central monitor not available - endpoint monitor will use debug_manager only")
+                
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor - endpoint monitor will use debug_manager only")
+        except Exception as e:
+            logger.error(f"❌ Error connecting to central_monitor: {e}")
+    
+    def _on_system_metrics_received(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌های سیستم از central_monitor"""
+        try:
+            # می‌توانیم از system metrics برای context استفاده کنیم
+            system_metrics = metrics.get('system', {})
+            cpu_usage = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = system_metrics.get('memory', {}).get('percent', 0)
+            
+            # اگر سیستم تحت فشار است، endpoint performance را بررسی کن
+            if cpu_usage > 80 or memory_usage > 85:
+                self._check_endpoint_performance_under_load()
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing system metrics: {e}")
+    
+    def _check_endpoint_performance_under_load(self):
+        """بررسی performance endpointها در زمان load بالا"""
+        try:
+            # فقط sample checking - برای جلوگیری از overload
+            endpoint_stats = self.debug_manager.get_endpoint_stats()
+            
+            slow_endpoints = []
+            for endpoint, stats in endpoint_stats.get('endpoints', {}).items():
+                if stats.get('average_response_time', 0) > 2.0:  # بیش از 2 ثانیه
+                    slow_endpoints.append({
+                        'endpoint': endpoint,
+                        'response_time': stats['average_response_time']
+                    })
+            
+            if slow_endpoints:
+                logger.warning(f"⚠️ {len(slow_endpoints)} endpoints are slow under high system load")
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking endpoint performance: {e}")
+
+    # بقیه متدها بدون تغییر (مثل قبل)
     def monitor_endpoint(self, endpoint_name: str, method: str = "GET"):
         """دکوراتور برای مانیتورینگ اندپوینت"""
         def decorator(func):
@@ -81,7 +137,7 @@ class EndpointMonitor:
                         status_code=status_code,
                         cache_used=cache_used,
                         api_calls=api_calls,
-                        normalization_info=normalization_info  # ✅ اضافه شد
+                        normalization_info=normalization_info
                     )
                     
                     # آپدیت آمار کیفیت نرمال‌سازی
@@ -180,7 +236,7 @@ class EndpointMonitor:
                 'success_rate': stats['success_rate'],
                 'cache_hit_rate': stats['cache_performance']['hit_rate']
             },
-            'data_quality': {  # ✅ اضافه شد
+            'data_quality': {
                 'normalization_success_rate': stats.get('normalization_performance', {}).get('success_rate', 0),
                 'avg_quality_score': quality_info.get('avg_quality_score', 0),
                 'structure_patterns': dict(quality_info.get('structure_patterns', {})),
@@ -205,7 +261,7 @@ class EndpointMonitor:
                     'average_response_time': stats['average_response_time'],
                     'success_rate': stats['success_rate']
                 },
-                'data_quality': {  # ✅ اضافه شد
+                'data_quality': {
                     'normalization_success_rate': stats.get('normalization_performance', {}).get('success_rate', 0),
                     'avg_quality_score': quality_info.get('avg_quality_score', 0),
                     'quality_level': self._assess_data_quality_level(quality_info)
@@ -219,7 +275,7 @@ class EndpointMonitor:
             'overall_health': self._calculate_overall_health(health_report),
             'endpoints': health_report,
             'total_endpoints': len(health_report),
-            'data_normalization_overview': {  # ✅ اضافه شد
+            'data_normalization_overview': {
                 'system_success_rate': normalization_metrics.success_rate,
                 'total_processed': normalization_metrics.total_processed,
                 'common_structures': normalization_metrics.common_structures,
@@ -253,7 +309,7 @@ class EndpointMonitor:
         cache_hit_rate = stats.get('cache_performance', {}).get('hit_rate', 0)
         score += (cache_hit_rate / 100) * 15
         
-        # امتیاز بر اساس کیفیت داده نرمال‌سازی (20%) ✅ اضافه شد
+        # امتیاز بر اساس کیفیت داده نرمال‌سازی (20%)
         norm_performance = stats.get('normalization_performance', {})
         norm_success_rate = norm_performance.get('success_rate', 100)
         score += (norm_success_rate / 100) * 20
@@ -339,7 +395,7 @@ class EndpointMonitor:
             if call['cache_used']:
                 ep['cache_hits'] += 1
             
-            # آمار نرمال‌سازی ✅ اضافه شد
+            # آمار نرمال‌سازی
             norm_info = call.get('normalization_info', {})
             if norm_info.get('status') == 'error':
                 ep['normalization_errors'] += 1
@@ -354,7 +410,7 @@ class EndpointMonitor:
                 'average_response_time': data['total_time'] / total_calls if total_calls > 0 else 0,
                 'error_rate': (data['errors'] / total_calls * 100) if total_calls > 0 else 0,
                 'cache_hit_rate': (data['cache_hits'] / total_calls * 100) if total_calls > 0 else 0,
-                'normalization_performance': {  # ✅ اضافه شد
+                'normalization_performance': {
                     'error_rate': (data['normalization_errors'] / total_calls * 100) if total_calls > 0 else 0,
                     'avg_quality_score': (data['total_quality_score'] / total_calls) if total_calls > 0 else 0
                 }
@@ -367,7 +423,7 @@ class EndpointMonitor:
             'time_period_hours': hours,
             'total_calls': len(filtered_calls),
             'endpoint_performance': report,
-            'system_normalization_metrics': {  # ✅ اضافه شد
+            'system_normalization_metrics': {
                 'success_rate': system_norm_metrics.success_rate,
                 'total_processed': system_norm_metrics.total_processed,
                 'data_quality': system_norm_metrics.data_quality
@@ -408,7 +464,7 @@ class EndpointMonitor:
                     'message': f'Cache hit rate {cache_hit_rate}% is low'
                 })
             
-            # بررسی مشکلات نرمال‌سازی ✅ اضافه شد
+            # بررسی مشکلات نرمال‌سازی
             norm_perf = stats.get('normalization_performance', {})
             if norm_perf.get('success_rate', 100) < 90:
                 issues.append({
