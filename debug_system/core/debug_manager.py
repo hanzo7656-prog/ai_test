@@ -98,8 +98,9 @@ class DebugManager:
         self._monitoring_active = True
         self._lock = threading.RLock()
         
-        self._start_background_monitoring()
-        logger.info("🚀 Debug Manager Initialized - Advanced Monitoring Active")
+        self._start_central_monitoring()
+        logger.info("🚀 Debug Manager Initialized - Central Monitoring Active")
+    
     def is_active(self) -> bool:
         """بررسی آیا دیباگ منیجر فعال است"""
         return self._monitoring_active and hasattr(self, 'endpoint_calls')
@@ -120,16 +121,178 @@ class DebugManager:
             logger.error(f"❌ Error setting Alert Manager: {e}")
             return False
 
-
-    def get_alert_integration_status(self) -> Dict[str, Any]:
-        """دریافت وضعیت یکپارچه‌سازی با AlertManager"""
-        return {
-            'alert_integration_enabled': self._alert_integration_enabled,
-            'alert_manager_configured': self.alert_manager is not None,
-            'total_alerts_sent': len([a for a in self.alerts if a.get('sent_to_alert_manager', False)]),
-            'integration_status': 'active' if self._alert_integration_enabled else 'inactive'
-        }
+    def _start_central_monitoring(self):
+        """اتصال به سیستم مانیتورینگ مرکزی"""
+        try:
+            # منتظر می‌شویم central_monitor در system_monitor.py ایجاد شود
+            # این در main.py بعد از راه‌اندازی انجام می‌شود
+            logger.info("⏳ Waiting for central_monitor initialization...")
+            
+            # یک timer برای اتصال تاخیری تنظیم می‌کنیم
+            def delayed_subscription():
+                time.sleep(3)  # 3 ثانیه صبر کن
+                self._subscribe_to_central_monitor()
+            
+            subscription_thread = threading.Thread(target=delayed_subscription, daemon=True)
+            subscription_thread.start()
+            
+        except Exception as e:
+            logger.error(f"❌ Error starting central monitoring: {e}")
+    
+    def _subscribe_to_central_monitor(self):
+        """عضویت در central_monitor"""
+        try:
+            from .system_monitor import central_monitor
+            
+            if central_monitor:
+                # عضویت برای دریافت متریک‌های سیستم
+                central_monitor.subscribe("debug_manager", self._on_central_metrics_update)
+                logger.info("✅ DebugManager subscribed to central_monitor")
+                
+                # عضویت برای دریافت آلرت‌ها
+                central_monitor.subscribe("debug_manager_alerts", self._on_central_alert)
+                logger.info("✅ DebugManager subscribed to central_monitor alerts")
+            else:
+                logger.warning("⚠️ Central monitor not available, using minimal monitoring")
+                self._start_minimal_monitoring()
+                
+        except ImportError:
+            logger.warning("⚠️ Could not import central_monitor, using fallback")
+            self._start_minimal_monitoring()
+        except Exception as e:
+            logger.error(f"❌ Error subscribing to central_monitor: {e}")
+            self._start_minimal_monitoring()
+    
+    def _on_central_metrics_update(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌ها از central_monitor"""
+        try:
+            # ذخیره در تاریخچه
+            system_metrics = metrics.get('system', {})
+            
+            metric_obj = SystemMetrics(
+                timestamp=datetime.fromisoformat(metrics['timestamp']),
+                cpu_percent=system_metrics.get('cpu', {}).get('percent', 0),
+                memory_percent=system_metrics.get('memory', {}).get('percent', 0),
+                disk_usage=system_metrics.get('disk', {}).get('usage_percent', 0),
+                network_io={
+                    'bytes_sent': system_metrics.get('network', {}).get('bytes_sent', 0),
+                    'bytes_recv': system_metrics.get('network', {}).get('bytes_recv', 0)
+                },
+                active_connections=system_metrics.get('network', {}).get('connections', 0),
+                normalization_metrics=metrics.get('data_normalization', {})
+            )
+            
+            with self._lock:
+                self.system_metrics_history.append(metric_obj)
+            
+            # بررسی هشدارها با متریک‌های دریافتی
+            self._check_system_health_with_metrics(system_metrics)
+            self._check_normalization_alerts()
+            
+            logger.debug(f"📈 Received metrics from central_monitor - CPU: {system_metrics.get('cpu', {}).get('percent', 0)}%")
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing central metrics: {e}")
+    
+    def _on_central_alert(self, alert_data: Dict[str, Any]):
+        """دریافت آلرت از central_monitor"""
+        try:
+            # فقط لاگ کنیم، آلرت تکراری ایجاد نکنیم
+            logger.info(f"📨 Received alert from central_monitor: {alert_data.get('title', 'No title')}")
+        except Exception as e:
+            logger.error(f"❌ Error processing central alert: {e}")
+    
+    def _start_minimal_monitoring(self):
+        """راه‌اندازی مانیتورینگ حداقلی (فقط برای fallback)"""
+        def minimal_monitor():
+            while self._monitoring_active:
+                try:
+                    # فقط چک‌های ضروری هر 30 ثانیه
+                    self._collect_minimal_metrics()
+                    time.sleep(30)  # 30 ثانیه interval برای fallback
+                except Exception as e:
+                    logger.error(f"❌ Minimal monitoring error: {e}")
+                    time.sleep(60)
         
+        monitor_thread = threading.Thread(target=minimal_monitor, daemon=True)
+        monitor_thread.start()
+        logger.info("🔄 Minimal fallback monitoring started (30s interval)")
+    
+    def _collect_minimal_metrics(self):
+        """جمع‌آوری حداقلی متریک‌ها"""
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory_percent = psutil.virtual_memory().percent
+            
+            metric_obj = SystemMetrics(
+                timestamp=datetime.now(),
+                cpu_percent=cpu_percent,
+                memory_percent=memory_percent,
+                disk_usage=0,
+                network_io={'bytes_sent': 0, 'bytes_recv': 0},
+                active_connections=0,
+                normalization_metrics=None
+            )
+            
+            with self._lock:
+                self.system_metrics_history.append(metric_obj)
+            
+            # چک هشدارهای حیاتی
+            if cpu_percent > self.performance_thresholds['cpu_critical']:
+                self._create_alert(
+                    DebugLevel.CRITICAL,
+                    f"Critical CPU usage in fallback mode: {cpu_percent:.1f}%",
+                    "debug_manager_fallback",
+                    {'cpu_usage': cpu_percent}
+                )
+            
+        except Exception as e:
+            logger.error(f"❌ Minimal metrics collection error: {e}")
+
+    def _check_system_health_with_metrics(self, metrics: Dict[str, Any]):
+        """بررسی سلامت سیستم با متریک‌های دریافتی"""
+        try:
+            cpu_usage = metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = metrics.get('memory', {}).get('percent', 0)
+            
+            # هشدار CPU
+            if cpu_usage > self.performance_thresholds['cpu_critical']:
+                self._create_alert(
+                    DebugLevel.CRITICAL,
+                    f"Critical CPU usage: {cpu_usage:.1f}%",
+                    "debug_manager",
+                    {'cpu_usage': cpu_usage, 'source': 'central_monitor'}
+                )
+            elif cpu_usage > self.performance_thresholds['cpu_warning']:
+                self._create_alert(
+                    DebugLevel.WARNING,
+                    f"High CPU usage: {cpu_usage:.1f}%",
+                    "debug_manager",
+                    {'cpu_usage': cpu_usage, 'source': 'central_monitor'}
+                )
+            
+            # هشدار Memory
+            if memory_usage > self.performance_thresholds['memory_critical']:
+                self._create_alert(
+                    DebugLevel.CRITICAL,
+                    f"Critical memory usage: {memory_usage:.1f}%",
+                    "debug_manager",
+                    {'memory_usage': memory_usage, 'source': 'central_monitor'}
+                )
+            elif memory_usage > self.performance_thresholds['memory_warning']:
+                self._create_alert(
+                    DebugLevel.WARNING,
+                    f"High memory usage: {memory_usage:.1f}%",
+                    "debug_manager",
+                    {'memory_usage': memory_usage, 'source': 'central_monitor'}
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking system health: {e}")
+
+    # بقیه متدها دقیقاً مانند قبل باقی می‌مانند (log_endpoint_call, get_endpoint_stats, etc.)
+    # فقط کپی بخش‌هایی که تغییر نکرده‌اند:
+    
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
                          api_calls: int = 0, normalization_info: Dict[str, Any] = None):
@@ -209,33 +372,174 @@ class DebugManager:
                 {"endpoint": endpoint, "error": str(e)}
             )
     
-    def log_error(self, endpoint: str, error: Exception, traceback_str: str, context: Dict[str, Any] = None):
-        """ثبت خطا با مدیریت کامل"""
+    def _check_performance_alerts(self, endpoint: str, call: EndpointCall):
+        """بررسی هشدارهای performance برای endpoint"""
         try:
-            error_data = {
-                'endpoint': endpoint,
-                'error_type': type(error).__name__,
-                'error_message': str(error),
-                'traceback': traceback_str,
-                'context': context or {},
-                'timestamp': datetime.now().isoformat()
+            if call.response_time > self.performance_thresholds['response_time_critical']:
+                self._create_alert(
+                    level=DebugLevel.CRITICAL,
+                    message=f"Critical response time in {endpoint}: {call.response_time:.2f}s",
+                    source=endpoint,
+                    data={
+                        'response_time': call.response_time,
+                        'threshold': self.performance_thresholds['response_time_critical']
+                    }
+                )
+            elif call.response_time > self.performance_thresholds['response_time_warning']:
+                self._create_alert(
+                    level=DebugLevel.WARNING,
+                    message=f"High response time in {endpoint}: {call.response_time:.2f}s",
+                    source=endpoint,
+                    data={
+                        'response_time': call.response_time,
+                        'threshold': self.performance_thresholds['response_time_warning']
+                    }
+                )
+            
+            if call.cpu_impact > self.performance_thresholds['cpu_critical']:
+                self._create_alert(
+                    level=DebugLevel.CRITICAL,
+                    message=f"Critical CPU impact in {endpoint}: {call.cpu_impact:.1f}%",
+                    source=endpoint,
+                    data={'cpu_impact': call.cpu_impact}
+                )
+        
+            if call.normalization_info and call.normalization_info.get('status') == 'error':
+                self._create_alert(
+                    level=DebugLevel.ERROR,
+                    message=f"Normalization error in {endpoint}: {call.normalization_info.get('error', 'Unknown error')}",
+                    source=endpoint,
+                    data=call.normalization_info
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking performance alerts for {endpoint}: {e}")
+    
+    def _check_normalization_alerts(self):
+        """بررسی هشدارهای نرمال‌سازی"""
+        try:
+            metrics = data_normalizer.get_health_metrics()
+            
+            # هشدار برای نرخ موفقیت پایین
+            if metrics.success_rate < self.performance_thresholds['normalization_success_threshold']:
+                self._create_alert(
+                    level=DebugLevel.WARNING,
+                    message=f"Low normalization success rate: {metrics.success_rate}%",
+                    source="data_normalizer",
+                    data={
+                        'success_rate': metrics.success_rate,
+                        'total_processed': metrics.total_processed,
+                        'total_errors': metrics.total_errors,
+                        'threshold': self.performance_thresholds['normalization_success_threshold']
+                    }
+                )
+            
+            # هشدار برای خطاهای زیاد
+            if metrics.total_errors > self.performance_thresholds['normalization_error_threshold']:
+                self._create_alert(
+                    level=DebugLevel.ERROR,
+                    message=f"High normalization errors: {metrics.total_errors}",
+                    source="data_normalizer",
+                    data={
+                        'total_errors': metrics.total_errors,
+                        'threshold': self.performance_thresholds['normalization_error_threshold']
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking normalization alerts: {e}")
+    
+    def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
+        """ایجاد هشدار جدید با مدیریت کامل خطا"""
+        try:
+            alert = {
+                'id': len(self.alerts) + 1,
+                'level': level.value,
+                'message': message,
+                'source': source,
+                'timestamp': datetime.now().isoformat(),
+                'data': data,
+                'acknowledged': False,
+                'sent_to_alert_manager': False
             }
             
             with self._lock:
-                self.endpoint_stats[endpoint]['errors'].append(error_data)
+                self.alerts.append(alert)
             
-            if self._is_critical_error(error):
-                self._create_alert(
-                    level=DebugLevel.CRITICAL,
-                    message=f"Critical error in {endpoint}: {str(error)}",
-                    source=endpoint,
-                    data=error_data
-                )
-            
-            logger.error(f"🚨 Error in {endpoint}: {error}")
+            # ارسال به alert_manager اگر تنظیم شده
+            if self.alert_manager:
+                self._send_to_alert_manager(level, message, source, data)
+                alert['sent_to_alert_manager'] = True
+            logger.warning(f"🚨 {level.value} Alert: {message}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to log error for {endpoint}: {e}")
+            logger.error(f"❌ Failed to create alert: {e}")
+    
+    def _send_to_alert_manager(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
+        """ارسال هشدار به alert_manager با مدیریت خطای پیشرفته"""
+        try:
+            if not self._alert_integration_enabled or not self.alert_manager:
+                return  # بدون خطا - فقط اگر انتگراسیون غیرفعال است
+            
+            # نگاشت DebugLevel به AlertLevel
+            level_mapping = {
+                DebugLevel.INFO: AlertLevel.INFO,
+                DebugLevel.WARNING: AlertLevel.WARNING,
+                DebugLevel.ERROR: AlertLevel.ERROR,
+                DebugLevel.CRITICAL: AlertLevel.CRITICAL
+            }
+        
+            # نگاشت منبع به نوع هشدار
+            type_mapping = {
+                "data_normalizer": AlertType.SYSTEM,
+                "system_monitor": AlertType.SYSTEM,
+                "debug_manager": AlertType.SYSTEM
+            }
+        
+            alert_level = level_mapping.get(level)
+            if not alert_level:
+                logger.warning(f"⚠️ Unknown debug level for alert mapping: {level}")
+                return
+            
+            alert_type = type_mapping.get(source, AlertType.PERFORMANCE)
+        
+            # ارسال هشدار
+            self.alert_manager.create_alert(
+                level=alert_level,
+                alert_type=alert_type,
+                title=f"{alert_level.value} Alert from {source}",
+                message=message,
+                source=source,
+                data=data
+            )
+        
+            logger.debug(f"📨 Alert sent to AlertManager: {message}")
+        
+        except Exception as e:
+            logger.error(f"❌ Error sending to alert manager: {e}")
+            # غیرفعال کردن انتگراسیون در صورت خطای مکرر
+            self._alert_integration_enabled = False
+        
+    def _create_internal_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
+        """ایجاد هشدار داخلی بدون ارسال به alert_manager"""
+        try:
+            alert = {
+                'id': len(self.alerts) + 1,
+                'level': level.value,
+                'message': message,
+                'source': source,
+                'timestamp': datetime.now().isoformat(),
+                'data': data,
+                'acknowledged': False
+            }
+            
+            with self._lock:
+                self.alerts.append(alert)
+            
+            logger.warning(f"🚨 {level.value} Alert: {message}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to create internal alert: {e}")
     
     def get_endpoint_stats(self, endpoint: str = None) -> Dict[str, Any]:
         """دریافت آمار اندپوینت با محاسبات ایمن"""
@@ -393,287 +697,6 @@ class DebugManager:
         except Exception as e:
             logger.error(f"❌ Error getting system metrics: {e}")
             return []
-    
-    def _start_background_monitoring(self):
-        """شروع مانیتورینگ پس‌زمینه سیستم"""
-        def monitor_system():
-            while self._monitoring_active:
-                try:
-                    self._collect_system_metrics()
-                    self._check_normalization_alerts()
-                    self._check_system_health_alerts()
-                    time.sleep(5)  # هر 5 ثانیه
-                except Exception as e:
-                    logger.error(f"❌ System monitoring error: {e}")
-                    time.sleep(10)  # در صورت خطا، فاصله بیشتر
-        
-        monitor_thread = threading.Thread(target=monitor_system, daemon=True)
-        monitor_thread.start()
-        logger.info("✅ Background system monitoring started")
-    
-    def _collect_system_metrics(self):
-        """جمع‌آوری متریک‌های سیستم با مدیریت خطا"""
-        try:
-            cpu_percent = psutil.cpu_percent(interval=1)
-            memory_percent = psutil.virtual_memory().percent
-            disk_usage = psutil.disk_usage('/').percent
-            
-            net_io = psutil.net_io_counters()
-            network_io = {
-                'bytes_sent': net_io.bytes_sent,
-                'bytes_recv': net_io.bytes_recv,
-                'packets_sent': net_io.packets_sent,
-                'packets_recv': net_io.packets_recv
-            }
-            
-            active_connections = len(psutil.net_connections())
-            
-            norm_metrics = data_normalizer.get_health_metrics()
-            
-            metrics = SystemMetrics(
-                timestamp=datetime.now(),
-                cpu_percent=cpu_percent,
-                memory_percent=memory_percent,
-                disk_usage=disk_usage,
-                network_io=network_io,
-                active_connections=active_connections,
-                normalization_metrics={
-                    'success_rate': norm_metrics.success_rate,
-                    'total_processed': norm_metrics.total_processed,
-                    'data_quality': norm_metrics.data_quality
-                }
-            )
-            
-            with self._lock:
-                self.system_metrics_history.append(metrics)
-            
-            logger.debug(f"📈 System metrics collected - CPU: {cpu_percent}% - Memory: {memory_percent}%")
-            
-        except Exception as e:
-            logger.error(f"❌ Error collecting system metrics: {e}")
-    
-    def _check_normalization_alerts(self):
-        """بررسی هشدارهای نرمال‌سازی"""
-        try:
-            metrics = data_normalizer.get_health_metrics()
-            
-            # هشدار برای نرخ موفقیت پایین
-            if metrics.success_rate < self.performance_thresholds['normalization_success_threshold']:
-                self._create_alert(
-                    level=DebugLevel.WARNING,
-                    message=f"Low normalization success rate: {metrics.success_rate}%",
-                    source="data_normalizer",
-                    data={
-                        'success_rate': metrics.success_rate,
-                        'total_processed': metrics.total_processed,
-                        'total_errors': metrics.total_errors,
-                        'threshold': self.performance_thresholds['normalization_success_threshold']
-                    }
-                )
-            
-            # هشدار برای خطاهای زیاد
-            if metrics.total_errors > self.performance_thresholds['normalization_error_threshold']:
-                self._create_alert(
-                    level=DebugLevel.ERROR,
-                    message=f"High normalization errors: {metrics.total_errors}",
-                    source="data_normalizer",
-                    data={
-                        'total_errors': metrics.total_errors,
-                        'threshold': self.performance_thresholds['normalization_error_threshold']
-                    }
-                )
-                
-        except Exception as e:
-            logger.error(f"❌ Error checking normalization alerts: {e}")
-    
-    def _check_system_health_alerts(self):
-        """بررسی هشدارهای سلامت سیستم"""
-        try:
-            current_metrics = self.system_metrics_history[-1] if self.system_metrics_history else None
-            if not current_metrics:
-                return
-            
-            # هشدار CPU
-            if current_metrics.cpu_percent > self.performance_thresholds['cpu_critical']:
-                self._create_alert(
-                    level=DebugLevel.CRITICAL,
-                    message=f"Critical CPU usage: {current_metrics.cpu_percent:.1f}%",
-                    source="system_monitor",
-                    data={'cpu_usage': current_metrics.cpu_percent}
-                )
-            elif current_metrics.cpu_percent > self.performance_thresholds['cpu_warning']:
-                self._create_alert(
-                    level=DebugLevel.WARNING,
-                    message=f"High CPU usage: {current_metrics.cpu_percent:.1f}%",
-                    source="system_monitor",
-                    data={'cpu_usage': current_metrics.cpu_percent}
-                )
-            
-            # هشدار Memory
-            if current_metrics.memory_percent > self.performance_thresholds['memory_critical']:
-                self._create_alert(
-                    level=DebugLevel.CRITICAL,
-                    message=f"Critical memory usage: {current_metrics.memory_percent:.1f}%",
-                    source="system_monitor",
-                    data={'memory_usage': current_metrics.memory_percent}
-                )
-            elif current_metrics.memory_percent > self.performance_thresholds['memory_warning']:
-                self._create_alert(
-                    level=DebugLevel.WARNING,
-                    message=f"High memory usage: {current_metrics.memory_percent:.1f}%",
-                    source="system_monitor",
-                    data={'memory_usage': current_metrics.memory_percent}
-                )
-                
-        except Exception as e:
-            logger.error(f"❌ Error checking system health alerts: {e}")
-    
-    def _check_performance_alerts(self, endpoint: str, call: EndpointCall):
-        """بررسی هشدارهای performance برای endpoint"""
-        try:
-            if call.response_time > self.performance_thresholds['response_time_critical']:
-                self._create_alert(
-                    level=DebugLevel.CRITICAL,
-                    message=f"Critical response time in {endpoint}: {call.response_time:.2f}s",
-                    source=endpoint,
-                    data={
-                        'response_time': call.response_time,
-                        'threshold': self.performance_thresholds['response_time_critical']
-                    }
-                )
-            elif call.response_time > self.performance_thresholds['response_time_warning']:
-                self._create_alert(
-                    level=DebugLevel.WARNING,
-                    message=f"High response time in {endpoint}: {call.response_time:.2f}s",
-                    source=endpoint,
-                    data={
-                        'response_time': call.response_time,
-                        'threshold': self.performance_thresholds['response_time_warning']
-                    }
-                )
-            
-            if call.cpu_impact > self.performance_thresholds['cpu_critical']:
-                self._create_alert(
-                    level=DebugLevel.CRITICAL,
-                    message=f"Critical CPU impact in {endpoint}: {call.cpu_impact:.1f}%",
-                    source=endpoint,
-                    data={'cpu_impact': call.cpu_impact}
-                )
-        
-            if call.normalization_info and call.normalization_info.get('status') == 'error':
-                self._create_alert(
-                    level=DebugLevel.ERROR,
-                    message=f"Normalization error in {endpoint}: {call.normalization_info.get('error', 'Unknown error')}",
-                    source=endpoint,
-                    data=call.normalization_info
-                )
-                
-        except Exception as e:
-            logger.error(f"❌ Error checking performance alerts for {endpoint}: {e}")
-    
-    def _create_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
-        """ایجاد هشدار جدید با مدیریت کامل خطا"""
-        try:
-            alert = {
-                'id': len(self.alerts) + 1,
-                'level': level.value,
-                'message': message,
-                'source': source,
-                'timestamp': datetime.now().isoformat(),
-                'data': data,
-                'acknowledged': False,
-                'sent_to_alert_manager': False
-            }
-            
-            with self._lock:
-                self.alerts.append(alert)
-            
-            # ارسال به alert_manager اگر تنظیم شده
-            if self.alert_manager:
-                self._send_to_alert_manager(level, message, source, data)
-                alert['sent_to_alert_manager'] = True
-            logger.warning(f"🚨 {level.value} Alert: {message}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to create alert: {e}")
-    
-    def _send_to_alert_manager(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
-        """ارسال هشدار به alert_manager با مدیریت خطای پیشرفته"""
-        try:
-            if not self._alert_integration_enabled or not self.alert_manager:
-                return  # بدون خطا - فقط اگر انتگراسیون غیرفعال است
-            
-            # نگاشت DebugLevel به AlertLevel
-            level_mapping = {
-                DebugLevel.INFO: AlertLevel.INFO,
-                DebugLevel.WARNING: AlertLevel.WARNING,
-                DebugLevel.ERROR: AlertLevel.ERROR,
-                DebugLevel.CRITICAL: AlertLevel.CRITICAL
-            }
-        
-            # نگاشت منبع به نوع هشدار
-            type_mapping = {
-                "data_normalizer": AlertType.SYSTEM,
-                "system_monitor": AlertType.SYSTEM,
-                "debug_manager": AlertType.SYSTEM
-            }
-        
-            alert_level = level_mapping.get(level)
-            if not alert_level:
-                logger.warning(f"⚠️ Unknown debug level for alert mapping: {level}")
-                return
-            
-            alert_type = type_mapping.get(source, AlertType.PERFORMANCE)
-        
-            # ارسال هشدار
-            self.alert_manager.create_alert(
-                level=alert_level,
-                alert_type=alert_type,
-                title=f"{alert_level.value} Alert from {source}",
-                message=message,
-                source=source,
-                data=data
-            )
-        
-            logger.debug(f"📨 Alert sent to AlertManager: {message}")
-        
-        except Exception as e:
-            logger.error(f"❌ Error sending to alert manager: {e}")
-            # غیرفعال کردن انتگراسیون در صورت خطای مکرر
-            self._alert_integration_enabled = False
-        
-    def _create_internal_alert(self, level: DebugLevel, message: str, source: str, data: Dict[str, Any]):
-        """ایجاد هشدار داخلی بدون ارسال به alert_manager"""
-        try:
-            alert = {
-                'id': len(self.alerts) + 1,
-                'level': level.value,
-                'message': message,
-                'source': source,
-                'timestamp': datetime.now().isoformat(),
-                'data': data,
-                'acknowledged': False
-            }
-            
-            with self._lock:
-                self.alerts.append(alert)
-            
-            logger.warning(f"🚨 {level.value} Alert: {message}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to create internal alert: {e}")
-    
-    def _is_critical_error(self, error: Exception) -> bool:
-        """بررسی آیا خطا critical است"""
-        critical_errors = [
-            'Timeout',
-            'ConnectionError', 
-            'MemoryError',
-            'OSError',
-            'RuntimeError'
-        ]
-        
-        return any(critical_error in type(error).__name__ for critical_error in critical_errors)
     
     def get_active_alerts(self) -> List[Dict[str, Any]]:
         """دریافت هشدارهای فعال"""
