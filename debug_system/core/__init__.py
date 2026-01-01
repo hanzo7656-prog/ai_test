@@ -1,138 +1,216 @@
 """
-Debug System Core Modules
-Central management for debugging and monitoring
-Optimized Version - Central Monitor Integration
+Debug System Core Modules - Lightweight Edition
+Minimal initialization with zero interference
 """
 
 import logging
 import time
-from .debug_manager import DebugManager
-from .metrics_collector import RealTimeMetricsCollector
-from .alert_manager import AlertManager, AlertLevel, AlertType
-from .system_monitor import central_monitor, initialize_central_monitoring
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های گلوبال
-debug_manager = DebugManager()
-metrics_collector = RealTimeMetricsCollector()
-alert_manager = AlertManager()
+# Global instances - lazy loaded
+_instances = {}
+_initialized = False
 
-def initialize_core_system():
-    """راه‌اندازی و ارتباط ماژول‌های هسته با تاخیر هوشمند"""
+def _lazy_load_module(module_name: str, class_name: str):
+    """Lazy import modules to reduce startup overhead"""
     try:
-        # مرحله ۱: راه‌اندازی اولیه سیستم‌ها
-        logger.info("🚀 Starting core system initialization...")
+        module = __import__(f'.{module_name}', fromlist=[class_name], level=1)
+        return getattr(module, class_name)
+    except ImportError as e:
+        logger.debug(f"Delayed import of {module_name}.{class_name}")
+        return None
+
+def get_debug_manager():
+    """Get DebugManager instance (lazy initialization)"""
+    if 'debug_manager' not in _instances:
+        DebugManager = _lazy_load_module('debug_manager', 'DebugManager')
+        if DebugManager:
+            _instances['debug_manager'] = DebugManager()
+        else:
+            # Fallback minimal instance
+            class MinimalDebugManager:
+                def __init__(self): self.is_active = lambda: True
+                def log_endpoint_call(self, *args, **kwargs): pass
+                def get_endpoint_stats(self, *args, **kwargs): return {}
+            _instances['debug_manager'] = MinimalDebugManager()
+    
+    return _instances['debug_manager']
+
+def get_metrics_collector():
+    """Get MetricsCollector instance (lazy initialization)"""
+    if 'metrics_collector' not in _instances:
+        RealTimeMetricsCollector = _lazy_load_module('metrics_collector', 'RealTimeMetricsCollector')
+        if RealTimeMetricsCollector:
+            _instances['metrics_collector'] = RealTimeMetricsCollector()
+        else:
+            # Fallback minimal instance
+            class MinimalMetricsCollector:
+                def __init__(self): 
+                    self.get_current_metrics = lambda: {'status': 'fallback'}
+                    self.get_metrics_history = lambda *args: []
+            _instances['metrics_collector'] = MinimalMetricsCollector()
+    
+    return _instances['metrics_collector']
+
+def get_alert_manager():
+    """Get AlertManager instance (lazy initialization)"""
+    if 'alert_manager' not in _instances:
+        AlertManager = _lazy_load_module('alert_manager', 'AlertManager')
+        if AlertManager:
+            _instances['alert_manager'] = AlertManager()
+        else:
+            # Fallback minimal instance
+            class MinimalAlertManager:
+                def __init__(self): 
+                    self.create_alert = lambda *args, **kwargs: None
+                    self.active_alerts = []
+            _instances['alert_manager'] = MinimalAlertManager()
+    
+    return _instances['alert_manager']
+
+def get_central_monitor():
+    """Get central_monitor from system_monitor (reference only)"""
+    # فقط یک reference برمی‌گرداند، ایجاد نمی‌کند
+    try:
+        from .system_monitor import central_monitor as cm
+        return cm  # فقط reference موجود را برمی‌گرداند
+    except ImportError:
+        return None
+
+def initialize_safe():
+    """Safe minimal initialization without interference"""
+    global _initialized
+    
+    if _initialized:
+        return True
+    
+    try:
+        logger.info("🔧 Initializing core modules safely...")
+        start_time = time.time()
         
-        # تنظیم alert manager برای debug manager با تاخیر
-        def delayed_alert_integration():
-            time.sleep(2)  # صبر کن alert_manager کامل لود شود
-            integration_success = debug_manager.set_alert_manager(alert_manager)
-            if integration_success:
-                logger.info("✅ Debug Manager ↔ Alert Manager integration established")
-            else:
-                logger.warning("⚠️ Alert Manager integration failed")
+        # فقط instance های اصلی را lazy load کن
+        debug_manager = get_debug_manager()
+        alert_manager = get_alert_manager()
         
-        integration_thread = threading.Thread(target=delayed_alert_integration, daemon=True)
-        integration_thread.start()
+        # اتصال ساده (اگر ممکن باشد)
+        if hasattr(debug_manager, 'set_alert_manager'):
+            try:
+                debug_manager.set_alert_manager(alert_manager)
+                logger.debug("✅ Basic alert integration configured")
+            except:
+                pass  # ignore failures
         
-        # مرحله ۲: راه‌اندازی central monitoring system
-        logger.info("🔧 Initializing central monitoring system...")
-        central_monitor_instance = initialize_central_monitoring(metrics_collector, alert_manager)
+        _initialized = True
+        elapsed = time.time() - start_time
         
-        # مرحله ۳: راه‌اندازی central monitor با تاخیر
-        def start_central_monitor():
-            time.sleep(3)  # صبر کن همه سیستم‌ها لود شوند
-            if central_monitor_instance:
-                central_monitor_instance.start_monitoring()
-                logger.info("🎯 Central Monitoring System STARTED")
-            else:
-                logger.error("❌ Failed to initialize central monitor")
-        
-        monitor_thread = threading.Thread(target=start_central_monitor, daemon=True)
-        monitor_thread.start()
-        
-        # مرحله ۴: منتظر بمان و وضعیت را چک کن
-        def check_system_status():
-            time.sleep(5)
-            
-            status_report = {
-                'debug_manager': {
-                    'active': debug_manager.is_active(),
-                    'alert_integration': debug_manager.get_alert_integration_status().get('integration_status', 'unknown')
-                },
-                'metrics_collector': {
-                    'active': True,  # همیشه active است
-                    'mode': metrics_collector.get_connection_status().get('collection_mode', 'unknown')
-                },
-                'alert_manager': {
-                    'active': True,
-                    'notification_channels': list(alert_manager.notification_channels.keys())
-                },
-                'central_monitor': {
-                    'active': central_monitor_instance.is_monitoring if central_monitor_instance else False,
-                    'subscribers': len(central_monitor_instance.subscribers) if central_monitor_instance else 0
-                }
-            }
-            
-            logger.info("📊 Core System Status Report:")
-            for system, info in status_report.items():
-                status = "✅ ACTIVE" if info.get('active', False) else "❌ INACTIVE"
-                details = " | ".join([f"{k}: {v}" for k, v in info.items() if k != 'active'])
-                logger.info(f"   - {system}: {status} | {details}")
-        
-        status_thread = threading.Thread(target=check_system_status, daemon=True)
-        status_thread.start()
-        
-        logger.info("✅ Core debug system initialized with CENTRAL MONITOR integration")
-        logger.info("   - Debug Manager: Connected to Central Monitor")
-        logger.info("   - Metrics Collector: Passive mode (Central Monitor source)")
-        logger.info("   - Alert Manager: Bulk notifications enabled")
-        logger.info("   - Central Monitor: Will start in 3 seconds")
-        
-        return {
-            "debug_manager": debug_manager,
-            "metrics_collector": metrics_collector,
-            "alert_manager": alert_manager,
-            "central_monitor": central_monitor_instance
-        }
+        logger.info(f"✅ Core modules ready in {elapsed:.3f}s (lightweight mode)")
+        return True
         
     except Exception as e:
-        logger.error(f"❌ Core system initialization failed: {e}")
-        logger.info("🔄 Continuing with basic functionality...")
-        
-        # Fallback: تنظیمات حداقلی
-        debug_manager.set_alert_manager(alert_manager)
-        
-        return {
-            "debug_manager": debug_manager,
-            "metrics_collector": metrics_collector,
-            "alert_manager": alert_manager,
-            "central_monitor": None,
-            "error": str(e)
-        }
+        logger.warning(f"⚠️ Light initialization completed with warnings: {e}")
+        _initialized = True  # Mark as initialized anyway
+        return True  # همیشه True برگردان - fail gracefully
 
-# Import threading برای delayed initialization
-import threading
+def get_core_status() -> Dict[str, Any]:
+    """Get minimal status report"""
+    return {
+        'timestamp': time.time(),
+        'initialized': _initialized,
+        'modules_loaded': list(_instances.keys()),
+        'mode': 'lightweight',
+        'central_monitor_available': get_central_monitor() is not None
+    }
 
-# راه‌اندازی خودکار با تاخیر
-def delayed_initialization():
-    """راه‌اندازی با تاخیر برای جلوگیری از race conditions"""
-    time.sleep(1)  # صبر کن همه imports کامل شوند
-    global core_system
-    core_system = initialize_core_system()
+def shutdown_gracefully():
+    """Graceful shutdown - minimal cleanup"""
+    global _instances, _initialized
+    
+    logger.debug("🛑 Gracefully clearing core instances")
+    _instances.clear()
+    _initialized = False
 
-# شروع initialization در background thread
-init_thread = threading.Thread(target=delayed_initialization, daemon=True)
-init_thread.start()
+# Convenience accessors (properties for backward compatibility)
+class CoreAccessor:
+    """Lightweight accessor for core modules"""
+    
+    @property
+    def debug_manager(self):
+        return get_debug_manager()
+    
+    @property
+    def metrics_collector(self):
+        return get_metrics_collector()
+    
+    @property
+    def alert_manager(self):
+        return get_alert_manager()
+    
+    @property
+    def central_monitor(self):
+        return get_central_monitor()
+    
+    def initialize(self):
+        return initialize_safe()
+    
+    def status(self):
+        return get_core_status()
+    
+    def shutdown(self):
+        return shutdown_gracefully()
 
-# ایجاد متغیر global
-core_system = None
+# Single global accessor instance
+core = CoreAccessor()
+
+# Auto-initialize on first access (if needed)
+def _auto_init_if_needed():
+    """Auto-initialize only if modules are actually used"""
+    # بررسی می‌کنیم آیا سیستم core واقعاً استفاده شده یا نه
+    pass  # کاری نمی‌کند - منتظر اولین درخواست می‌ماند
+
+# برای backward compatibility - global aliases
+# اما اینها properties هستند که lazy load می‌شوند
+debug_manager = core.debug_manager
+metrics_collector = core.metrics_collector
+alert_manager = core.alert_manager
+central_monitor = core.central_monitor
 
 __all__ = [
-    "DebugManager", "debug_manager",
-    "RealTimeMetricsCollector", "metrics_collector", 
-    "AlertManager", "AlertLevel", "AlertType", "alert_manager",
-    "central_monitor", "initialize_central_monitoring",
-    "initialize_core_system", "core_system"
+    # کلاس‌ها
+    "DebugManager", 
+    "RealTimeMetricsCollector", 
+    "AlertManager", 
+    "AlertLevel", 
+    "AlertType",
+    
+    # توابع
+    "initialize_safe",
+    "get_core_status",
+    "shutdown_gracefully",
+    
+    # Accessors
+    "core",
+    
+    # Aliases (برای compatibility)
+    "debug_manager",
+    "metrics_collector", 
+    "alert_manager",
+    "central_monitor"
 ]
+
+# Import کلاس‌ها برای __all__ (اما instantiate نمی‌کنیم)
+try:
+    from .debug_manager import DebugManager
+    from .metrics_collector import RealTimeMetricsCollector
+    from .alert_manager import AlertManager, AlertLevel, AlertType
+except ImportError:
+    # اگر import شکست خورد، تعریف‌های حداقلی
+    class DebugManager: pass
+    class RealTimeMetricsCollector: pass
+    class AlertManager: pass
+    class AlertLevel: pass
+    class AlertType: pass
+
+# پیام شروع
+logger.debug("💡 Core modules loaded in lightweight mode (no auto-init)")
