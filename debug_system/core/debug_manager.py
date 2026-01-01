@@ -289,9 +289,6 @@ class DebugManager:
                 
         except Exception as e:
             logger.error(f"❌ Error checking system health: {e}")
-
-    # بقیه متدها دقیقاً مانند قبل باقی می‌مانند (log_endpoint_call, get_endpoint_stats, etc.)
-    # فقط کپی بخش‌هایی که تغییر نکرده‌اند:
     
     def log_endpoint_call(self, endpoint: str, method: str, params: Dict[str, Any], 
                          response_time: float, status_code: int, cache_used: bool, 
