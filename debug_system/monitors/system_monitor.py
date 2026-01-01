@@ -1,1256 +1,1918 @@
-"""
-🎯 SYSTEM MONITOR v3.0 - نظارت هوشمند و یکپارچه
-ویژگی‌های جدید:
-1. معماری Event-Driven برای کاهش polling
-2. جمع‌آوری Async و Non-Blocking
-3. سیستم کش هوشمند با TTLهای مختلف
-4. تشخیص ناهنجاری خودکار
-5. Health Scoring با توصیه‌های هوشمند
-6. نظارت سلسله‌مراتبی
-7. Predictive Monitoring با ML ساده
-8. Dashboard داخلی
-9. تنها یک حلقه مرکزی فعال
-10. حذف داده‌های تکراری
-"""
-
-import asyncio
-import time
 import psutil
+import time
 import logging
+import asyncio
+import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Callable, Set
+from typing import Dict, List, Any, Optional, Callable, Tuple
 from collections import deque, defaultdict
-from dataclasses import dataclass, field
-from enum import Enum
-import statistics
-import json
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import statistics
+from dataclasses import dataclass
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# ==================== ENUMS & DATA CLASSES ====================
+# نمونه گلوبال برای دسترسی از فایل‌های دیگر
+central_monitor = None
 
-class MetricPriority(Enum):
-    REAL_TIME = "realtime"      # هر 1-5 ثانیه
-    HIGH = "high"               # هر 10-30 ثانیه  
-    MEDIUM = "medium"           # هر 1-5 دقیقه
-    LOW = "low"                 # هر 10-30 دقیقه
-
-class ComponentHealth(Enum):
-    HEALTHY = "healthy"
-    WARNING = "warning"
-    CRITICAL = "critical"
-    UNKNOWN = "unknown"
-
-@dataclass
-class MetricConfig:
-    """تنظیمات هر متریک"""
-    name: str
-    priority: MetricPriority
-    collection_interval: int
-    cache_ttl: int
-    anomaly_threshold: float = 2.5
-    enabled: bool = True
+class AnomalyType(Enum):
+    """انواع ناهنجاری‌ها"""
+    CPU_SPIKE = "cpu_spike"
+    MEMORY_LEAK = "memory_leak"
+    DISK_IO_SURGE = "disk_io_surge"
+    NETWORK_FLASH = "network_flash"
+    PROCESS_CRASH = "process_crash"
+    SERVICE_DEGRADATION = "service_degradation"
+    API_LATENCY_SPIKE = "api_latency_spike"
+    DATA_QUALITY_DROP = "data_quality_drop"
 
 @dataclass
-class HealthScore:
-    """امتیاز سلامت هر کامپوننت"""
-    component: str
-    score: float
-    status: ComponentHealth
-    weighted_score: float
-    details: Dict[str, Any]
+class AnomalyDetection:
+    """شناسایی ناهنجاری"""
+    anomaly_type: AnomalyType
+    severity: float  # 0-1
+    detected_at: datetime
+    metric_value: float
+    baseline_value: float
+    confidence: float
 
 @dataclass
-class MonitoringEvent:
-    """رویداد نظارتی"""
-    type: str
-    data: Any
-    timestamp: float = field(default_factory=time.time)
-    source: str = "system_monitor"
+class CorrelationEvent:
+    """رویداد همبستگی"""
+    event_id: str
+    events: List[str]
+    correlation_score: float
+    detected_at: datetime
+    root_cause: Optional[str]
 
-# ==================== SMART CACHE SYSTEM ====================
+class PredictiveAlerting:
+    """سیستم هشدار پیش‌بینانه"""
+    
+    def __init__(self, forecast_horizon_minutes: int = 30):
+        self.forecast_horizon = forecast_horizon_minutes
+        self.trend_data = defaultdict(lambda: deque(maxlen=100))
+        self.prediction_models = {}
+        
+    def add_metric_point(self, metric_name: str, value: float, timestamp: datetime):
+        """اضافه کردن نقطه متریک برای تحلیل روند"""
+        self.trend_data[metric_name].append((timestamp, value))
+        
+    def predict_threshold_breach(self, metric_name: str, threshold: float) -> Optional[datetime]:
+        """پیش‌بینی زمان عبور از آستانه"""
+        data = list(self.trend_data[metric_name])
+        if len(data) < 10:
+            return None
+            
+        timestamps, values = zip(*data)
+        
+        # تحلیل روند ساده (میانگین متحرک)
+        if len(values) >= 5:
+            recent_trend = np.polyfit(range(len(values[-5:])), values[-5:], 1)[0]
+            
+            if recent_trend > 0:  # روند صعودی
+                current_value = values[-1]
+                if current_value < threshold:
+                    time_to_breach = (threshold - current_value) / recent_trend
+                    if time_to_breach > 0:
+                        estimated_breach = datetime.now() + timedelta(minutes=time_to_breach * 5)  # scale factor
+                        return estimated_breach
+        return None
 
-class SmartMetricCache:
-    """کش هوشمند برای متریک‌ها با TTLهای متفاوت"""
+class DependencyMonitor:
+    """مانیتورینگ وضعیت وابستگی‌ها"""
     
     def __init__(self):
-        self._cache = {}
-        self._cache_hits = 0
-        self._cache_misses = 0
-        self._lock = threading.RLock()
-        
-        # تنظیمات کش برای هر نوع متریک
-        self._cache_configs = {
-            'cpu': MetricConfig('cpu', MetricPriority.REAL_TIME, 2, 5),
-            'memory': MetricConfig('memory', MetricPriority.REAL_TIME, 2, 5),
-            'disk': MetricConfig('disk', MetricPriority.MEDIUM, 30, 60),
-            'network': MetricConfig('network', MetricPriority.HIGH, 10, 20),
-            'process': MetricConfig('process', MetricPriority.MEDIUM, 60, 120),
-            'system': MetricConfig('system', MetricPriority.LOW, 300, 600)
-        }
-    
-    async def get_or_fetch(self, metric_type: str, fetch_func: Callable) -> Any:
-        """دریافت از کش یا fetch جدید"""
-        with self._lock:
-            cache_entry = self._cache.get(metric_type)
-            
-            # بررسی وجود و اعتبار کش
-            if cache_entry and not self._is_expired(metric_type, cache_entry):
-                self._cache_hits += 1
-                logger.debug(f"✅ Cache hit for {metric_type}")
-                return cache_entry['data']
-            
-            # کش منقضی یا وجود ندارد
-            self._cache_misses += 1
-            
-            # fetch جدید
-            fresh_data = await fetch_func()
-            
-            # ذخیره در کش
-            config = self._cache_configs.get(metric_type, self._cache_configs['system'])
-            self._cache[metric_type] = {
-                'data': fresh_data,
-                'timestamp': time.time(),
-                'ttl': config.cache_ttl,
-                'config': config
-            }
-            
-            # پاک‌سازی خودکار کش‌های قدیمی
-            self._cleanup_old_cache()
-            
-            return fresh_data
-    
-    def _is_expired(self, metric_type: str, cache_entry: Dict) -> bool:
-        """بررسی انقضای کش"""
-        config = cache_entry.get('config')
-        if not config:
-            return True
-        
-        age = time.time() - cache_entry['timestamp']
-        return age > config.cache_ttl
-    
-    def _cleanup_old_cache(self):
-        """پاک‌سازی خودکار کش‌های قدیمی"""
-        current_time = time.time()
-        expired_keys = []
-        
-        for key, entry in self._cache.items():
-            if current_time - entry['timestamp'] > entry['ttl'] * 2:  # 2 برابر TTL
-                expired_keys.append(key)
-        
-        for key in expired_keys:
-            del self._cache[key]
-        
-        if expired_keys:
-            logger.debug(f"🧹 Cleaned {len(expired_keys)} expired cache entries")
-    
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """آمار عملکرد کش"""
-        return {
-            'total_entries': len(self._cache),
-            'cache_hits': self._cache_hits,
-            'cache_misses': self._cache_misses,
-            'hit_ratio': self._cache_hits / max(1, self._cache_hits + self._cache_misses),
-            'configs': {k: v.__dict__ for k, v in self._cache_configs.items()}
-        }
-
-# ==================== ASYNC METRICS COLLECTOR ====================
-
-class AsyncMetricsCollector:
-    """جمع‌آوری متریک‌ها به صورت غیرمسدودکننده"""
-    
-    def __init__(self):
-        self.thread_pool = ThreadPoolExecutor(
-            max_workers=4,
-            thread_name_prefix="metric_collector"
-        )
-        
-    async def collect_all_async(self, enabled_metrics: Set[str] = None) -> Dict[str, Any]:
-        """جمع‌آوری تمام متریک‌ها به صورت موازی"""
-        if enabled_metrics is None:
-            enabled_metrics = {'cpu', 'memory', 'disk', 'network', 'process'}
-        
-        tasks = []
-        
-        if 'cpu' in enabled_metrics:
-            tasks.append(self._collect_cpu_async())
-        
-        if 'memory' in enabled_metrics:
-            tasks.append(self._collect_memory_async())
-        
-        if 'disk' in enabled_metrics:
-            tasks.append(self._collect_disk_async())
-        
-        if 'network' in enabled_metrics:
-            tasks.append(self._collect_network_async())
-        
-        if 'process' in enabled_metrics:
-            tasks.append(self._collect_process_async())
-        
-        # اجرای موازی
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # ترکیب نتایج
-        metrics = {
-            'timestamp': datetime.now().isoformat(),
-            'collection_time': time.time()
+        self.dependencies = {
+            'redis': {'status': 'unknown', 'last_check': None, 'latency_ms': None},
+            'database': {'status': 'unknown', 'last_check': None, 'latency_ms': None},
+            'external_apis': defaultdict(lambda: {'status': 'unknown', 'last_check': None, 'latency_ms': None}),
+            'internal_services': defaultdict(lambda: {'status': 'unknown', 'last_check': None, 'latency_ms': None})
         }
         
-        for i, metric_type in enumerate(['cpu', 'memory', 'disk', 'network', 'process']):
-            if metric_type in enabled_metrics and i < len(results):
-                if not isinstance(results[i], Exception):
-                    metrics[metric_type] = results[i]
-                else:
-                    metrics[metric_type] = {'error': str(results[i])}
-        
-        return metrics
-    
-    async def _collect_cpu_async(self) -> Dict[str, Any]:
-        """جمع‌آوری CPU به صورت async"""
-        loop = asyncio.get_event_loop()
-        
+    async def check_redis(self, redis_client=None) -> Dict[str, Any]:
+        """بررسی سلامت Redis"""
         try:
-            # استفاده از interval کوتاه در thread جداگانه
-            cpu_percent = await loop.run_in_executor(
-                self.thread_pool,
-                lambda: psutil.cpu_percent(interval=0.05)  # کاهش از 0.1 به 0.05
-            )
+            start_time = time.time()
             
-            # جمع‌آوری اطلاعات اضافی
-            cpu_count = await loop.run_in_executor(
-                self.thread_pool,
-                psutil.cpu_count
-            )
-            
-            cpu_freq = await loop.run_in_executor(
-                self.thread_pool,
-                lambda: psutil.cpu_freq().current if hasattr(psutil, 'cpu_freq') else None
-            )
-            
-            return {
-                'percent': cpu_percent,
-                'cores': cpu_count,
-                'frequency_mhz': cpu_freq,
-                'load_avg': psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
-            }
-        except Exception as e:
-            logger.error(f"❌ Error collecting CPU metrics: {e}")
-            return {'percent': 0, 'cores': 1, 'error': str(e)}
-    
-    async def _collect_memory_async(self) -> Dict[str, Any]:
-        """جمع‌آوری Memory به صورت async"""
-        loop = asyncio.get_event_loop()
-        
-        try:
-            memory = await loop.run_in_executor(
-                self.thread_pool,
-                psutil.virtual_memory
-            )
-            
-            return {
-                'percent': memory.percent,
-                'used_gb': round(memory.used / (1024**3), 2),
-                'available_gb': round(memory.available / (1024**3), 2),
-                'total_gb': round(memory.total / (1024**3), 2),
-                'free_gb': round(memory.free / (1024**3), 2)
-            }
-        except Exception as e:
-            logger.error(f"❌ Error collecting memory metrics: {e}")
-            return {'percent': 0, 'error': str(e)}
-    
-    async def _collect_disk_async(self) -> Dict[str, Any]:
-        """جمع‌آوری Disk به صورت async"""
-        loop = asyncio.get_event_loop()
-        
-        try:
-            disk = await loop.run_in_executor(
-                self.thread_pool,
-                lambda: psutil.disk_usage('/')
-            )
-            
-            # I/O statistics (با نمونه‌برداری)
-            io_before = await loop.run_in_executor(
-                self.thread_pool,
-                psutil.disk_io_counters
-            )
-            
-            await asyncio.sleep(0.1)  # تأخیر کوتاه
-            
-            io_after = await loop.run_in_executor(
-                self.thread_pool,
-                psutil.disk_io_counters
-            )
-            
-            io_delta = {
-                'read_mb_per_sec': round(((io_after.read_bytes - io_before.read_bytes) / (1024**2)) / 0.1, 2),
-                'write_mb_per_sec': round(((io_after.write_bytes - io_before.write_bytes) / (1024**2)) / 0.1, 2)
-            } if io_before and io_after else {}
-            
-            return {
-                'usage_percent': disk.percent,
-                'used_gb': round(disk.used / (1024**3), 2),
-                'free_gb': round(disk.free / (1024**3), 2),
-                'total_gb': round(disk.total / (1024**3), 2),
-                'io': io_delta
-            }
-        except Exception as e:
-            logger.error(f"❌ Error collecting disk metrics: {e}")
-            return {'usage_percent': 0, 'error': str(e)}
-    
-    async def _collect_network_async(self) -> Dict[str, Any]:
-        """جمع‌آوری Network به صورت async"""
-        loop = asyncio.get_event_loop()
-        
-        try:
-            # شبکه - فقط یک بار خواندن (بدون interval)
-            net_io = await loop.run_in_executor(
-                self.thread_pool,
-                psutil.net_io_counters
-            )
-            
-            return {
-                'bytes_sent_mb': round(net_io.bytes_sent / (1024**2), 2),
-                'bytes_recv_mb': round(net_io.bytes_recv / (1024**2), 2),
-                'packets_sent': net_io.packets_sent,
-                'packets_recv': net_io.packets_recv,
-                'errin': net_io.errin,
-                'errout': net_io.errout
-            }
-        except Exception as e:
-            logger.error(f"❌ Error collecting network metrics: {e}")
-            return {'bytes_sent_mb': 0, 'bytes_recv_mb': 0, 'error': str(e)}
-    
-    async def _collect_process_async(self) -> Dict[str, Any]:
-        """جمع‌آوری Process اطلاعات به صورت async"""
-        loop = asyncio.get_event_loop()
-        
-        try:
-            current_process = psutil.Process()
-            
-            # فقط اطلاعات ضروری
-            process_info = await loop.run_in_executor(
-                self.thread_pool,
-                current_process.memory_info
-            )
-            
-            cpu_percent = await loop.run_in_executor(
-                self.thread_pool,
-                lambda: current_process.cpu_percent(interval=0.05)
-            )
-            
-            return {
-                'memory_rss_mb': round(process_info.rss / (1024**2), 2),
-                'cpu_percent': cpu_percent,
-                'threads_count': current_process.num_threads(),
-                'pid': current_process.pid,
-                'name': current_process.name()
-            }
-        except Exception as e:
-            logger.error(f"❌ Error collecting process metrics: {e}")
-            return {'memory_rss_mb': 0, 'cpu_percent': 0, 'error': str(e)}
-
-# ==================== ANOMALY DETECTION ====================
-
-class AnomalyDetector:
-    """سیستم تشخیص ناهنجاری‌های متریک"""
-    
-    def __init__(self, window_size: int = 50):
-        self.window_size = window_size
-        self.metric_history = defaultdict(lambda: deque(maxlen=window_size))
-        self.anomaly_threshold = 2.5  # z-score threshold
-        self.consecutive_anomalies = defaultdict(int)
-        
-    def analyze(self, metric_type: str, current_value: float) -> Optional[Dict[str, Any]]:
-        """تحلیل متریک برای تشخیص ناهنجاری"""
-        history = self.metric_history[metric_type]
-        
-        # حداقل داده برای تحلیل
-        if len(history) < 10:
-            history.append(current_value)
-            return None
-        
-        # محاسبه آمار
-        mean = statistics.mean(history)
-        stdev = statistics.stdev(history) if len(history) > 1 else 0
-        
-        # جلوگیری از تقسیم بر صفر
-        if stdev == 0:
-            history.append(current_value)
-            return None
-        
-        # محاسبه z-score
-        z_score = abs((current_value - mean) / stdev)
-        
-        # تشخیص ناهنجاری
-        if z_score > self.anomaly_threshold:
-            self.consecutive_anomalies[metric_type] += 1
-            
-            # بررسی consecutive anomalies برای کاهش false positives
-            if self.consecutive_anomalies[metric_type] >= 2:
-                anomaly = {
-                    'metric': metric_type,
-                    'current_value': current_value,
-                    'historical_mean': mean,
-                    'z_score': round(z_score, 2),
-                    'severity': self._calculate_severity(z_score),
-                    'timestamp': datetime.now().isoformat(),
-                    'recommendation': self._get_recommendation(metric_type, current_value)
+            # اگر کلاینت Redis داریم، ping می‌کنیم
+            if redis_client and hasattr(redis_client, 'ping'):
+                redis_client.ping()
+                latency = (time.time() - start_time) * 1000
+                self.dependencies['redis'] = {
+                    'status': 'healthy',
+                    'last_check': datetime.now(),
+                    'latency_ms': round(latency, 2),
+                    'memory_usage': redis_client.info().get('used_memory_human', 'N/A')
+                }
+            else:
+                # شبیه‌سازی برای تست
+                await asyncio.sleep(0.01)
+                self.dependencies['redis'] = {
+                    'status': 'simulated_healthy',
+                    'last_check': datetime.now(),
+                    'latency_ms': 10.5,
+                    'memory_usage': '256MB'
                 }
                 
-                # ریست consecutive counter
-                self.consecutive_anomalies[metric_type] = 0
-                
-                history.append(current_value)
-                return anomaly
-        else:
-            self.consecutive_anomalies[metric_type] = 0
-        
-        history.append(current_value)
-        return None
-    
-    def _calculate_severity(self, z_score: float) -> str:
-        """محاسبه شدت ناهنجاری"""
-        if z_score > 4.0:
-            return "critical"
-        elif z_score > 3.0:
-            return "high"
-        elif z_score > 2.5:
-            return "medium"
-        else:
-            return "low"
-    
-    def _get_recommendation(self, metric_type: str, value: float) -> str:
-        """توصیه بر اساس نوع متریک و مقدار"""
-        recommendations = {
-            'cpu': {
-                'high': "بررسی پردازش‌های سنگین و scale کردن سرویس",
-                'critical': "ری‌استارت سرویس‌های غیرضروری و emergency scale"
-            },
-            'memory': {
-                'high': "بررسی memory leak و افزایش memory limit",
-                'critical': "ری‌استارت سرویس و emergency memory allocation"
-            },
-            'disk': {
-                'high': "پاک‌سازی فایل‌های موقت و لاگ‌ها",
-                'critical': "اضافه کردن فضای دیسک اضطراری"
+            return self.dependencies['redis']
+            
+        except Exception as e:
+            self.dependencies['redis'] = {
+                'status': 'unhealthy',
+                'last_check': datetime.now(),
+                'latency_ms': None,
+                'error': str(e)
             }
-        }
-        
-        if value > 90:
-            severity = 'critical'
-        elif value > 80:
-            severity = 'high'
-        else:
-            return "مانیتور ادامه‌دار"
-        
-        return recommendations.get(metric_type, {}).get(severity, "بررسی دستی لازم است")
-
-# ==================== HEALTH SCORING SYSTEM ====================
-
-class HealthScoringSystem:
-    """سیستم امتیازدهی سلامت"""
+            return self.dependencies['redis']
     
-    def __init__(self):
-        # وزن‌های هر کامپوننت
-        self.weights = {
-            'cpu': {'weight': 0.35, 'thresholds': {'warning': 80, 'critical': 90}},
-            'memory': {'weight': 0.25, 'thresholds': {'warning': 85, 'critical': 95}},
-            'disk': {'weight': 0.20, 'thresholds': {'warning': 90, 'critical': 98}},
-            'network': {'weight': 0.15, 'thresholds': {'warning': 80, 'critical': 95}},
-            'process': {'weight': 0.05, 'thresholds': {'warning': 1000, 'critical': 2000}}
-        }
-        
-        self.history = deque(maxlen=100)
-    
-    def calculate_scores(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
-        """محاسبه امتیاز سلامت برای تمام کامپوننت‌ها"""
-        component_scores = {}
-        total_weighted_score = 0
-        total_weight = 0
-        
-        for component, config in self.weights.items():
-            if component in metrics and 'error' not in metrics[component]:
-                score_details = self._calculate_component_score(component, metrics[component], config)
-                component_scores[component] = score_details
+    def check_database(self, db_connection=None) -> Dict[str, Any]:
+        """بررسی سلامت دیتابیس"""
+        try:
+            start_time = time.time()
+            
+            if db_connection:
+                # اجرای کوئری تست ساده
+                with db_connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+                    cursor.fetchone()
+                    
+                latency = (time.time() - start_time) * 1000
+                self.dependencies['database'] = {
+                    'status': 'healthy',
+                    'last_check': datetime.now(),
+                    'latency_ms': round(latency, 2)
+                }
+            else:
+                # شبیه‌سازی
+                self.dependencies['database'] = {
+                    'status': 'simulated_healthy',
+                    'last_check': datetime.now(),
+                    'latency_ms': 15.2
+                }
                 
-                total_weighted_score += score_details['weighted_score']
-                total_weight += config['weight']
-        
-        # محاسبه امتیاز کلی
-        overall_score = (total_weighted_score / total_weight) if total_weight > 0 else 0
-        
-        # ذخیره در تاریخچه
-        self.history.append({
-            'timestamp': metrics.get('timestamp', datetime.now().isoformat()),
-            'overall_score': overall_score,
-            'component_scores': component_scores
-        })
-        
-        # محاسبه روند
-        trend = self._calculate_trend()
-        
-        return {
-            'overall_score': round(overall_score, 1),
-            'overall_status': self._get_overall_status(overall_score),
-            'component_scores': component_scores,
-            'trend': trend,
-            'recommendations': self._generate_recommendations(component_scores, overall_score),
-            'timestamp': datetime.now().isoformat()
+            return self.dependencies['database']
+            
+        except Exception as e:
+            self.dependencies['database'] = {
+                'status': 'unhealthy',
+                'last_check': datetime.now(),
+                'latency_ms': None,
+                'error': str(e)
+            }
+            return self.dependencies['database']
+    
+    def add_external_api(self, name: str, url: str, check_interval: int = 60):
+        """اضافه کردن API خارجی برای مانیتورینگ"""
+        self.dependencies['external_apis'][name] = {
+            'url': url,
+            'status': 'pending',
+            'last_check': None,
+            'check_interval': check_interval,
+            'latency_ms': None
         }
     
-    def _calculate_component_score(self, component: str, data: Dict, config: Dict) -> Dict[str, Any]:
-        """محاسبه امتیاز برای یک کامپوننت خاص"""
-        # استخراج مقدار اصلی
-        if component == 'cpu':
-            value = data.get('percent', 0)
-        elif component == 'memory':
-            value = data.get('percent', 0)
-        elif component == 'disk':
-            value = data.get('usage_percent', 0)
-        elif component == 'network':
-            # ترکیب upload/download
-            sent = data.get('bytes_sent_mb', 0)
-            recv = data.get('bytes_recv_mb', 0)
-            value = min((sent + recv) / 10, 100)  # normalize
-        elif component == 'process':
-            value = min(data.get('memory_rss_mb', 0) / 10, 100)
-        else:
-            value = 0
-        
-        # محاسبه امتیاز (هرچه usage کمتر، امتیاز بیشتر)
-        score = max(0, 100 - value)
-        
-        # وضعیت
-        if value >= config['thresholds']['critical']:
-            status = ComponentHealth.CRITICAL.value
-        elif value >= config['thresholds']['warning']:
-            status = ComponentHealth.WARNING.value
-        else:
-            status = ComponentHealth.HEALTHY.value
-        
-        # امتیاز وزنی
-        weighted_score = score * config['weight']
-        
-        return {
-            'score': round(score, 1),
-            'value': round(value, 1),
-            'status': status,
-            'weighted_score': round(weighted_score, 3),
-            'thresholds': config['thresholds']
-        }
-    
-    def _get_overall_status(self, score: float) -> str:
-        """تعیین وضعیت کلی"""
-        if score >= 85:
-            return ComponentHealth.HEALTHY.value
-        elif score >= 70:
-            return ComponentHealth.WARNING.value
-        else:
-            return ComponentHealth.CRITICAL.value
-    
-    def _calculate_trend(self) -> Dict[str, Any]:
-        """محاسبه روند امتیازها"""
-        if len(self.history) < 5:
-            return {'direction': 'unknown', 'change': 0}
-        
-        scores = [h['overall_score'] for h in list(self.history)[-5:]]
-        
-        if len(scores) < 2:
-            return {'direction': 'stable', 'change': 0}
-        
-        # رگرسیون خطی ساده
-        x = list(range(len(scores)))
-        y = scores
+    async def check_external_api(self, name: str) -> Dict[str, Any]:
+        """بررسی API خارجی"""
+        if name not in self.dependencies['external_apis']:
+            return {'error': f'API {name} not registered'}
+            
+        api_info = self.dependencies['external_apis'][name]
         
         try:
-            slope = (len(x) * sum(x[i] * y[i] for i in range(len(x))) - sum(x) * sum(y)) / \
-                   (len(x) * sum(x_i**2 for x_i in x) - sum(x)**2)
+            import aiohttp
+            start_time = time.time()
             
-            if slope > 0.5:
-                direction = 'improving'
-            elif slope < -0.5:
-                direction = 'deteriorating'
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.get(api_info['url']) as response:
+                    latency = (time.time() - start_time) * 1000
+                    status = 'healthy' if response.status == 200 else 'unhealthy'
+                    
+                    api_info.update({
+                        'status': status,
+                        'last_check': datetime.now(),
+                        'latency_ms': round(latency, 2),
+                        'status_code': response.status
+                    })
+                    
+            return api_info
+            
+        except Exception as e:
+            api_info.update({
+                'status': 'unhealthy',
+                'last_check': datetime.now(),
+                'latency_ms': None,
+                'error': str(e)
+            })
+            return api_info
+    
+    def get_dependency_health_summary(self) -> Dict[str, Any]:
+        """دریافت خلاصه سلامت وابستگی‌ها"""
+        summary = {
+            'timestamp': datetime.now().isoformat(),
+            'overall_health': 'healthy',
+            'unhealthy_count': 0,
+            'total_count': 0,
+            'details': {}
+        }
+        
+        # بررسی Redis
+        redis = self.dependencies['redis']
+        summary['details']['redis'] = redis
+        summary['total_count'] += 1
+        if redis['status'] != 'healthy':
+            summary['unhealthy_count'] += 1
+            
+        # بررسی Database
+        db = self.dependencies['database']
+        summary['details']['database'] = db
+        summary['total_count'] += 1
+        if db['status'] != 'healthy':
+            summary['unhealthy_count'] += 1
+            
+        # بررسی APIهای خارجی
+        for name, api in self.dependencies['external_apis'].items():
+            summary['details'][f'external_api_{name}'] = api
+            summary['total_count'] += 1
+            if api['status'] != 'healthy':
+                summary['unhealthy_count'] += 1
+        
+        # محاسبه سلامت کلی
+        if summary['unhealthy_count'] > 0:
+            summary['overall_health'] = 'degraded' if summary['unhealthy_count'] < summary['total_count'] / 2 else 'unhealthy'
+        
+        return summary
+
+class AnomalyDetector:
+    """تشخیص‌دهنده ناهنجاری‌ها"""
+    
+    def __init__(self, window_size: int = 100):
+        self.window_size = window_size
+        self.metric_history = defaultdict(lambda: deque(maxlen=window_size))
+        self.baselines = {}
+        self.anomalies_detected = deque(maxlen=100)
+        
+    def add_metric(self, metric_name: str, value: float, timestamp: datetime = None):
+        """اضافه کردن متریک برای تحلیل"""
+        if timestamp is None:
+            timestamp = datetime.now()
+            
+        self.metric_history[metric_name].append((timestamp, value))
+        
+        # به‌روزرسانی baseline
+        if len(self.metric_history[metric_name]) >= 10:
+            values = [v for _, v in self.metric_history[metric_name]]
+            self.baselines[metric_name] = {
+                'mean': statistics.mean(values),
+                'std': statistics.stdev(values) if len(values) > 1 else 0.1,
+                'min': min(values),
+                'max': max(values)
+            }
+    
+    def detect_anomalies(self) -> List[AnomalyDetection]:
+        """تشخیص ناهنجاری‌ها"""
+        anomalies = []
+        current_time = datetime.now()
+        
+        for metric_name, history in self.metric_history.items():
+            if len(history) < 5 or metric_name not in self.baselines:
+                continue
+                
+            latest_value = history[-1][1]
+            baseline = self.baselines[metric_name]
+            
+            # تشخیص spike (فراتر از 3 انحراف معیار)
+            if baseline['std'] > 0:
+                z_score = abs(latest_value - baseline['mean']) / baseline['std']
+                
+                if z_score > 3.0:
+                    anomaly_type = self._determine_anomaly_type(metric_name, latest_value, baseline)
+                    
+                    anomaly = AnomalyDetection(
+                        anomaly_type=anomaly_type,
+                        severity=min(z_score / 5.0, 1.0),  # نرمال‌سازی به 0-1
+                        detected_at=current_time,
+                        metric_value=latest_value,
+                        baseline_value=baseline['mean'],
+                        confidence=min(z_score / 4.0, 0.95)
+                    )
+                    anomalies.append(anomaly)
+                    self.anomalies_detected.append(anomaly)
+        
+        return anomalies
+    
+    def _determine_anomaly_type(self, metric_name: str, value: float, baseline: Dict) -> AnomalyType:
+        """تعیین نوع ناهنجاری"""
+        metric_lower = metric_name.lower()
+        
+        if 'cpu' in metric_lower:
+            return AnomalyType.CPU_SPIKE
+        elif 'memory' in metric_lower:
+            return AnomalyType.MEMORY_LEAK if value > baseline['mean'] else AnomalyType.PROCESS_CRASH
+        elif 'disk' in metric_lower and ('io' in metric_lower or 'read' in metric_lower or 'write' in metric_lower):
+            return AnomalyType.DISK_IO_SURGE
+        elif 'network' in metric_lower or 'bytes' in metric_lower:
+            return AnomalyType.NETWORK_FLASH
+        elif 'api' in metric_lower or 'latency' in metric_lower:
+            return AnomalyType.API_LATENCY_SPIKE
+        elif 'quality' in metric_lower or 'success' in metric_lower:
+            return AnomalyType.DATA_QUALITY_DROP
+        else:
+            return AnomalyType.SERVICE_DEGRADATION
+    
+    def get_anomaly_summary(self, hours: int = 24) -> Dict[str, Any]:
+        """خلاصه ناهنجاری‌های اخیر"""
+        cutoff = datetime.now() - timedelta(hours=hours)
+        recent_anomalies = [a for a in self.anomalies_detected if a.detected_at > cutoff]
+        
+        anomaly_by_type = defaultdict(list)
+        for anomaly in recent_anomalies:
+            anomaly_by_type[anomaly.anomaly_type.value].append(anomaly)
+        
+        return {
+            'total_anomalies': len(recent_anomalies),
+            'anomalies_by_type': {k: len(v) for k, v in anomaly_by_type.items()},
+            'most_common_anomaly': max(anomaly_by_type.items(), key=lambda x: len(x[1]))[0] if anomaly_by_type else None,
+            'highest_severity': max((a.severity for a in recent_anomalies), default=0),
+            'time_period_hours': hours
+        }
+
+class CorrelationEngine:
+    """موتور تحلیل همبستگی رویدادها"""
+    
+    def __init__(self):
+        self.events = deque(maxlen=1000)
+        self.correlations = deque(maxlen=100)
+        self.event_types = set()
+        
+    def add_event(self, event_type: str, event_data: Dict[str, Any], timestamp: datetime = None):
+        """اضافه کردن رویداد"""
+        if timestamp is None:
+            timestamp = datetime.now()
+            
+        event_id = f"{event_type}_{timestamp.timestamp()}_{hash(str(event_data)) % 10000}"
+        
+        event = {
+            'id': event_id,
+            'type': event_type,
+            'data': event_data,
+            'timestamp': timestamp,
+            'metrics': event_data.get('metrics', {})
+        }
+        
+        self.events.append(event)
+        self.event_types.add(event_type)
+        
+        # بررسی همبستگی با رویدادهای اخیر
+        self._check_correlations(event)
+        
+        return event_id
+    
+    def _check_correlations(self, new_event: Dict[str, Any]):
+        """بررسی همبستگی با رویدادهای اخیر"""
+        recent_events = [e for e in self.events 
+                        if e['timestamp'] > datetime.now() - timedelta(minutes=5)
+                        and e['id'] != new_event['id']]
+        
+        if not recent_events:
+            return
+            
+        for event in recent_events:
+            correlation_score = self._calculate_correlation_score(new_event, event)
+            
+            if correlation_score > 0.7:  # آستانه همبستگی بالا
+                correlation = CorrelationEvent(
+                    event_id=f"corr_{new_event['id']}_{event['id']}",
+                    events=[new_event['id'], event['id']],
+                    correlation_score=correlation_score,
+                    detected_at=datetime.now(),
+                    root_cause=self._identify_root_cause(new_event, event)
+                )
+                self.correlations.append(correlation)
+    
+    def _calculate_correlation_score(self, event1: Dict, event2: Dict) -> float:
+        """محاسبه امتیاز همبستگی"""
+        score = 0.0
+        
+        # همبستگی زمانی (وقتی نزدیک هم اتفاق بیفتند)
+        time_diff = abs((event1['timestamp'] - event2['timestamp']).total_seconds())
+        if time_diff < 60:  # در عرض 1 دقیقه
+            time_score = 1.0 - (time_diff / 60)
+            score += time_score * 0.4
+        
+        # همبستگی در متریک‌ها
+        metrics1 = event1.get('metrics', {})
+        metrics2 = event2.get('metrics', {})
+        
+        common_metrics = set(metrics1.keys()) & set(metrics2.keys())
+        if common_metrics:
+            metric_correlations = []
+            for metric in common_metrics:
+                val1 = metrics1[metric]
+                val2 = metrics2[metric]
+                if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                    # همبستگی ساده: اگر هر دو بالا یا پایین باشند
+                    if (val1 > 50 and val2 > 50) or (val1 < 30 and val2 < 30):
+                        metric_correlations.append(1.0)
+                    else:
+                        metric_correlations.append(0.0)
+            
+            if metric_correlations:
+                metric_score = sum(metric_correlations) / len(metric_correlations)
+                score += metric_score * 0.6
+        
+        return min(score, 1.0)
+    
+    def _identify_root_cause(self, event1: Dict, event2: Dict) -> Optional[str]:
+        """شناسایی علت اصلی"""
+        # منطق ساده برای شناسایی root cause
+        event_types = {event1['type'], event2['type']}
+        
+        if AnomalyType.CPU_SPIKE.value in event_types and AnomalyType.API_LATENCY_SPIKE.value in event_types:
+            return "High CPU usage causing API latency"
+        elif AnomalyType.MEMORY_LEAK.value in event_types and AnomalyType.SERVICE_DEGRADATION.value in event_types:
+            return "Memory leak leading to service degradation"
+        elif AnomalyType.DISK_IO_SURGE.value in event_types and AnomalyType.DATA_QUALITY_DROP.value in event_types:
+            return "Disk I/O issues affecting data processing"
+        
+        return None
+    
+    def get_correlations_summary(self, hours: int = 6) -> Dict[str, Any]:
+        """خلاصه همبستگی‌های اخیر"""
+        cutoff = datetime.now() - timedelta(hours=hours)
+        recent_correlations = [c for c in self.correlations if c.detected_at > cutoff]
+        
+        return {
+            'total_correlations': len(recent_correlations),
+            'high_confidence_correlations': len([c for c in recent_correlations if c.correlation_score > 0.8]),
+            'common_root_causes': self._extract_common_root_causes(recent_correlations),
+            'most_correlated_event_types': self._find_most_correlated_types(recent_correlations),
+            'time_period_hours': hours
+        }
+    
+    def _extract_common_root_causes(self, correlations: List[CorrelationEvent]) -> List[str]:
+        """استخراج علل اصلی رایج"""
+        causes = [c.root_cause for c in correlations if c.root_cause]
+        cause_counts = defaultdict(int)
+        for cause in causes:
+            cause_counts[cause] += 1
+        
+        return [cause for cause, count in sorted(cause_counts.items(), key=lambda x: x[1], reverse=True)[:5]]
+    
+    def _find_most_correlated_types(self, correlations: List[CorrelationEvent]) -> List[Tuple[str, str, int]]:
+        """یافتن پرتکرارترین جفت رویدادهای مرتبط"""
+        type_pairs = defaultdict(int)
+        
+        for corr in correlations:
+            # استخراج رویدادها و انواعشان
+            events = self._get_events_by_ids(corr.events)
+            if len(events) >= 2:
+                types = tuple(sorted([e['type'] for e in events[:2]]))
+                type_pairs[types] += 1
+        
+        return [(t1, t2, count) for (t1, t2), count in sorted(type_pairs.items(), key=lambda x: x[1], reverse=True)[:5]]
+    
+    def _get_events_by_ids(self, event_ids: List[str]) -> List[Dict]:
+        """دریافت رویدادها بر اساس ID"""
+        return [e for e in self.events if e['id'] in event_ids]
+
+class TrendAnalyzer:
+    """تحلیل‌گر روند و پیش‌بینی"""
+    
+    def __init__(self, forecast_window: int = 7):
+        self.forecast_window = forecast_window
+        self.trend_data = defaultdict(lambda: deque(maxlen=500))
+        
+    def add_data_point(self, metric_name: str, value: float, timestamp: datetime = None):
+        """اضافه کردن نقطه داده"""
+        if timestamp is None:
+            timestamp = datetime.now()
+            
+        self.trend_data[metric_name].append((timestamp, value))
+    
+    def analyze_trend(self, metric_name: str, window_hours: int = 24) -> Dict[str, Any]:
+        """تحلیل روند یک متریک"""
+        data = list(self.trend_data[metric_name])
+        if not data:
+            return {'error': 'No data available'}
+        
+        cutoff = datetime.now() - timedelta(hours=window_hours)
+        recent_data = [(ts, val) for ts, val in data if ts > cutoff]
+        
+        if len(recent_data) < 3:
+            return {'error': 'Insufficient data for analysis'}
+        
+        timestamps, values = zip(*recent_data)
+        
+        # محاسبه روند (linear regression)
+        x = np.arange(len(values))
+        try:
+            slope, intercept = np.polyfit(x, values, 1)
+        except:
+            slope, intercept = 0, values[0]
+        
+        # محاسبه پیش‌بینی
+        forecast = []
+        for i in range(self.forecast_window):
+            predicted = slope * (len(values) + i) + intercept
+            forecast.append(max(predicted, 0))  # منفی نشود
+        
+        # تحلیل نوسانات
+        volatility = np.std(values) if len(values) > 1 else 0
+        
+        return {
+            'metric': metric_name,
+            'data_points': len(recent_data),
+            'current_value': values[-1],
+            'trend_direction': 'increasing' if slope > 0.01 else 'decreasing' if slope < -0.01 else 'stable',
+            'trend_strength': abs(slope),
+            'volatility': volatility,
+            'forecast': forecast,
+            'time_to_threshold': self._estimate_time_to_threshold(values, slope),
+            'analysis_timestamp': datetime.now().isoformat()
+        }
+    
+    def _estimate_time_to_threshold(self, values: List[float], slope: float) -> Optional[Dict[str, Any]]:
+        """تخمین زمان رسیدن به آستانه‌های مهم"""
+        if abs(slope) < 0.001:
+            return None
+        
+        current_value = values[-1]
+        thresholds = {
+            'warning_80': 80,
+            'critical_90': 90,
+            'warning_low_20': 20
+        }
+        
+        estimates = {}
+        for name, threshold in thresholds.items():
+            if (slope > 0 and current_value < threshold) or (slope < 0 and current_value > threshold):
+                time_to_reach = abs((threshold - current_value) / slope)
+                # تبدیل به ساعت (با فرض اینکه هر نقطه داده 5 دقیقه فاصله دارد)
+                hours_to_reach = (time_to_reach * 5) / 60
+                
+                if hours_to_reach > 0:
+                    estimates[name] = {
+                        'threshold': threshold,
+                        'estimated_hours': round(hours_to_reach, 1),
+                        'estimated_time': (datetime.now() + timedelta(hours=hours_to_reach)).isoformat()
+                    }
+        
+        return estimates if estimates else None
+    
+    def get_metric_forecast(self, metric_name: str) -> Dict[str, Any]:
+        """دریافت پیش‌بینی برای یک متریک"""
+        return self.analyze_trend(metric_name)
+    
+    def get_all_trends_summary(self) -> Dict[str, Any]:
+        """خلاصه روندهای تمام متریک‌ها"""
+        summary = {
+            'timestamp': datetime.now().isoformat(),
+            'metrics_analyzed': [],
+            'critical_trends': [],
+            'improving_trends': []
+        }
+        
+        for metric_name in self.trend_data.keys():
+            trend = self.analyze_trend(metric_name, window_hours=6)
+            
+            if 'error' not in trend:
+                summary['metrics_analyzed'].append({
+                    'name': metric_name,
+                    'trend': trend['trend_direction'],
+                    'current': trend['current_value']
+                })
+                
+                if trend['trend_direction'] == 'increasing' and trend['current_value'] > 50:
+                    summary['critical_trends'].append(metric_name)
+                elif trend['trend_direction'] == 'decreasing' and trend['current_value'] < 50:
+                    summary['improving_trends'].append(metric_name)
+        
+        return summary
+
+class SelfHealingAdvisor:
+    """مشاور خود-ترمیمی"""
+    
+    def __init__(self):
+        self.recommendations_db = {
+            'high_cpu': [
+                "Restart the service to clear stuck processes",
+                "Check for infinite loops in recent deployments",
+                "Increase CPU allocation if running in container",
+                "Optimize database queries that might be causing load"
+            ],
+            'high_memory': [
+                "Restart application to free up memory leaks",
+                "Increase Java heap size if applicable",
+                "Check for memory leaks in recent code changes",
+                "Reduce cache size or implement cache eviction"
+            ],
+            'high_disk': [
+                "Clean up temporary files and logs",
+                "Implement log rotation if not already done",
+                "Archive old data to cold storage",
+                "Increase disk space allocation"
+            ],
+            'network_issues': [
+                "Check firewall rules and network configuration",
+                "Restart network services",
+                "Verify DNS resolution",
+                "Check for DDoS attacks or unusual traffic"
+            ],
+            'api_latency': [
+                "Optimize database indexes",
+                "Implement response caching",
+                "Check external API dependencies",
+                "Scale up application instances"
+            ],
+            'service_degradation': [
+                "Restart affected services",
+                "Check dependency health (database, redis, etc.)",
+                "Verify recent deployment changes",
+                "Rollback to last stable version if possible"
+            ]
+        }
+        
+        self.action_history = deque(maxlen=100)
+    
+    def get_recommendations(self, issue_type: str, severity: float = 0.5) -> List[Dict[str, Any]]:
+        """دریافت توصیه‌های ترمیمی"""
+        recommendations = []
+        
+        # پیدا کردن توصیه‌های مرتبط
+        for key, suggestions in self.recommendations_db.items():
+            if key in issue_type.lower() or issue_type.lower() in key:
+                for i, suggestion in enumerate(suggestions):
+                    recommendations.append({
+                        'id': f"{key}_{i}_{int(time.time())}",
+                        'issue_type': key,
+                        'recommendation': suggestion,
+                        'priority': 'high' if severity > 0.7 else 'medium' if severity > 0.4 else 'low',
+                        'estimated_impact': 'high' if i == 0 else 'medium' if i == 1 else 'low',
+                        'implementation_time': 'minutes' if i < 2 else 'hours'
+                    })
+        
+        # اگر هیچ توصیه مستقیمی پیدا نشد
+        if not recommendations:
+            recommendations.append({
+                'id': f"generic_{int(time.time())}",
+                'issue_type': 'generic',
+                'recommendation': "Check system logs and metrics for root cause analysis",
+                'priority': 'medium',
+                'estimated_impact': 'medium',
+                'implementation_time': 'hours'
+            })
+        
+        return recommendations
+    
+    def record_action(self, action: Dict[str, Any], success: bool = True, notes: str = ""):
+        """ثبت اقدام انجام شده"""
+        action_record = {
+            'action_id': action.get('id', f"action_{int(time.time())}"),
+            'action_type': action.get('issue_type', 'unknown'),
+            'recommendation': action.get('recommendation', ''),
+            'executed_at': datetime.now(),
+            'success': success,
+            'notes': notes,
+            'resolved_issue': action.get('resolved_issue', False)
+        }
+        
+        self.action_history.append(action_record)
+        return action_record
+    
+    def get_action_history_summary(self, days: int = 7) -> Dict[str, Any]:
+        """خلاصه تاریخچه اقدامات"""
+        cutoff = datetime.now() - timedelta(days=days)
+        recent_actions = [a for a in self.action_history if a['executed_at'] > cutoff]
+        
+        if not recent_actions:
+            return {'message': 'No recent actions found'}
+        
+        success_rate = sum(1 for a in recent_actions if a['success']) / len(recent_actions)
+        resolved_rate = sum(1 for a in recent_actions if a.get('resolved_issue', False)) / len(recent_actions) if recent_actions else 0
+        
+        return {
+            'total_actions': len(recent_actions),
+            'success_rate': f"{success_rate * 100:.1f}%",
+            'issue_resolution_rate': f"{resolved_rate * 100:.1f}%",
+            'most_common_action': self._get_most_common_action_type(recent_actions),
+            'recent_actions': recent_actions[-10:],  # 10 اقدام اخیر
+            'time_period_days': days
+        }
+    
+    def _get_most_common_action_type(self, actions: List[Dict]) -> str:
+        """یافتن پرتکرارترین نوع اقدام"""
+        action_types = [a['action_type'] for a in actions]
+        if not action_types:
+            return 'none'
+        
+        from collections import Counter
+        return Counter(action_types).most_common(1)[0][0]
+
+class SystemMonitor:
+    """کلاس اصلی مانیتورینگ سیستم با قابلیت‌های پیشرفته"""
+    
+    def __init__(self, metrics_collector, alert_manager):
+        self.metrics_collector = metrics_collector
+        self.alert_manager = alert_manager
+        self.system_thresholds = {
+            'cpu_warning': 80.0,
+            'cpu_critical': 95.0,
+            'memory_warning': 85.0,
+            'memory_critical': 95.0,
+            'disk_warning': 90.0,
+            'disk_critical': 98.0,
+            'temperature_warning': 80.0,
+            'temperature_critical': 90.0
+        }
+        
+        # سیستم‌های پیشرفته
+        self.dependency_monitor = DependencyMonitor()
+        self.anomaly_detector = AnomalyDetector()
+        self.correlation_engine = CorrelationEngine()
+        self.trend_analyzer = TrendAnalyzer()
+        self.predictive_alerter = PredictiveAlerting()
+        self.self_healing_advisor = SelfHealingAdvisor()
+        
+        # عضویت در central_monitor
+        global central_monitor
+        if central_monitor:
+            central_monitor.subscribe("system_monitor", self._on_metrics_update)
+            logger.info("✅ SystemMonitor subscribed to central_monitor with advanced features")
+        else:
+            logger.warning("⚠️ Central monitor not available - system monitor will be passive")
+        
+        # کش برای جلوگیری از duplicate alerts
+        self.alert_cache = {}
+        self.cache_ttl = 60  # 60 seconds
+        
+        # شروع مانیتورینگ وابستگی‌ها
+        self._start_dependency_monitoring()
+    
+    async def _start_dependency_monitoring(self):
+        """شروع مانیتورینگ وابستگی‌ها"""
+        async def monitor_loop():
+            while True:
+                try:
+                    # بررسی Redis هر 30 ثانیه
+                    await self.dependency_monitor.check_redis()
+                    
+                    # بررسی Database هر 60 ثانیه
+                    if int(time.time()) % 60 == 0:
+                        self.dependency_monitor.check_database()
+                    
+                    # بررسی APIهای خارجی هر 2 دقیقه
+                    if int(time.time()) % 120 == 0:
+                        for api_name in list(self.dependency_monitor.dependencies['external_apis'].keys()):
+                            await self.dependency_monitor.check_external_api(api_name)
+                    
+                    await asyncio.sleep(30)
+                    
+                except Exception as e:
+                    logger.error(f"❌ Dependency monitoring error: {e}")
+                    await asyncio.sleep(60)
+        
+        # اجرای در background
+        asyncio.create_task(monitor_loop())
+        logger.info("🔄 Advanced dependency monitoring started")
+    
+    def _on_metrics_update(self, metrics: Dict[str, Any]):
+        """دریافت متریک‌ها از سیستم مرکزی"""
+        try:
+            system_metrics = metrics.get('system', {})
+            
+            # ذخیره برای تحلیل روند
+            cpu_usage = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = system_metrics.get('memory', {}).get('percent', 0)
+            
+            timestamp = datetime.now()
+            self.anomaly_detector.add_metric('cpu_usage', cpu_usage, timestamp)
+            self.anomaly_detector.add_metric('memory_usage', memory_usage, timestamp)
+            
+            self.trend_analyzer.add_data_point('cpu_usage', cpu_usage, timestamp)
+            self.trend_analyzer.add_data_point('memory_usage', memory_usage, timestamp)
+            
+            self.predictive_alerter.add_metric_point('cpu_usage', cpu_usage, timestamp)
+            self.predictive_alerter.add_metric_point('memory_usage', memory_usage, timestamp)
+            
+            # تشخیص ناهنجاری
+            anomalies = self.anomaly_detector.detect_anomalies()
+            for anomaly in anomalies:
+                self._handle_anomaly(anomaly, system_metrics)
+            
+            # پیش‌بینی هشدارها
+            self._check_predictive_alerts(system_metrics)
+            
+            # انجام چک سلامت
+            self._perform_health_check_with_metrics(system_metrics)
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing metrics update: {e}")
+    
+    def _handle_anomaly(self, anomaly: AnomalyDetection, metrics: Dict[str, Any]):
+        """مدیریت ناهنجاری شناسایی شده"""
+        try:
+            # ایجاد رویداد در موتور همبستگی
+            event_id = self.correlation_engine.add_event(
+                anomaly.anomaly_type.value,
+                {
+                    'severity': anomaly.severity,
+                    'metric_value': anomaly.metric_value,
+                    'baseline_value': anomaly.baseline_value,
+                    'metrics': {
+                        'cpu': metrics.get('cpu', {}).get('percent', 0),
+                        'memory': metrics.get('memory', {}).get('percent', 0),
+                        'disk': metrics.get('disk', {}).get('usage_percent', 0)
+                    }
+                }
+            )
+            
+            # ایجاد هشدار برای ناهنجاری‌های شدید
+            if anomaly.severity > 0.7:
+                from debug_system.core.alert_manager import AlertLevel, AlertType
+                
+                self.alert_manager.create_alert(
+                    level=AlertLevel.WARNING if anomaly.severity < 0.9 else AlertLevel.CRITICAL,
+                    alert_type=AlertType.SYSTEM,
+                    title=f"Anomaly Detected: {anomaly.anomaly_type.value.replace('_', ' ').title()}",
+                    message=f"Detected {anomaly.anomaly_type.value} with severity {anomaly.severity:.2f}. "
+                           f"Value: {anomaly.metric_value:.1f}, Baseline: {anomaly.baseline_value:.1f}",
+                    source="anomaly_detector",
+                    data={
+                        'anomaly_type': anomaly.anomaly_type.value,
+                        'severity': anomaly.severity,
+                        'confidence': anomaly.confidence,
+                        'event_id': event_id
+                    }
+                )
+                
+                logger.warning(f"🚨 Anomaly detected: {anomaly.anomaly_type.value} (severity: {anomaly.severity:.2f})")
+            
+            # دریافت توصیه‌های خود-ترمیمی
+            if anomaly.severity > 0.6:
+                recommendations = self.self_healing_advisor.get_recommendations(
+                    anomaly.anomaly_type.value,
+                    anomaly.severity
+                )
+                
+                logger.info(f"💡 Self-healing recommendations for {anomaly.anomaly_type.value}: {len(recommendations)} found")
+                
+        except Exception as e:
+            logger.error(f"❌ Error handling anomaly: {e}")
+    
+    def _check_predictive_alerts(self, metrics: Dict[str, Any]):
+        """بررسی هشدارهای پیش‌بینانه"""
+        try:
+            cpu_usage = metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = metrics.get('memory', {}).get('percent', 0)
+            
+            # پیش‌بینی زمان رسیدن به آستانه
+            cpu_breach_time = self.predictive_alerter.predict_threshold_breach(
+                'cpu_usage', 
+                self.system_thresholds['cpu_warning']
+            )
+            
+            memory_breach_time = self.predictive_alerter.predict_threshold_breach(
+                'memory_usage',
+                self.system_thresholds['memory_warning']
+            )
+            
+            # ایجاد هشدار پیش‌بینانه
+            if cpu_breach_time and cpu_usage < self.system_thresholds['cpu_warning']:
+                time_to_breach = (cpu_breach_time - datetime.now()).total_seconds() / 60  # به دقیقه
+                if time_to_breach < 30:  # اگر کمتر از 30 دقیقه باقی مانده
+                    self._create_predictive_alert(
+                        'CPU usage',
+                        time_to_breach,
+                        self.system_thresholds['cpu_warning'],
+                        cpu_usage
+                    )
+            
+            if memory_breach_time and memory_usage < self.system_thresholds['memory_warning']:
+                time_to_breach = (memory_breach_time - datetime.now()).total_seconds() / 60
+                if time_to_breach < 30:
+                    self._create_predictive_alert(
+                        'Memory usage',
+                        time_to_breach,
+                        self.system_thresholds['memory_warning'],
+                        memory_usage
+                    )
+                    
+        except Exception as e:
+            logger.error(f"❌ Error checking predictive alerts: {e}")
+    
+    def _create_predictive_alert(self, metric_name: str, minutes_to_breach: float, threshold: float, current_value: float):
+        """ایجاد هشدار پیش‌بینانه"""
+        try:
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            self.alert_manager.create_alert(
+                level=AlertLevel.INFO,
+                alert_type=AlertType.SYSTEM,
+                title=f"Predictive Alert: {metric_name}",
+                message=f"{metric_name} expected to reach {threshold}% in {minutes_to_breach:.1f} minutes. "
+                       f"Current: {current_value:.1f}%",
+                source="predictive_monitor",
+                data={
+                    'metric': metric_name,
+                    'minutes_to_breach': minutes_to_breach,
+                    'threshold': threshold,
+                    'current_value': current_value
+                }
+            )
+            
+            logger.info(f"🔮 Predictive alert: {metric_name} will breach in {minutes_to_breach:.1f} minutes")
+            
+        except Exception as e:
+            logger.error(f"❌ Error creating predictive alert: {e}")
+    
+    def _perform_health_check_with_metrics(self, metrics: Dict[str, Any]):
+        """انجام چک سلامت با متریک‌های داده شده"""
+        try:
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            cpu_usage = metrics.get('cpu', {}).get('percent', 0)
+            self._check_cpu_health(cpu_usage, metrics)
+            
+            memory_usage = metrics.get('memory', {}).get('percent', 0)
+            self._check_memory_health(memory_usage, metrics)
+            
+            disk_usage = metrics.get('disk', {}).get('usage_percent', 0)
+            self._check_disk_health(disk_usage, metrics)
+            
+        except Exception as e:
+            logger.error(f"❌ Error in system health check: {e}")
+    
+    def _check_cpu_health(self, cpu_usage: float, metrics: Dict):
+        """بررسی سلامت CPU با cache"""
+        alert_key = f"cpu_{int(cpu_usage // 10)}"
+        
+        if self._is_cached_alert(alert_key):
+            return
+        
+        if cpu_usage > self.system_thresholds['cpu_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical CPU Usage",
+                f"CPU usage is critically high: {cpu_usage:.1f}%",
+                "system_monitor",
+                {'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_critical']}
+            )
+        elif cpu_usage > self.system_thresholds['cpu_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High CPU Usage",
+                f"CPU usage is high: {cpu_usage:.1f}%",
+                "system_monitor",
+                {'cpu_usage': cpu_usage, 'threshold': self.system_thresholds['cpu_warning']}
+            )
+    
+    def _check_memory_health(self, memory_usage: float, metrics: Dict):
+        """بررسی سلامت Memory با cache"""
+        alert_key = f"memory_{int(memory_usage // 10)}"
+        
+        if self._is_cached_alert(alert_key):
+            return
+            
+        if memory_usage > self.system_thresholds['memory_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical Memory Usage",
+                f"Memory usage is critically high: {memory_usage:.1f}%",
+                "system_monitor",
+                {'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_critical']}
+            )
+        elif memory_usage > self.system_thresholds['memory_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High Memory Usage", 
+                f"Memory usage is high: {memory_usage:.1f}%",
+                "system_monitor",
+                {'memory_usage': memory_usage, 'threshold': self.system_thresholds['memory_warning']}
+            )
+    
+    def _check_disk_health(self, disk_usage: float, metrics: Dict):
+        """بررسی سلامت Disk با cache"""
+        alert_key = f"disk_{int(disk_usage // 10)}"
+        
+        if self._is_cached_alert(alert_key):
+            return
+        
+        if disk_usage > self.system_thresholds['disk_critical']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.CRITICAL,
+                AlertType.SYSTEM,
+                "Critical Disk Usage",
+                f"Disk usage is critically high: {disk_usage:.1f}%",
+                "system_monitor", 
+                {'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_critical']}
+            )
+        elif disk_usage > self.system_thresholds['disk_warning']:
+            self._create_cached_alert(
+                alert_key,
+                AlertLevel.WARNING,
+                AlertType.SYSTEM,
+                "High Disk Usage",
+                f"Disk usage is high: {disk_usage:.1f}%",
+                "system_monitor",
+                {'disk_usage': disk_usage, 'threshold': self.system_thresholds['disk_warning']}
+            )
+    
+    def _is_cached_alert(self, alert_key: str) -> bool:
+        """بررسی آیا alert در cache است"""
+        if alert_key in self.alert_cache:
+            cache_time = self.alert_cache[alert_key]
+            if (datetime.now() - cache_time).total_seconds() < self.cache_ttl:
+                return True
+        return False
+    
+    def _create_cached_alert(self, alert_key: str, level, alert_type, title, message, source, data):
+        """ایجاد alert با cache"""
+        self.alert_cache[alert_key] = datetime.now()
+        self._create_alert_sync(level, alert_type, title, message, source, data)
+    
+    def _create_alert_sync(self, level, alert_type, title, message, source, data):
+        """ایجاد هشدار به صورت synchronous"""
+        try:
+            alert_result = self.alert_manager.create_alert(
+                level=level,
+                alert_type=alert_type,
+                title=title,
+                message=message,
+                source=source,
+                data=data
+            )
+            
+            if alert_result:
+                logger.info(f"🚨 System alert created: {title}")
             else:
-                direction = 'stable'
+                logger.debug(f"⚠️ System alert was not created (might be in cooldown): {title}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating system alert: {e}")
+    
+    # APIهای پیشرفته جدید
+    
+    def get_advanced_health_report(self) -> Dict[str, Any]:
+        """گزارش سلامت پیشرفته"""
+        try:
+            # متریک‌های فعلی
+            metrics = self.get_system_health()
+            
+            # تحلیل ناهنجاری
+            anomaly_summary = self.anomaly_detector.get_anomaly_summary()
+            
+            # تحلیل همبستگی
+            correlation_summary = self.correlation_engine.get_correlations_summary()
+            
+            # تحلیل روند
+            trend_summary = self.trend_analyzer.get_all_trends_summary()
+            
+            # سلامت وابستگی‌ها
+            dependency_summary = self.dependency_monitor.get_dependency_health_summary()
+            
+            # تاریخچه اقدامات خود-ترمیمی
+            healing_summary = self.self_healing_advisor.get_action_history_summary(days=1)
+            
+            # پیش‌بینی‌ها
+            cpu_forecast = self.trend_analyzer.get_metric_forecast('cpu_usage')
+            memory_forecast = self.trend_analyzer.get_metric_forecast('memory_usage')
             
             return {
-                'direction': direction,
-                'change': round(slope, 3),
-                'last_5_scores': scores[-5:]
+                'timestamp': datetime.now().isoformat(),
+                'basic_health': metrics,
+                'anomaly_analysis': anomaly_summary,
+                'correlation_analysis': correlation_summary,
+                'trend_analysis': trend_summary,
+                'dependency_health': dependency_summary,
+                'self_healing_history': healing_summary,
+                'predictions': {
+                    'cpu_forecast': cpu_forecast,
+                    'memory_forecast': memory_forecast
+                },
+                'recommendations': self._generate_recommendations(metrics, anomaly_summary, dependency_summary)
             }
-        except:
-            return {'direction': 'unknown', 'change': 0}
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating advanced health report: {e}")
+            return {'error': str(e), 'timestamp': datetime.now().isoformat()}
     
-    def _generate_recommendations(self, component_scores: Dict, overall_score: float) -> List[str]:
+    def _generate_recommendations(self, health_metrics: Dict, anomaly_summary: Dict, dependency_summary: Dict) -> List[Dict[str, Any]]:
         """تولید توصیه‌های هوشمند"""
         recommendations = []
         
-        # بررسی هر کامپوننت
-        for component, score_data in component_scores.items():
-            if score_data['status'] == ComponentHealth.CRITICAL.value:
-                rec = self._get_critical_recommendation(component, score_data['value'])
-                if rec:
-                    recommendations.append(rec)
-            elif score_data['status'] == ComponentHealth.WARNING.value and overall_score < 75:
-                rec = self._get_warning_recommendation(component, score_data['value'])
-                if rec:
-                    recommendations.append(rec)
+        # بررسی سلامت عمومی
+        if health_metrics.get('overall_health') == 'critical':
+            recommendations.append({
+                'type': 'urgent',
+                'message': 'System health is critical. Immediate attention required.',
+                'action': 'Check critical alerts and restart services if necessary'
+            })
         
-        # توصیه کلی
-        if overall_score < 60 and not recommendations:
-            recommendations.append("بررسی کلی سیستم توسط ادمین ضروری است")
+        # بررسی ناهنجاری‌ها
+        if anomaly_summary.get('total_anomalies', 0) > 5:
+            recommendations.append({
+                'type': 'warning',
+                'message': f"High number of anomalies detected: {anomaly_summary.get('total_anomalies')}",
+                'action': 'Review anomaly logs and investigate root causes'
+            })
         
-        if not recommendations and overall_score >= 85:
-            recommendations.append("سیستم در وضعیت بهینه قرار دارد")
+        # بررسی وابستگی‌ها
+        if dependency_summary.get('overall_health') != 'healthy':
+            recommendations.append({
+                'type': 'dependency',
+                'message': f"Dependencies health: {dependency_summary.get('overall_health')}",
+                'action': 'Check external services and network connectivity'
+            })
         
-        return recommendations[:5]  # حداکثر 5 توصیه
+        # بررسی روندهای بحرانی
+        trends = self.trend_analyzer.get_all_trends_summary()
+        for critical in trends.get('critical_trends', []):
+            recommendations.append({
+                'type': 'trend',
+                'message': f"Critical increasing trend detected: {critical}",
+                'action': f'Monitor {critical} closely and consider scaling resources'
+            })
+        
+        # اگر هیچ توصیه‌ای نبود
+        if not recommendations:
+            recommendations.append({
+                'type': 'info',
+                'message': 'System health is stable. No immediate actions required.',
+                'action': 'Continue regular monitoring'
+            })
+        
+        return recommendations
     
-    def _get_critical_recommendation(self, component: str, value: float) -> str:
-        """توصیه برای وضعیت بحرانی"""
-        recommendations = {
-            'cpu': f"CPU در وضعیت بحرانی ({value}%) - ری‌استارت/Scale اضطراری",
-            'memory': f"Memory در وضعیت بحرانی ({value}%) - بررسی Memory Leak",
-            'disk': f"دیسک در وضعیت بحرانی ({value}%) - پاک‌سازی فوری",
-            'network': f"شبکه در وضعیت بحرانی - بررسی ترافیک",
-            'process': f"Process در وضعیت بحرانی - بررسی پردازش‌ها"
-        }
-        return recommendations.get(component, f"وضعیت بحرانی در {component}")
-    
-    def _get_warning_recommendation(self, component: str, value: float) -> str:
-        """توصیه برای وضعیت هشدار"""
-        recommendations = {
-            'cpu': f"CPU بالا ({value}%) - مانیتورینگ فعال",
-            'memory': f"Memory بالا ({value}%) - مانیتورینگ Memory",
-            'disk': f"دیسک پر ({value}%) - برنامه‌ریزی برای پاک‌سازی",
-            'network': f"ترافیک شبکه بالا - مانیتورینگ",
-            'process': f"Process سنگین - بررسی"
-        }
-        return recommendations.get(component, f"وضعیت هشدار در {component}")
-
-# ==================== HIERARCHICAL MONITORING ====================
-
-class HierarchicalMonitor:
-    """نظارت سلسله‌مراتبی با سطوح مختلف"""
-    
-    def __init__(self):
-        # تعریف سطوح نظارتی
-        self.levels = {
-            'realtime': {
-                'interval': 2,      # هر 2 ثانیه
-                'metrics': {'cpu', 'memory'},
-                'priority': MetricPriority.REAL_TIME,
-                'enabled': True
-            },
-            'high': {
-                'interval': 10,     # هر 10 ثانیه
-                'metrics': {'network', 'process'},
-                'priority': MetricPriority.HIGH,
-                'enabled': True
-            },
-            'medium': {
-                'interval': 30,     # هر 30 ثانیه
-                'metrics': {'disk'},
-                'priority': MetricPriority.MEDIUM,
-                'enabled': True
-            },
-            'low': {
-                'interval': 300,    # هر 5 دقیقه
-                'metrics': {'system'},
-                'priority': MetricPriority.LOW,
-                'enabled': True
-            }
-        }
-        
-        self.level_timers = {}
-        self.last_collection = {}
-        
-        # فعال‌سازی پیش‌فرض
-        for level in self.levels:
-            self.last_collection[level] = 0
-    
-    def should_collect(self, level: str, current_time: float) -> bool:
-        """بررسی آیا زمان جمع‌آوری این سطح رسیده است"""
-        if not self.levels[level]['enabled']:
+    def register_external_api(self, name: str, url: str, check_interval: int = 60) -> bool:
+        """ثبت API خارجی برای مانیتورینگ"""
+        try:
+            self.dependency_monitor.add_external_api(name, url, check_interval)
+            logger.info(f"✅ External API registered for monitoring: {name} ({url})")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error registering external API: {e}")
             return False
-        
-        interval = self.levels[level]['interval']
-        last_time = self.last_collection.get(level, 0)
-        
-        return current_time - last_time >= interval
     
-    def get_metrics_to_collect(self, current_time: float) -> Set[str]:
-        """دریافت مجموعه متریک‌هایی که باید جمع‌آوری شوند"""
-        metrics_to_collect = set()
-        
-        for level, config in self.levels.items():
-            if self.should_collect(level, current_time):
-                metrics_to_collect.update(config['metrics'])
-                self.last_collection[level] = current_time
-        
-        return metrics_to_collect
-    
-    def update_level_status(self, level: str, enabled: bool):
-        """به‌روزرسانی وضعیت یک سطح"""
-        if level in self.levels:
-            self.levels[level]['enabled'] = enabled
-            logger.info(f"📊 Level {level} {'enabled' if enabled else 'disabled'}")
-    
-    def get_status(self) -> Dict[str, Any]:
-        """دریافت وضعیت سطوح"""
-        status = {}
-        current_time = time.time()
-        
-        for level, config in self.levels.items():
-            last_time = self.last_collection.get(level, 0)
-            time_since_last = current_time - last_time if last_time > 0 else None
+    def get_root_cause_analysis(self, event_ids: List[str] = None) -> Dict[str, Any]:
+        """تحلیل علت اصلی مشکلات"""
+        try:
+            if not event_ids:
+                # استفاده از رویدادهای اخیر
+                recent_events = list(self.correlation_engine.events)[-10:]
+                event_ids = [e['id'] for e in recent_events]
             
-            status[level] = {
-                'enabled': config['enabled'],
-                'interval': config['interval'],
-                'metrics': list(config['metrics']),
-                'time_since_last': round(time_since_last, 1) if time_since_last else None,
-                'next_collection_in': max(0, config['interval'] - time_since_last) if time_since_last else 0
+            events = []
+            for event_id in event_ids[:5]:  # حداکثر 5 رویداد
+                for event in self.correlation_engine.events:
+                    if event['id'] == event_id:
+                        events.append(event)
+                        break
+            
+            # یافتن همبستگی‌های مرتبط
+            related_correlations = []
+            for corr in self.correlation_engine.correlations:
+                if any(event_id in corr.events for event_id in event_ids):
+                    related_correlations.append(corr)
+            
+            # تحلیل زنجیره رویدادها
+            event_chain = self._build_event_chain(event_ids, events, related_correlations)
+            
+            # شناسایی root cause احتمالی
+            root_cause = self._identify_root_cause_from_chain(event_chain)
+            
+            return {
+                'analyzed_events': len(events),
+                'related_correlations': len(related_correlations),
+                'event_chain': event_chain,
+                'probable_root_cause': root_cause,
+                'recommended_actions': self.self_healing_advisor.get_recommendations(
+                    root_cause.get('type', 'generic') if root_cause else 'generic',
+                    0.7
+                )[:3]  # 3 اقدام برتر
             }
+            
+        except Exception as e:
+            logger.error(f"❌ Error in root cause analysis: {e}")
+            return {'error': str(e)}
+    
+    def _build_event_chain(self, event_ids: List[str], events: List[Dict], correlations: List[CorrelationEvent]) -> List[Dict]:
+        """ساخت زنجیره رویدادها"""
+        chain = []
         
-        return status
-
-# ==================== PREDICTIVE MONITORING ====================
-
-class PredictiveMonitor:
-    """پیش‌بینی ساده با ML"""
-    
-    def __init__(self, history_size: int = 100):
-        self.history_size = history_size
-        self.cpu_history = deque(maxlen=history_size)
-        self.memory_history = deque(maxlen=history_size)
-        self.predictions = {}
-    
-    def add_metric(self, metric_type: str, value: float):
-        """اضافه کردن متریک به تاریخچه"""
-        if metric_type == 'cpu':
-            self.cpu_history.append(value)
-        elif metric_type == 'memory':
-            self.memory_history.append(value)
-    
-    def predict(self, metric_type: str, lookahead: int = 3) -> Optional[Dict[str, Any]]:
-        """پیش‌بینی آینده متریک"""
-        history = self.cpu_history if metric_type == 'cpu' else self.memory_history
+        # مرتب‌سازی بر اساس زمان
+        events.sort(key=lambda x: x['timestamp'])
         
-        if len(history) < 10:
+        for event in events:
+            chain.append({
+                'id': event['id'],
+                'type': event['type'],
+                'timestamp': event['timestamp'].isoformat(),
+                'related_to': [c.events for c in correlations if event['id'] in c.events]
+            })
+        
+        return chain
+    
+    def _identify_root_cause_from_chain(self, event_chain: List[Dict]) -> Optional[Dict[str, Any]]:
+        """شناسایی root cause از زنجیره رویدادها"""
+        if not event_chain:
             return None
         
-        # میانگین متحرک ساده برای پیش‌بینی
-        window = min(5, len(history))
-        moving_avg = sum(list(history)[-window:]) / window
+        # اولین رویداد در زنجیره معمولاً root cause است
+        first_event = event_chain[0]
         
-        # پیش‌بینی خطی ساده
-        if len(history) >= 2:
-            last_two = list(history)[-2:]
-            slope = last_two[1] - last_two[0]
-            prediction = last_two[1] + slope * lookahead
+        # یافتن رویداد با بیشترین ارتباطات
+        most_connected = max(event_chain, key=lambda x: len(x['related_to']))
+        
+        return {
+            'type': first_event['type'],
+            'event_id': first_event['id'],
+            'timestamp': first_event['timestamp'],
+            'confidence': 'high' if len(most_connected['related_to']) > 2 else 'medium',
+            'reasoning': 'First event in chain with multiple correlations' 
+                        if most_connected == first_event else 
+                        'Most connected event in correlation chain'
+        }
+    
+    def trigger_self_healing_action(self, issue_type: str, severity: float = 0.7) -> Dict[str, Any]:
+        """راه‌اندازی اقدام خود-ترمیمی"""
+        try:
+            # دریافت توصیه‌ها
+            recommendations = self.self_healing_advisor.get_recommendations(issue_type, severity)
+            
+            if not recommendations:
+                return {'success': False, 'message': 'No recommendations found for this issue'}
+            
+            # انتخاب بهترین توصیه (اولین مورد با بالاترین اولویت)
+            best_recommendation = recommendations[0]
+            
+            # در این نسخه، فقط لاگ می‌کنیم. در نسخه واقعی، اقدام اجرا می‌شود
+            logger.info(f"🔧 Executing self-healing action: {best_recommendation['recommendation']}")
+            
+            # ثبت اقدام
+            action_record = self.self_healing_advisor.record_action(
+                best_recommendation,
+                success=True,
+                notes="Action logged (simulation mode)"
+            )
+            
+            return {
+                'success': True,
+                'action_id': action_record['action_id'],
+                'recommendation': best_recommendation['recommendation'],
+                'priority': best_recommendation['priority'],
+                'notes': 'Action logged in simulation mode. Real execution would require manual implementation.'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error triggering self-healing action: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    # APIهای موجود (برای backward compatibility)
+    
+    def get_system_health(self) -> Dict[str, Any]:
+        """دریافت سلامت کلی سیستم (موجود)"""
+        if central_monitor:
+            metrics = central_monitor.get_current_metrics()
+            system_metrics = metrics.get('system', {})
         else:
-            prediction = moving_avg
+            metrics = self.metrics_collector.get_current_metrics()
+            system_metrics = metrics
         
-        # محدود کردن پیش‌بینی
-        prediction = max(0, min(100, prediction))
+        health_indicators = {
+            'cpu': self._evaluate_cpu_health(system_metrics.get('cpu', {})),
+            'memory': self._evaluate_memory_health(system_metrics.get('memory', {})),
+            'disk': self._evaluate_disk_health(system_metrics.get('disk', {})),
+            'network': self._evaluate_network_health(system_metrics.get('network', {})),
+            'process': self._evaluate_process_health(system_metrics.get('process', {}))
+        }
         
-        # تعیین وضعیت
-        if prediction > 90:
+        overall_health = self._calculate_overall_system_health(health_indicators)
+        
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'overall_health': overall_health,
+            'health_indicators': health_indicators,
+            'metrics_snapshot': {
+                'cpu_usage': system_metrics.get('cpu', {}).get('percent', 0),
+                'memory_usage': system_metrics.get('memory', {}).get('percent', 0),
+                'disk_usage': system_metrics.get('disk', {}).get('usage_percent', 0),
+                'network_activity': f"↑{system_metrics.get('network', {}).get('mb_sent_per_sec', 0)}MB/s ↓{system_metrics.get('network', {}).get('mb_recv_per_sec', 0)}MB/s"
+            }
+        }
+    
+    def _evaluate_cpu_health(self, cpu_metrics: Dict) -> Dict[str, Any]:
+        """ارزیابی سلامت CPU"""
+        usage = cpu_metrics.get('percent', 0)
+        
+        if usage > self.system_thresholds['cpu_critical']:
             status = 'critical'
-        elif prediction > 80:
+            message = f'CPU usage critically high: {usage}%'
+        elif usage > self.system_thresholds['cpu_warning']:
             status = 'warning'
+            message = f'CPU usage high: {usage}%'
         else:
-            status = 'normal'
+            status = 'healthy'
+            message = f'CPU usage normal: {usage}%'
         
-        self.predictions[metric_type] = {
-            'current': history[-1] if history else 0,
-            'predicted': round(prediction, 1),
-            'lookahead': lookahead,
+        return {
             'status': status,
-            'confidence': self._calculate_confidence(len(history)),
+            'message': message,
+            'usage_percent': usage,
+            'load_average': cpu_metrics.get('load_average', []),
+            'per_core_usage': cpu_metrics.get('per_core', [])
+        }
+    
+    def _evaluate_memory_health(self, memory_metrics: Dict) -> Dict[str, Any]:
+        """ارزیابی سلامت حافظه"""
+        usage = memory_metrics.get('percent', 0)
+        
+        if usage > self.system_thresholds['memory_critical']:
+            status = 'critical'
+            message = f'Memory usage critically high: {usage}%'
+        elif usage > self.system_thresholds['memory_warning']:
+            status = 'warning' 
+            message = f'Memory usage high: {usage}%'
+        else:
+            status = 'healthy'
+            message = f'Memory usage normal: {usage}%'
+        
+        return {
+            'status': status,
+            'message': message,
+            'usage_percent': usage,
+            'used_gb': memory_metrics.get('used_gb', 0),
+            'available_gb': memory_metrics.get('available_gb', 0),
+            'total_gb': memory_metrics.get('total_gb', 0)
+        }
+    
+    def _evaluate_disk_health(self, disk_metrics: Dict) -> Dict[str, Any]:
+        """ارزیابی سلامت دیسک"""
+        usage = disk_metrics.get('usage_percent', 0)
+        
+        if usage > self.system_thresholds['disk_critical']:
+            status = 'critical'
+            message = f'Disk usage critically high: {usage}%'
+        elif usage > self.system_thresholds['disk_warning']:
+            status = 'warning'
+            message = f'Disk usage high: {usage}%'
+        else:
+            status = 'healthy'
+            message = f'Disk usage normal: {usage}%'
+        
+        return {
+            'status': status,
+            'message': message,
+            'usage_percent': usage,
+            'used_gb': disk_metrics.get('used_gb', 0),
+            'free_gb': disk_metrics.get('free_gb', 0),
+            'total_gb': disk_metrics.get('total_gb', 0),
+            'io_activity': {
+                'read_mb_sec': disk_metrics.get('io_read_mb_per_sec', 0),
+                'write_mb_sec': disk_metrics.get('io_write_mb_per_sec', 0)
+            }
+        }
+    
+    def _evaluate_network_health(self, network_metrics: Dict) -> Dict[str, Any]:
+        """ارزیابی سلامت شبکه"""
+        sent_speed = network_metrics.get('bytes_sent_mb', 0)
+        recv_speed = network_metrics.get('bytes_recv_mb', 0)
+        connections = network_metrics.get('connections', 0)
+        
+        if sent_speed > 100 or recv_speed > 100:
+            status = 'warning'
+            message = f'High network activity: ↑{sent_speed}MB/s ↓{recv_speed}MB/s'
+        elif connections > 1000:
+            status = 'warning'
+            message = f'High number of connections: {connections}'
+        else:
+            status = 'healthy'
+            message = f'Network activity normal: ↑{sent_speed}MB/s ↓{recv_speed}MB/s'
+        
+        return {
+            'status': status,
+            'message': message,
+            'upload_speed_mb_sec': sent_speed,
+            'download_speed_mb_sec': recv_speed,
+            'active_connections': connections
+        }
+    
+    def _evaluate_process_health(self, process_metrics: Dict) -> Dict[str, Any]:
+        """ارزیابی سلامت پردازش"""
+        memory_mb = process_metrics.get('memory_rss_mb', 0)
+        cpu_percent = process_metrics.get('cpu_percent', 0)
+        threads = process_metrics.get('threads_count', 0)
+        
+        issues = []
+        
+        if memory_mb > 1000:
+            issues.append(f'High memory usage: {memory_mb}MB')
+        
+        if cpu_percent > 50:
+            issues.append(f'High CPU usage: {cpu_percent}%')
+        
+        if threads > 100:
+            issues.append(f'High thread count: {threads}')
+        
+        if issues:
+            status = 'warning'
+            message = 'Process health issues: ' + ', '.join(issues)
+        else:
+            status = 'healthy'
+            message = 'Process health normal'
+        
+        return {
+            'status': status,
+            'message': message,
+            'memory_usage_mb': memory_mb,
+            'cpu_usage_percent': cpu_percent,
+            'thread_count': threads,
+            'open_files': process_metrics.get('open_files', 0),
+            'connections': process_metrics.get('connections', 0)
+        }
+    
+    def _calculate_overall_system_health(self, health_indicators: Dict) -> str:
+        """محاسبه سلامت کلی سیستم"""
+        status_weights = {
+            'critical': 3,
+            'warning': 2, 
+            'healthy': 1
+        }
+        
+        total_weight = 0
+        for indicator in health_indicators.values():
+            total_weight += status_weights.get(indicator['status'], 1)
+        
+        average_weight = total_weight / len(health_indicators)
+        
+        if average_weight >= 2.5:
+            return 'critical'
+        elif average_weight >= 1.8:
+            return 'warning'
+        else:
+            return 'healthy'
+    
+    def get_resource_usage_trend(self, hours: int = 6) -> Dict[str, Any]:
+        """دریافت روند استفاده از منابع"""
+        if central_monitor:
+            metrics_history = central_monitor.get_metrics_history(seconds=hours*3600)
+        else:
+            metrics_history = self.metrics_collector.get_metrics_history(seconds=hours*3600)
+        
+        trends = {
+            'cpu': [],
+            'memory': [],
+            'disk': [],
+            'network_sent': [],
+            'network_recv': []
+        }
+        
+        for metric in metrics_history:
+            system_metric = metric.get('system', metric)
+            trends['cpu'].append(system_metric.get('cpu', {}).get('percent', 0))
+            trends['memory'].append(system_metric.get('memory', {}).get('percent', 0))
+            trends['disk'].append(system_metric.get('disk', {}).get('usage_percent', 0))
+            trends['network_sent'].append(system_metric.get('network', {}).get('bytes_sent_mb', 0))
+            trends['network_recv'].append(system_metric.get('network', {}).get('bytes_recv_mb', 0))
+        
+        return {
+            'time_period_hours': hours,
+            'data_points': len(metrics_history),
+            'trends': trends,
             'timestamp': datetime.now().isoformat()
         }
-        
-        return self.predictions[metric_type]
-    
-    def _calculate_confidence(self, history_length: int) -> float:
-        """محاسبه اعتماد پیش‌بینی"""
-        if history_length >= 50:
-            return 0.9
-        elif history_length >= 20:
-            return 0.7
-        elif history_length >= 10:
-            return 0.5
-        else:
-            return 0.3
-    
-    def get_all_predictions(self) -> Dict[str, Any]:
-        """دریافت تمام پیش‌بینی‌ها"""
-        predictions = {}
-        
-        if len(self.cpu_history) >= 10:
-            predictions['cpu'] = self.predict('cpu')
-        
-        if len(self.memory_history) >= 10:
-            predictions['memory'] = self.predict('memory')
-        
-        return predictions
-
-# ==================== EMBEDDED DASHBOARD ====================
-
-class EmbeddedDashboard:
-    """داشبورد داخلی برای نمایش در CLI"""
-    
-    def __init__(self):
-        self.display_width = 60
-        self.metric_history = defaultdict(lambda: deque(maxlen=20))
-    
-    def generate_dashboard(self, 
-                          metrics: Dict[str, Any], 
-                          health_score: Dict[str, Any],
-                          anomalies: List[Dict[str, Any]]) -> str:
-        """تولید داشبورد متنی"""
-        lines = []
-        
-        # Header
-        lines.append("=" * self.display_width)
-        lines.append("🚀 VORTEXAI - REAL-TIME MONITORING DASHBOARD")
-        lines.append("=" * self.display_width)
-        
-        # Timestamp
-        timestamp = metrics.get('timestamp', datetime.now().isoformat())
-        lines.append(f"🕒 {timestamp}")
-        lines.append("-" * self.display_width)
-        
-        # Health Score
-        overall_score = health_score.get('overall_score', 0)
-        overall_status = health_score.get('overall_status', 'unknown')
-        
-        status_emoji = {
-            'healthy': '✅',
-            'warning': '⚠️',
-            'critical': '❌',
-            'unknown': '❓'
-        }
-        
-        lines.append(f"📊 HEALTH SCORE: {overall_score}/100 {status_emoji.get(overall_status, '')}")
-        lines.append(self._create_progress_bar(overall_score))
-        lines.append(f"📈 Trend: {health_score.get('trend', {}).get('direction', 'unknown')}")
-        
-        # Component Breakdown
-        lines.append("\n🔧 COMPONENT BREAKDOWN:")
-        lines.append("-" * 40)
-        
-        component_scores = health_score.get('component_scores', {})
-        for component, score_data in component_scores.items():
-            value = score_data.get('value', 0)
-            status = score_data.get('status', 'unknown')
-            
-            bar = self._create_progress_bar(100 - value, width=20)  # معکوس برای نمایش usage
-            lines.append(f"  {component.upper():10} {value:5.1f}% {bar} {status}")
-        
-        # CPU & Memory Charts
-        lines.append("\n📈 REAL-TIME CHARTS:")
-        lines.append("-" * self.display_width)
-        
-        # CPU Chart
-        if 'cpu' in metrics:
-            cpu_value = metrics['cpu'].get('percent', 0)
-            self.metric_history['cpu'].append(cpu_value)
-            lines.append(f"🔹 CPU Usage: {cpu_value:.1f}%")
-            lines.append(self._create_sparkline(list(self.metric_history['cpu'])))
-        
-        # Memory Chart
-        if 'memory' in metrics:
-            mem_value = metrics['memory'].get('percent', 0)
-            self.metric_history['memory'].append(mem_value)
-            lines.append(f"🔹 Memory Usage: {mem_value:.1f}%")
-            lines.append(self._create_sparkline(list(self.metric_history['memory'])))
-        
-        # Anomalies
-        if anomalies:
-            lines.append("\n🚨 ACTIVE ANOMALIES:")
-            lines.append("-" * self.display_width)
-            for i, anomaly in enumerate(anomalies[:3], 1):  # حداکثر ۳ مورد
-                lines.append(f"  {i}. {anomaly.get('metric', 'unknown')}: {anomaly.get('severity', 'unknown')}")
-                lines.append(f"     Value: {anomaly.get('current_value', 0):.1f}, Z-Score: {anomaly.get('z_score', 0):.2f}")
-        
-        # Recommendations
-        recommendations = health_score.get('recommendations', [])
-        if recommendations:
-            lines.append("\n💡 RECOMMENDATIONS:")
-            lines.append("-" * self.display_width)
-            for i, rec in enumerate(recommendations[:3], 1):  # حداکثر ۳ مورد
-                lines.append(f"  {i}. {rec}")
-        
-        # Footer
-        lines.append("\n" + "=" * self.display_width)
-        lines.append("🔍 Press Ctrl+C to exit | 📊 Auto-refresh every 5s")
-        lines.append("=" * self.display_width)
-        
-        return "\n".join(lines)
-    
-    def _create_progress_bar(self, percentage: float, width: int = 30) -> str:
-        """ایجاد نوار پیشرفت"""
-        filled = int(width * percentage / 100)
-        empty = width - filled
-        bar = "█" * filled + "░" * empty
-        return f"[{bar}]"
-    
-    def _create_sparkline(self, values: List[float]) -> str:
-        """ایجاد sparkline برای نمایش روند"""
-        if not values:
-            return "No data"
-        
-        # نرمال‌سازی مقادیر
-        if max(values) > min(values):
-            normalized = [(v - min(values)) / (max(values) - min(values)) for v in values]
-        else:
-            normalized = [0.5] * len(values)
-        
-        # کاراکترهای sparkline
-        spark_chars = "▁▂▃▄▅▆▇█"
-        
-        # تبدیل به sparkline
-        sparkline = ""
-        for norm_val in normalized:
-            idx = min(int(norm_val * len(spark_chars)), len(spark_chars) - 1)
-            sparkline += spark_chars[idx]
-        
-        return f"  Trend: {sparkline}"
-
-# ==================== MAIN CENTRAL MONITORING SYSTEM ====================
 
 class CentralMonitoringSystem:
-    """سیستم نظارت مرکزی - تنها حلقه فعال"""
+    """سیستم نظارت متمرکز با قابلیت‌های پیشرفته"""
     
-    def __init__(self):
-        # زیرسیستم‌ها
-        self.cache = SmartMetricCache()
-        self.collector = AsyncMetricsCollector()
-        self.anomaly_detector = AnomalyDetector()
-        self.health_scorer = HealthScoringSystem()
-        self.hierarchical_monitor = HierarchicalMonitor()
-        self.predictive_monitor = PredictiveMonitor()
-        self.dashboard = EmbeddedDashboard()
+    def __init__(self, metrics_collector, alert_manager):
+        self.metrics_collector = metrics_collector
+        self.alert_manager = alert_manager
         
-        # وضعیت سیستم
+        # سیستم‌های پیشرفته
+        self.trend_analyzer = TrendAnalyzer()
+        self.anomaly_detector = AnomalyDetector()
+        self.correlation_engine = CorrelationEngine()
+        
+        # تنظیمات متمرکز
+        self.collection_interval = 30
+        self.metrics_cache = {}
+        self.cache_ttl = 30
+        self.last_collection_time = None
+        self.subscribers = {}
         self.is_monitoring = False
         self.monitor_task = None
-        self.last_metrics = {}
-        self.last_health_score = {}
-        self.active_anomalies = []
         
-        # تاریخچه
-        self.metrics_history = deque(maxlen=100)
-        self.health_history = deque(maxlen=100)
+        # تاریخچه هشدارها
+        self.alert_cooldown = {}
+        self.cooldown_period = 60
         
-        # Subscribers (سیستم‌های دیگر)
-        self.subscribers = defaultdict(list)
+        # تاریخچه متریک‌ها
+        self.metrics_history = deque(maxlen=500)
         
-        # تنظیم گلوبال
+        # تنظیم global instance
         global central_monitor
         central_monitor = self
         
-        logger.info("🎯 Central Monitoring System v3.0 Initialized")
+        logger.info("🎯 Central Monitoring System initialized with advanced features")
     
     async def start_monitoring(self):
-        """شروع نظارت مرکزی - تنها یک حلقه فعال"""
+        """شروع نظارت متمرکز - async version"""
         if self.is_monitoring:
-            logger.warning("⚠️ Monitoring is already running")
+            logger.warning("⚠️ Central monitoring is already running")
             return
-        
+            
         self.is_monitoring = True
-        self.monitor_task = asyncio.create_task(
-            self._monitoring_loop(),
-            name="CentralMonitorLoop"
-        )
-        
-        logger.info("🔄 Central monitoring started with hierarchical collection")
+        self.monitor_task = asyncio.create_task(self._async_monitoring_loop())
+        logger.info("🔄 Central monitoring started (async, interval: 30s)")
     
     async def stop_monitoring(self):
-        """توقف نظارت"""
+        """توقف نظارت متمرکز"""
         self.is_monitoring = False
-        
         if self.monitor_task:
             self.monitor_task.cancel()
             try:
                 await self.monitor_task
             except asyncio.CancelledError:
                 pass
-        
         logger.info("🛑 Central monitoring stopped")
     
-    async def _monitoring_loop(self):
-        """حلقه نظارت مرکزی - تنها حلقه فعال"""
-        logger.debug("🔁 Central monitoring loop started")
-        
-        cycle_count = 0
+    async def _async_monitoring_loop(self):
+        """حلقه نظارت async"""
+        logger.debug("🔁 Async central monitoring loop started")
         
         while self.is_monitoring:
             try:
-                cycle_start = time.time()
-                cycle_count += 1
+                start_time = time.time()
                 
-                # ۱. تعیین متریک‌های مورد نیاز در این چرخه
-                metrics_to_collect = self.hierarchical_monitor.get_metrics_to_collect(cycle_start)
+                # جمع‌آوری متریک‌ها
+                metrics = await self._collect_essential_metrics_async()
                 
-                if not metrics_to_collect:
-                    # هیچ متریکی برای جمع‌آوری نیست - sleep کوتاه
-                    await asyncio.sleep(0.5)
-                    continue
+                # ذخیره در کش و تاریخچه
+                self.metrics_cache = metrics
+                self.last_collection_time = datetime.now()
+                self.metrics_history.append(metrics)
                 
-                # ۲. جمع‌آوری متریک‌ها (با کش هوشمند)
-                collected_metrics = {}
-                for metric_type in metrics_to_collect:
-                    if metric_type in ['cpu', 'memory', 'disk', 'network', 'process']:
-                        # استفاده از کش هوشمند
-                        metric_data = await self.cache.get_or_fetch(
-                            metric_type,
-                            lambda m=metric_type: self._collect_specific_metric(m)
-                        )
-                        collected_metrics[metric_type] = metric_data
-                        
-                        # اضافه کردن به predictive monitor
-                        if metric_type in ['cpu', 'memory']:
-                            value = metric_data.get('percent', 0) if 'percent' in metric_data else 0
-                            self.predictive_monitor.add_metric(metric_type, value)
+                # تحلیل روند و ناهنجاری
+                await self._analyze_metrics_async(metrics)
                 
-                # ۳. ساختاردهی داده‌ها
-                full_metrics = {
-                    'timestamp': datetime.now().isoformat(),
-                    'collection_time': cycle_start,
-                    'cycle': cycle_count,
-                    'metrics_collected': list(metrics_to_collect)
-                }
-                full_metrics.update(collected_metrics)
+                # اطلاع‌رسانی به مشترکین
+                self._notify_subscribers(metrics)
                 
-                # ۴. تشخیص ناهنجاری‌ها
-                new_anomalies = []
-                for metric_type, data in collected_metrics.items():
-                    if 'percent' in data:
-                        anomaly = self.anomaly_detector.analyze(
-                            metric_type, 
-                            data['percent']
-                        )
-                        if anomaly:
-                            new_anomalies.append(anomaly)
+                # بررسی هشدارها
+                self._check_and_trigger_alerts(metrics)
                 
-                self.active_anomalies = new_anomalies[:10]  # حداکثر ۱۰ ناهنجاری
+                execution_time = time.time() - start_time
+                sleep_time = self._calculate_smart_sleep(metrics, execution_time)
                 
-                # ۵. محاسبه سلامت
-                health_score = self.health_scorer.calculate_scores(full_metrics)
-                
-                # ۶. ذخیره در تاریخچه
-                self.last_metrics = full_metrics
-                self.last_health_score = health_score
-                self.metrics_history.append(full_metrics)
-                self.health_history.append(health_score)
-                
-                # ۷. اطلاع‌رسانی به subscribers
-                await self._notify_subscribers(full_metrics, health_score, new_anomalies)
-                
-                # ۸. نمایش داشبورد (در صورت نیاز)
-                if cycle_count % 5 == 0:  # هر ۵ چرخه یکبار
-                    dashboard_text = self.dashboard.generate_dashboard(
-                        full_metrics, 
-                        health_score, 
-                        new_anomalies
-                    )
-                    # می‌توانی این را به console_stream بفرستی
-                    # console_stream.update(dashboard_text)
-                
-                # ۹. محاسبه خواب هوشمند
-                execution_time = time.time() - cycle_start
-                sleep_time = self._calculate_adaptive_sleep(
-                    execution_time, 
-                    full_metrics, 
-                    cycle_count
-                )
-                
-                # لاگ فقط اگر چرخه طولانی باشد
-                if execution_time > 1.0:
-                    logger.debug(f"⏱️ Cycle {cycle_count} took {execution_time:.2f}s, sleeping {sleep_time:.1f}s")
+                if execution_time > 1.5:
+                    logger.warning(f"⚠️ Metrics collection took {execution_time:.2f}s, sleeping {sleep_time}s")
                 
                 await asyncio.sleep(sleep_time)
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"❌ Monitoring loop error: {e}", exc_info=True)
-                await asyncio.sleep(5)  # در صورت خطا بیشتر صبر کن
+                logger.error(f"❌ Central monitoring error: {e}")
+                await asyncio.sleep(60)
     
-    async def _collect_specific_metric(self, metric_type: str) -> Dict[str, Any]:
-        """جمع‌آوری یک متریک خاص"""
-        metric_map = {
-            'cpu': self.collector._collect_cpu_async,
-            'memory': self.collector._collect_memory_async,
-            'disk': self.collector._collect_disk_async,
-            'network': self.collector._collect_network_async,
-            'process': self.collector._collect_process_async
-        }
+    async def _collect_essential_metrics_async(self) -> Dict[str, Any]:
+        """جمع‌آوری async متریک‌های ضروری"""
+        timestamp = datetime.now()
         
-        if metric_type in metric_map:
-            return await metric_map[metric_type]()
-        else:
-            return {'error': f'Unknown metric type: {metric_type}'}
-    
-    async def _notify_subscribers(self, metrics: Dict, health_score: Dict, anomalies: List):
-        """اطلاع‌رسانی به سیستم‌های مشترک"""
-        event_data = {
-            'metrics': metrics,
-            'health_score': health_score,
-            'anomalies': anomalies,
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        # ارسال به همه subscribers
-        for event_type, callbacks in self.subscribers.items():
-            for callback in callbacks:
-                try:
-                    if asyncio.iscoroutinefunction(callback):
-                        await callback(event_type, event_data)
-                    else:
-                        # اگر sync است در thread اجرا کن
-                        loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, callback, event_type, event_data)
-                except Exception as e:
-                    logger.error(f"❌ Error notifying subscriber: {e}")
-    
-    def _calculate_adaptive_sleep(self, execution_time: float, metrics: Dict, cycle: int) -> float:
-        """محاسبه خواب تطبیقی"""
-        # حداقل خواب
-        min_sleep = 0.5
-        
-        # بررسی بار سیستم
-        cpu_usage = metrics.get('cpu', {}).get('percent', 0)
-        memory_usage = metrics.get('memory', {}).get('percent', 0)
-        
-        # خواب پایه بر اساس priority
-        base_sleep = 2.0  # 2 ثانیه برای real-time metrics
-        
-        # تنظیم بر اساس بار
-        if cpu_usage > 80 or memory_usage > 85:
-            # سیستم تحت بار - خواب کمتر برای نظارت بیشتر
-            adaptive_sleep = max(min_sleep, base_sleep * 0.5)
-        elif cpu_usage < 30 and memory_usage < 50:
-            # سیستم خلوت - خواب بیشتر
-            adaptive_sleep = base_sleep * 1.5
-        else:
-            # حالت نرمال
-            adaptive_sleep = base_sleep
-        
-        # تطبیق با زمان اجرا
-        if execution_time > adaptive_sleep * 0.8:
-            # اگر اجرا زمان‌بر بود، خواب را افزایش بده
-            adaptive_sleep = min(10.0, adaptive_sleep * 1.2)
-        
-        return adaptive_sleep
-    
-    # ==================== PUBLIC API ====================
-    
-    def subscribe(self, event_type: str, callback: Callable):
-        """عضویت در دریافت رویدادها"""
-        self.subscribers[event_type].append(callback)
-        logger.info(f"📡 New subscriber for {event_type}")
-    
-    def unsubscribe(self, event_type: str, callback: Callable):
-        """لغو عضویت"""
-        if event_type in self.subscribers and callback in self.subscribers[event_type]:
-            self.subscribers[event_type].remove(callback)
-            logger.info(f"📡 Removed subscriber from {event_type}")
-    
-    def get_current_metrics(self) -> Dict[str, Any]:
-        """دریافت متریک‌های فعلی (برای backward compatibility)"""
-        if not self.last_metrics:
-            return self._get_fallback_metrics()
-        
-        # تبدیل به فرمت قدیم برای compatibility
-        return {
-            'timestamp': self.last_metrics.get('timestamp'),
-            'system': {
-                'cpu': self.last_metrics.get('cpu', {'percent': 0}),
-                'memory': self.last_metrics.get('memory', {'percent': 0}),
-                'disk': self.last_metrics.get('disk', {'usage_percent': 0}),
-                'network': self.last_metrics.get('network', {}),
-                'process': self.last_metrics.get('process', {})
-            },
-            'collection_time': self.last_metrics.get('collection_time'),
-            'from_cache': True
-        }
-    
-    def get_system_health(self) -> Dict[str, Any]:
-        """دریافت سلامت سیستم (برای backward compatibility)"""
-        if not self.last_health_score:
-            return {
-                'timestamp': datetime.now().isoformat(),
-                'overall_health': 'unknown',
-                'health_indicators': {},
-                'metrics_snapshot': {}
-            }
-        
-        # تبدیل به فرمت قدیم
-        return {
-            'timestamp': self.last_health_score.get('timestamp'),
-            'overall_health': self.last_health_score.get('overall_status', 'unknown'),
-            'health_indicators': {
-                component: {
-                    'status': score_data.get('status', 'unknown'),
-                    'message': f"Score: {score_data.get('score', 0)}",
-                    'usage_percent': score_data.get('value', 0)
+        try:
+            # اجرای جمع‌آوری در thread pool برای جلوگیری از block
+            loop = asyncio.get_event_loop()
+            
+            # جمع‌آوری همزمان چند متریک
+            cpu_future = loop.run_in_executor(None, psutil.cpu_percent, 0.05)
+            memory_future = loop.run_in_executor(None, psutil.virtual_memory)
+            
+            cpu_percent = await cpu_future
+            memory = await memory_future
+            
+            # متریک‌های غیرضروری فقط گاهی اوقات
+            collect_disk = timestamp.second % 30 == 0
+            collect_network = timestamp.second % 20 == 0
+            
+            disk_metrics = {}
+            if collect_disk:
+                disk_future = loop.run_in_executor(None, psutil.disk_usage, '/')
+                disk = await disk_future
+                disk_metrics = {
+                    'usage_percent': disk.percent,
+                    'used_gb': round(disk.used / (1024**3), 3),
+                    'free_gb': round(disk.free / (1024**3), 3)
                 }
-                for component, score_data in self.last_health_score.get('component_scores', {}).items()
-            },
-            'metrics_snapshot': {
-                'cpu_usage': self.last_metrics.get('cpu', {}).get('percent', 0),
-                'memory_usage': self.last_metrics.get('memory', {}).get('percent', 0),
-                'disk_usage': self.last_metrics.get('disk', {}).get('usage_percent', 0)
+            
+            network_metrics = {}
+            if collect_network:
+                net_future = loop.run_in_executor(None, psutil.net_io_counters)
+                net_io = await net_future
+                network_metrics = {
+                    'bytes_sent_mb': round(net_io.bytes_sent / (1024**2), 3),
+                    'bytes_recv_mb': round(net_io.bytes_recv / (1024**2), 3)
+                }
+            
+            # اطلاعات process
+            process = psutil.Process()
+            process_info = process.memory_info()
+            
+            return {
+                'timestamp': timestamp.isoformat(),
+                'system': {
+                    'cpu': {'percent': cpu_percent},
+                    'memory': {'percent': memory.percent},
+                    'disk': disk_metrics,
+                    'network': network_metrics,
+                    'process': {
+                        'memory_rss_mb': round(process_info.rss / (1024**2), 3),
+                        'cpu_percent': process.cpu_percent(interval=0.05)
+                    }
+                },
+                'collection_time': time.time(),
+                'collection_duration': round(time.time() - timestamp.timestamp(), 3)
             }
-        }
+            
+        except Exception as e:
+            logger.error(f"❌ Error collecting metrics async: {e}")
+            return self._get_fallback_metrics(timestamp)
     
-    def get_detailed_status(self) -> Dict[str, Any]:
-        """دریافت وضعیت تفصیلی (جدید)"""
-        return {
-            'monitoring_status': {
-                'is_running': self.is_monitoring,
-                'cycle_count': len(self.metrics_history),
-                'last_collection': self.last_metrics.get('timestamp') if self.last_metrics else None,
-                'active_anomalies': len(self.active_anomalies)
-            },
-            'cache_stats': self.cache.get_cache_stats(),
-            'hierarchical_status': self.hierarchical_monitor.get_status(),
-            'health_score': self.last_health_score,
-            'predictions': self.predictive_monitor.get_all_predictions(),
-            'system_info': {
-                'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-                'platform': sys.platform,
-                'monitor_version': '3.0'
-            }
-        }
+    async def _analyze_metrics_async(self, metrics: Dict[str, Any]):
+        """تحلیل async متریک‌ها"""
+        try:
+            system_metrics = metrics.get('system', {})
+            cpu_usage = system_metrics.get('cpu', {}).get('percent', 0)
+            memory_usage = system_metrics.get('memory', {}).get('percent', 0)
+            
+            timestamp = datetime.now()
+            
+            # تحلیل روند
+            self.trend_analyzer.add_data_point('cpu_usage', cpu_usage, timestamp)
+            self.trend_analyzer.add_data_point('memory_usage', memory_usage, timestamp)
+            
+            # تشخیص ناهنجاری
+            self.anomaly_detector.add_metric('cpu_usage', cpu_usage, timestamp)
+            self.anomaly_detector.add_metric('memory_usage', memory_usage, timestamp)
+            
+            anomalies = self.anomaly_detector.detect_anomalies()
+            for anomaly in anomalies:
+                if anomaly.severity > 0.7:
+                    # ثبت رویداد همبستگی
+                    self.correlation_engine.add_event(
+                        anomaly.anomaly_type.value,
+                        {
+                            'severity': anomaly.severity,
+                            'metric_value': anomaly.metric_value,
+                            'metrics': system_metrics
+                        },
+                        timestamp
+                    )
+                    
+        except Exception as e:
+            logger.error(f"❌ Error analyzing metrics: {e}")
     
-    def _get_fallback_metrics(self) -> Dict[str, Any]:
-        """متریک‌های جایگزین در صورت عدم وجود داده"""
+    def _check_and_trigger_alerts(self, metrics: Dict):
+        """بررسی و ایجاد هشدارهای متمرکز"""
+        try:
+            cpu_usage = metrics['system']['cpu']['percent']
+            memory_usage = metrics['system']['memory']['percent']
+            
+            # بررسی CPU
+            self._check_cpu_alerts(cpu_usage, metrics)
+            
+            # بررسی Memory
+            self._check_memory_alerts(memory_usage, metrics)
+            
+            # بررسی تحلیل روند
+            self._check_trend_alerts(metrics)
+                
+        except Exception as e:
+            logger.error(f"❌ Error checking alerts: {e}")
+    
+    def _check_cpu_alerts(self, cpu_usage: float, metrics: Dict):
+        """بررسی هشدارهای CPU"""
+        alert_key = f"cpu_{int(cpu_usage // 10)}"
+        
+        if self._is_in_cooldown(alert_key):
+            return
+        
+        if cpu_usage > 90:
+            self._trigger_alert('critical', 'cpu', f"CPU usage critically high: {cpu_usage}%", metrics)
+            self._set_cooldown(alert_key, 30)
+        elif cpu_usage > 80:
+            self._trigger_alert('warning', 'cpu', f"CPU usage high: {cpu_usage}%", metrics)
+            self._set_cooldown(alert_key, 60)
+    
+    def _check_memory_alerts(self, memory_usage: float, metrics: Dict):
+        """بررسی هشدارهای Memory"""
+        alert_key = f"memory_{int(memory_usage // 10)}"
+        
+        if self._is_in_cooldown(alert_key):
+            return
+            
+        if memory_usage > 90:
+            self._trigger_alert('critical', 'memory', f"Memory usage critically high: {memory_usage}%", metrics)
+            self._set_cooldown(alert_key, 30)
+        elif memory_usage > 85:
+            self._trigger_alert('warning', 'memory', f"Memory usage high: {memory_usage}%", metrics)
+            self._set_cooldown(alert_key, 60)
+    
+    def _check_trend_alerts(self, metrics: Dict):
+        """بررسی هشدارهای مبتنی بر روند"""
+        try:
+            cpu_trend = self.trend_analyzer.analyze_trend('cpu_usage', 1)  # 1 ساعت اخیر
+            memory_trend = self.trend_analyzer.analyze_trend('memory_usage', 1)
+            
+            # هشدار برای روند صعودی سریع
+            if cpu_trend.get('trend_direction') == 'increasing' and cpu_trend.get('trend_strength', 0) > 0.5:
+                if not self._is_in_cooldown('cpu_trend_alert'):
+                    self._trigger_alert('warning', 'trend', 
+                                      f"CPU usage increasing rapidly: +{cpu_trend['trend_strength']:.2f}/hr", 
+                                      metrics)
+                    self._set_cooldown('cpu_trend_alert', 300)  # 5 دقیقه
+            
+            if memory_trend.get('trend_direction') == 'increasing' and memory_trend.get('trend_strength', 0) > 0.3:
+                if not self._is_in_cooldown('memory_trend_alert'):
+                    self._trigger_alert('warning', 'trend',
+                                      f"Memory usage increasing: +{memory_trend['trend_strength']:.2f}/hr",
+                                      metrics)
+                    self._set_cooldown('memory_trend_alert', 300)
+                    
+        except Exception as e:
+            logger.error(f"❌ Error checking trend alerts: {e}")
+    
+    def _trigger_alert(self, level: str, category: str, message: str, metrics: Dict):
+        """ایجاد هشدار متمرکز"""
+        try:
+            from debug_system.core.alert_manager import AlertLevel, AlertType
+            
+            level_enum = AlertLevel.CRITICAL if level == 'critical' else AlertLevel.WARNING
+            
+            self.alert_manager.create_alert(
+                level=level_enum,
+                alert_type=AlertType.SYSTEM,
+                title=f"High {category.title()} Usage",
+                message=message,
+                source="central_monitor",
+                data={
+                    'usage_percent': metrics['system'].get(category, {}).get('percent', 0),
+                    'threshold': 90 if level == 'critical' else 80,
+                    'timestamp': metrics['timestamp']
+                }
+            )
+            logger.warning(f"🚨 {level.upper()} ALERT ({category}): {message}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error triggering alert: {e}")
+    
+    def _is_in_cooldown(self, alert_key: str) -> bool:
+        """بررسی آیا هشدار در cooldown است"""
+        last_alert = self.alert_cooldown.get(alert_key)
+        if not last_alert:
+            return False
+        
+        time_since_last = (datetime.now() - last_alert).total_seconds()
+        return time_since_last < self.cooldown_period
+    
+    def _set_cooldown(self, alert_key: str, seconds: int = 60):
+        """تنظیم cooldown برای هشدار"""
+        self.alert_cooldown[alert_key] = datetime.now()
+    
+    def _calculate_smart_sleep(self, metrics: Dict, execution_time: float) -> int:
+        """محاسبه خواب هوشمند"""
+        base_interval = self.collection_interval
+        
+        cpu_usage = metrics['system']['cpu']['percent']
+        
+        if cpu_usage > 85:
+            return 60
+        elif cpu_usage > 75:
+            return 45
+        elif cpu_usage < 30:
+            return 20
+        
+        if execution_time > 2:
+            return base_interval + 10
+        
+        return base_interval
+    
+    def _notify_subscribers(self, metrics: Dict):
+        """اطلاع‌رسانی به سیستم‌های مشترک"""
+        for sub_name, callback in self.subscribers.items():
+            try:
+                callback(metrics)
+            except Exception as e:
+                logger.error(f"❌ Error notifying subscriber {sub_name}: {e}")
+    
+    def _get_fallback_metrics(self, timestamp: datetime) -> Dict[str, Any]:
+        """متریک‌های جایگزین در صورت خطا"""
         return {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp.isoformat(),
             'system': {
-                'cpu': {'percent': 0, 'cores': 1, 'load_avg': [0, 0, 0]},
-                'memory': {'percent': 0, 'used_gb': 0, 'available_gb': 0, 'total_gb': 0},
-                'disk': {'usage_percent': 0, 'used_gb': 0, 'free_gb': 0, 'total_gb': 0},
-                'network': {'bytes_sent_mb': 0, 'bytes_recv_mb': 0},
-                'process': {'memory_rss_mb': 0, 'cpu_percent': 0, 'threads_count': 0}
+                'cpu': {'percent': 0},
+                'memory': {'percent': 0},
+                'disk': {},
+                'network': {},
+                'process': {'memory_rss_mb': 0, 'cpu_percent': 0}
             },
             'collection_time': time.time(),
-            'from_cache': False,
-            'is_fallback': True
+            'collection_duration': 0
+        }
+    
+    # APIهای پیشرفته جدید
+    
+    def get_trend_analysis(self, metric_name: str = None) -> Dict[str, Any]:
+        """دریافت تحلیل روند"""
+        if metric_name:
+            return self.trend_analyzer.get_metric_forecast(metric_name)
+        else:
+            return self.trend_analyzer.get_all_trends_summary()
+    
+    def get_anomaly_report(self) -> Dict[str, Any]:
+        """دریافت گزارش ناهنجاری‌ها"""
+        return self.anomaly_detector.get_anomaly_summary()
+    
+    def get_correlation_insights(self) -> Dict[str, Any]:
+        """دریافت بینش‌های همبستگی"""
+        return self.correlation_engine.get_correlations_summary()
+    
+    def get_advanced_metrics_report(self) -> Dict[str, Any]:
+        """گزارش متریک‌های پیشرفته"""
+        return {
+            'timestamp': datetime.now().isoformat(),
+            'current_metrics': self.metrics_cache,
+            'trend_analysis': self.get_trend_analysis(),
+            'anomaly_report': self.get_anomaly_report(),
+            'correlation_insights': self.get_correlation_insights(),
+            'metrics_history_size': len(self.metrics_history),
+            'subscribers_count': len(self.subscribers),
+            'is_monitoring': self.is_monitoring
+        }
+    
+    # 📡 API برای دیگر سیستم‌ها
+    
+    def subscribe(self, name: str, callback: Callable):
+        """عضویت سیستم در دریافت به‌روزرسانی‌ها"""
+        self.subscribers[name] = callback
+        logger.info(f"📡 {name} subscribed to central monitor")
+    
+    def unsubscribe(self, name: str):
+        """لغو عضویت"""
+        if name in self.subscribers:
+            del self.subscribers[name]
+            logger.info(f"📡 {name} unsubscribed from central monitor")
+    
+    def get_current_metrics(self) -> Dict[str, Any]:
+        """دریافت متریک‌های فعلی"""
+        if not self.metrics_cache:
+            return self._get_fallback_metrics(datetime.now())
+        
+        if (self.last_collection_time and 
+            (datetime.now() - self.last_collection_time).total_seconds() > self.cache_ttl):
+            logger.debug("📊 Cache expired, returning fallback")
+            return self._get_fallback_metrics(datetime.now())
+        
+        return self.metrics_cache
+    
+    def get_metrics_history(self, seconds: int = 3600) -> List[Dict]:
+        """دریافت تاریخچه متریک‌ها"""
+        cutoff_time = time.time() - seconds
+        return [
+            m for m in self.metrics_history 
+            if m.get('collection_time', 0) > cutoff_time
+        ]
+    
+    def get_metrics_snapshot(self) -> Dict[str, Any]:
+        """دریافت snapshot فعلی"""
+        return {
+            'cache_age_seconds': (
+                (datetime.now() - self.last_collection_time).total_seconds() 
+                if self.last_collection_time else None
+            ),
+            'subscribers_count': len(self.subscribers),
+            'is_monitoring': self.is_monitoring,
+            'last_alert_cooldowns': len(self.alert_cooldown),
+            'metrics_history_size': len(self.metrics_history),
+            'last_collection_time': self.last_collection_time.isoformat() if self.last_collection_time else None,
+            'advanced_features': {
+                'trend_analysis': True,
+                'anomaly_detection': True,
+                'correlation_engine': True
+            }
         }
 
-# ==================== GLOBAL INSTANCE & HELPER FUNCTIONS ====================
 
-central_monitor = None
-
-def initialize_central_monitoring():
+def initialize_central_monitoring(metrics_collector, alert_manager):
     """تابع راه‌اندازی برای main.py"""
     global central_monitor
     
@@ -1258,147 +1920,5 @@ def initialize_central_monitoring():
         logger.warning("⚠️ Central monitor already initialized")
         return central_monitor
     
-    central_monitor = CentralMonitoringSystem()
-    
-    # تنظیم logger
-    logger.info("=" * 60)
-    logger.info("🚀 VORTEXAI MONITORING SYSTEM v3.0")
-    logger.info("📊 Features: Smart Cache, Anomaly Detection, Health Scoring")
-    logger.info("🎯 Architecture: Event-Driven, Hierarchical, Async")
-    logger.info("=" * 60)
-    
+    central_monitor = CentralMonitoringSystem(metrics_collector, alert_manager)
     return central_monitor
-
-async def start_monitoring():
-    """شروع نظارت (برای استفاده در main.py)"""
-    global central_monitor
-    
-    if not central_monitor:
-        initialize_central_monitoring()
-    
-    await central_monitor.start_monitoring()
-
-async def stop_monitoring():
-    """توقف نظارت"""
-    global central_monitor
-    
-    if central_monitor:
-        await central_monitor.stop_monitoring()
-
-# ==================== COMPATIBILITY WRAPPER ====================
-
-class SystemMonitor:
-    """
-    کلاس wrapper برای backward compatibility
-    سیستم‌های قدیمی می‌توانند از این کلاس استفاده کنند
-    """
-    
-    def __init__(self, metrics_collector=None, alert_manager=None):
-        # پارامترها برای compatibility نگه داشته می‌شوند
-        self.metrics_collector = metrics_collector
-        self.alert_manager = alert_manager
-        
-        global central_monitor
-        if central_monitor:
-            central_monitor.subscribe("legacy_system", self._on_metrics_update)
-            logger.info("✅ Legacy SystemMonitor subscribed to central_monitor")
-        else:
-            logger.warning("⚠️ Central monitor not available - using fallback mode")
-    
-    def _on_metrics_update(self, event_type: str, event_data: Dict):
-        """دریافت به‌روزرسانی‌ها از سیستم مرکزی"""
-        # این متد برای compatibility با کد قدیم نگه داشته شده
-        pass
-    
-    def get_system_health(self) -> Dict[str, Any]:
-        """متد قدیم - برای backward compatibility"""
-        global central_monitor
-        
-        if central_monitor:
-            return central_monitor.get_system_health()
-        else:
-            # Fallback mode
-            return {
-                'timestamp': datetime.now().isoformat(),
-                'overall_health': 'unknown',
-                'health_indicators': {},
-                'metrics_snapshot': {}
-            }
-    
-    def get_resource_usage_trend(self, hours: int = 6) -> Dict[str, Any]:
-        """متد قدیم - برای backward compatibility"""
-        # این متد می‌تواند از history سیستم مرکزی استفاده کند
-        return {
-            'time_period_hours': hours,
-            'data_points': 0,
-            'trends': {},
-            'timestamp': datetime.now().isoformat()
-        }
-    
-    # دیگر متدهای قدیمی می‌توانند اینجا اضافه شوند...
-
-# ==================== FASTAPI ROUTES INTEGRATION ====================
-
-def setup_monitoring_routes(app):
-    """تنظیم routeهای نظارت برای FastAPI"""
-    
-    @app.get("/api/monitoring/status")
-    async def get_monitoring_status():
-        """دریافت وضعیت نظارت"""
-        global central_monitor
-        
-        if not central_monitor:
-            return {"status": "not_initialized"}
-        
-        return {
-            "status": "running" if central_monitor.is_monitoring else "stopped",
-            "details": central_monitor.get_detailed_status()
-        }
-    
-    @app.get("/api/monitoring/metrics")
-    async def get_current_metrics():
-        """دریافت متریک‌های جاری"""
-        global central_monitor
-        
-        if not central_monitor:
-            return {"error": "Monitoring not initialized"}
-        
-        return central_monitor.get_current_metrics()
-    
-    @app.get("/api/monitoring/health")
-    async def get_system_health():
-        """دریافت سلامت سیستم"""
-        global central_monitor
-        
-        if not central_monitor:
-            return {"error": "Monitoring not initialized"}
-        
-        return central_monitor.get_system_health()
-    
-    @app.post("/api/monitoring/start")
-    async def start_monitoring_endpoint():
-        """شروع نظارت"""
-        await start_monitoring()
-        return {"status": "started"}
-    
-    @app.post("/api/monitoring/stop")
-    async def stop_monitoring_endpoint():
-        """توقف نظارت"""
-        await stop_monitoring()
-        return {"status": "stopped"}
-    
-    @app.get("/api/monitoring/dashboard")
-    async def get_dashboard():
-        """دریافت داشبورد متنی"""
-        global central_monitor
-        
-        if not central_monitor or not central_monitor.last_metrics:
-            return {"dashboard": "Monitoring not active"}
-        
-        dashboard_text = central_monitor.dashboard.generate_dashboard(
-            central_monitor.last_metrics,
-            central_monitor.last_health_score,
-            central_monitor.active_anomalies
-        )
-        
-        return {"dashboard": dashboard_text}
