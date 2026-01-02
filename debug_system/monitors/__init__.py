@@ -1,149 +1,112 @@
 """
-Debug System Monitors
-Specialized monitors for different aspects of the system
-Optimized Version - Central Monitor Integration
+Debug System Monitors - Optimized Version
+سیستم مانیتورینگ بهینه‌شده با معماری متمرکز
 """
 
 import logging
 import time
 import threading
 from ..core import debug_manager, metrics_collector, alert_manager
-from .endpoint_monitor import EndpointMonitor, initialize_endpoint_monitor
-from .system_monitor import SystemMonitor, central_monitor, initialize_central_monitoring
-from .performance_monitor import PerformanceMonitor
-from .security_monitor import SecurityMonitor
 
 logger = logging.getLogger(__name__)
 
-# ایجاد نمونه‌های مانیتور با Dependency Injection
-# با تاخیر برای جلوگیری از race conditions
-endpoint_monitor = None
-system_monitor = None
-performance_monitor = None
-security_monitor = None
+# ایمپورت کلاس‌ها از فایل‌های جدید
+from .system_monitor import SystemMetricsCollector, initialize_system_metrics_collector, get_metrics_collector
+from .performance_analyzer import PerformanceAnalyzer, initialize_performance_analyzer
+from .endpoint_analyzer import EndpointAnalyzer, initialize_endpoint_analyzer
 
-def initialize_monitors_system():
-    """راه‌اندازی و ارتباط سیستم‌های مانیتورینگ با تاخیر هوشمند"""
+# نمونه‌های گلوبال
+system_monitor = None
+performance_analyzer = None
+endpoint_analyzer = None
+
+def initialize_monitors_system(collection_interval: int = 30):
+    """
+    راه‌اندازی کامل سیستم مانیتورینگ
+    
+    Args:
+        collection_interval: فاصله جمع‌آوری متریک به ثانیه
+    
+    Returns:
+        Dict[str, Any]: وضعیت راه‌اندازی
+    """
+    global system_monitor, performance_analyzer, endpoint_analyzer
+    
     try:
-        logger.info("🚀 Starting monitors system initialization...")
+        logger.info("🚀 Starting optimized monitors system...")
         
-        # مرحله ۱: ایجاد نمونه‌ها
-        global endpoint_monitor, system_monitor, performance_monitor, security_monitor
+        # 1. راه‌اندازی جمع‌آوری متریک (تنها نقطه جمع‌آوری)
+        system_monitor = initialize_system_metrics_collector(collection_interval)
         
-        # ابتدا system_monitor را ایجاد کن (چون central_monitor دارد)
-        system_monitor = SystemMonitor(metrics_collector, alert_manager)
+        # 2. راه‌اندازی تحلیلگر عملکرد
+        performance_analyzer = initialize_performance_analyzer(system_monitor)
         
-        # سپس performance_monitor
-        performance_monitor = PerformanceMonitor(debug_manager, alert_manager)
+        # 3. راه‌اندازی تحلیلگر endpointها
+        endpoint_analyzer = initialize_endpoint_analyzer(system_monitor)
         
-        # سپس security_monitor
-        security_monitor = SecurityMonitor(alert_manager)
+        # 4. شروع جمع‌آوری خودکار
+        system_monitor.start_collection()
         
-        # در نهایت endpoint_monitor
-        endpoint_monitor = initialize_endpoint_monitor(debug_manager)
-        
-        # مرحله ۲: منتظر شو central_monitor فعال شود
-        def wait_for_central_monitor():
-            """منتظر می‌شویم central_monitor فعال شود"""
-            max_wait_time = 10  # 10 seconds max
-            start_time = time.time()
-            
-            while time.time() - start_time < max_wait_time:
-                if central_monitor and central_monitor.is_monitoring:
-                    logger.info("🎯 Central monitor is ACTIVE - all monitors connected")
-                    return True
-                time.sleep(1)
-            
-            logger.warning("⚠️ Central monitor not active after 10 seconds - monitors will work independently")
-            return False
-        
-        # اجرای wait در background thread
-        monitor_check_thread = threading.Thread(target=wait_for_central_monitor, daemon=True)
-        monitor_check_thread.start()
-        
-        # مرحله ۳: گزارش وضعیت
-        def report_monitor_status():
-            time.sleep(3)
-            
-            status_report = {
-                'Endpoint Monitor': {
-                    'status': 'ACTIVE' if endpoint_monitor else 'INACTIVE',
-                    'mode': 'Central Monitor Connected' if central_monitor else 'Independent'
-                },
-                'System Monitor': {
-                    'status': 'ACTIVE' if system_monitor else 'INACTIVE',
-                    'mode': 'Central Monitor Source' if central_monitor else 'Fallback'
-                },
-                'Performance Monitor': {
-                    'status': 'ACTIVE' if performance_monitor else 'INACTIVE',
-                    'mode': 'Endpoint Analysis + Central Metrics'
-                },
-                'Security Monitor': {
-                    'status': 'ACTIVE' if security_monitor else 'INACTIVE',
-                    'mode': 'Real-time Analysis + Central Alerts'
-                }
-            }
-            
-            logger.info("📊 Monitors System Status Report:")
-            for monitor, info in status_report.items():
-                logger.info(f"   - {monitor}: {info['status']} | {info['mode']}")
-        
-        status_thread = threading.Thread(target=report_monitor_status, daemon=True)
-        status_thread.start()
-        
-        logger.info("✅ Monitoring system initialized with CENTRAL MONITOR integration")
-        logger.info("   - All monitors: Connected to central_monitor")
-        logger.info("   - Resource usage: Reduced by 80-90%")
-        logger.info("   - Alert system: Integrated and deduplicated")
+        logger.info("✅ Optimized monitoring system initialized successfully")
+        logger.info(f"   - Collection interval: {collection_interval}s")
+        logger.info("   - Architecture: Centralized collector with pure analyzers")
+        logger.info("   - No duplicate monitoring")
         
         return {
-            "endpoint_monitor": endpoint_monitor,
-            "system_monitor": system_monitor,
-            "performance_monitor": performance_monitor,
-            "security_monitor": security_monitor,
-            "central_monitor": central_monitor
+            "status": "success",
+            "components": {
+                "collector": "active",
+                "performance_analyzer": "active",
+                "endpoint_analyzer": "active"
+            },
+            "collection_interval": collection_interval
         }
+        
     except Exception as e:
         logger.error(f"❌ Monitors initialization failed: {e}")
         
-        # Fallback: حداقل نمونه‌ها را ایجاد کن
-        if not endpoint_monitor:
-            endpoint_monitor = EndpointMonitor(debug_manager)
+        # Fallback: ایجاد حداقلی
         if not system_monitor:
-            system_monitor = SystemMonitor(metrics_collector, alert_manager)
-        if not performance_monitor:
-            performance_monitor = PerformanceMonitor(debug_manager, alert_manager)
-        if not security_monitor:
-            security_monitor = SecurityMonitor(alert_manager)
+            system_monitor = SystemMetricsCollector(collection_interval)
+        
+        if not performance_analyzer:
+            performance_analyzer = PerformanceAnalyzer(system_monitor)
+        
+        if not endpoint_analyzer:
+            endpoint_analyzer = EndpointAnalyzer(system_monitor)
         
         return {
-            "endpoint_monitor": endpoint_monitor,
-            "system_monitor": system_monitor,
-            "performance_monitor": performance_monitor,
-            "security_monitor": security_monitor,
-            "central_monitor": None,
-            "error": str(e)
+            "status": "partial",
+            "error": str(e),
+            "components": {
+                "collector": "active" if system_monitor else "inactive",
+                "performance_analyzer": "active" if performance_analyzer else "inactive",
+                "endpoint_analyzer": "active" if endpoint_analyzer else "inactive"
+            }
         }
 
-# راه‌اندازی خودکار با تاخیر
+# راه‌اندازی با تاخیر
 def delayed_initialization():
     """راه‌اندازی با تاخیر برای جلوگیری از race conditions"""
-    time.sleep(2)  # صبر کن core system کامل لود شود
-    global monitors_system
-    monitors_system = initialize_monitors_system()
+    time.sleep(2)
+    initialize_monitors_system()
 
 # شروع initialization در background thread
 init_thread = threading.Thread(target=delayed_initialization, daemon=True)
 init_thread.start()
 
-# ایجاد متغیر global
-monitors_system = None
-
 __all__ = [
-    "EndpointMonitor", "endpoint_monitor", "initialize_endpoint_monitor",
-    "SystemMonitor", "system_monitor", 
-    "PerformanceMonitor", "performance_monitor",
-    "SecurityMonitor", "security_monitor",
-    "central_monitor", "initialize_central_monitoring",
-    "initialize_monitors_system", "monitors_system"
+    # کلاس‌ها
+    "SystemMetricsCollector",
+    "PerformanceAnalyzer",
+    "EndpointAnalyzer",
+    
+    # نمونه‌ها
+    "system_monitor",
+    "performance_analyzer",
+    "endpoint_analyzer",
+    
+    # توابع
+    "initialize_monitors_system",
+    "get_metrics_collector"
 ]
